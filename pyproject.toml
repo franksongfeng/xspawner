@@ -1,0 +1,19 @@
+[build-system]
+requires = ["flit_core >=3.11,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "xspawner"
+authors = [{name = "Song Feng", email = "franksongfeng@yahoo.com"}]
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dynamic = ["version", "description"]
+dependencies = [
+    "requests>=2.22.0",
+    "tornado>=6.4.1",
+    "pywebio>=1.8.3",
+]
+
+[project.urls]
+Home = "https://github.com/franksongfeng/xspawner"
