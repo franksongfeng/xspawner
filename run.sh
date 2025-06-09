@@ -6,7 +6,7 @@
 # sudo rm xspawner -rf
 # sudo git clone https://github.com/franksongfeng/xspawner
 
-cd xspawner
+# cd xspawner
 
 export SERVER_IP=127.0.0.1
 export SERVER_PORT=8000
