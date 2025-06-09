@@ -9,7 +9,7 @@
 # cd xspawner
 
 export SERVER_IP=127.0.0.1
-export SERVER_PORT=8000
+export SERVER_PORT=8080
 export SERVER_NAME=root
 
 # start xspawner daemon and root app
