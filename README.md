@@ -13,7 +13,7 @@
 - ⚡ **Async Performance**: Powered by Tornado's battle-tested asynchronous architecture
 - 🎨 **Instant Web UIs**: Rapid User Interface development via PyWebIO integration
 - 🔒 **HTTPS Support**: Production-ready security for deployed services
-- 🔁 **Full-Cycle Management**: Organized management of service lifecycles through a tree-structured approach
+- 🔁 **Homogeneous Clusters**: Manage microservices clusters in a spanning tree manner
 
 ### License
 
