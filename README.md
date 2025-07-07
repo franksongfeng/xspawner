@@ -8,8 +8,8 @@
 
 
 
-- 📦 **Lightweight Core**: Minimalist code architecture for small functional web apps
 - 🐍 **Full Python Stack**: Pure Python implementation for both client and server components
+- 📦 **Lightweight Core**: Minimalist code architecture for small functional web apps
 - ⚡ **Async Performance**: Powered by Tornado's battle-tested asynchronous architecture
 - 🎨 **Instant Web UIs**: Rapid User Interface development via PyWebIO integration
 - 🔒 **HTTPS Support**: Production-ready security for deployed services
