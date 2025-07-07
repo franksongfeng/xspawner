@@ -14,7 +14,7 @@
 - 🎨 **Instant Web UIs**: Rapid User Interface development via PyWebIO integration
 - 🔒 **HTTPS Support**: Production-ready security for deployed services
 - 🌐 **Homogeneous Clusters**: Manage microservices clusters in a spanning tree
-- 🚀 **Object Orientation**: Process the Web Request-Responses in a service object
+- 🚀 **Object Orientation**: Pesponse the Web Requests in a service object
 ### License
 
 
