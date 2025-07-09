@@ -21,7 +21,7 @@
 
 Distributed under **Apache v2.0**
 
-**Author**: SONG Feng
+**Author**: Song Feng
 **Contact**: [franksongfeng@yahoo.com](mailto:franksongfeng@yahoo.com)
 
 
