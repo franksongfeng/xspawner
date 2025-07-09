@@ -2,7 +2,7 @@
 
 
 
-**XSpawner** is a lightweight Python web management platform designed to help developers rapidly build small yet fully-featured asynchronous web services. Combining [**Tornado**](https://www.tornadoweb.org/)'s high-performance asynchronous operating capabilities with [**PyWebIO**](https://github.com/pywebio/PyWebIO)'s rapid UI components, it enables efficient development of modern web applications.
+**XSpawner** is a lightweight Python web management platform designed to help developers rapidly build small yet fully-featured asynchronous web services. Combining [**Tornado**](https://www.tornadoweb.org/)'s high-performance asynchronous operating capabilities with [**PyWebIO**](https://pywebio.readthedocs.io)'s rapid UI components, it enables efficient development of modern web applications.
 
 ### Key Features
 
