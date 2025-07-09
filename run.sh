@@ -13,7 +13,13 @@ if [-z "$1"]; then
 else
   export SERVER_IP=$1
 fi
-export SERVER_PORT=8080
+
+if [-z "$2"]; then
+  export SERVER_PORT=8080
+else
+  export SERVER_PORT=$2
+fi
+
 export SERVER_NAME=root
 
 # start xspawner daemon and root app
