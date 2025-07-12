@@ -8,13 +8,13 @@
 
 # cd xspawner
 
-if [-z "$1"]; then
+if [ -z "$1" ]; then
   export SERVER_IP=127.0.0.1
 else
   export SERVER_IP=$1
 fi
 
-if [-z "$2"]; then
+if [ -z "$2" ];  then
   export SERVER_PORT=8080
 else
   export SERVER_PORT=$2
