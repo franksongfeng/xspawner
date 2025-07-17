@@ -8,13 +8,13 @@
 
 
 
-- 🐍 **Full Python Stack**: Pure Python implementation for both client and server components
+- 🐍 **Full Python Stack**: Pure Python implementation for both front-end and back-end components
 - 📦 **Lightweight Core**: Minimalist code architecture for small functional web applications
 - 🎨 **Interactive Web UIs**: Rapid User Interface development via PyWebIO integration
 - ⚡ **Asynchronous Support**: Powered by Tornado's battle-tested coroutine mechanism
 - 🔒 **HTTPS Support**: Production-ready security for deployed services
 - 🌐 **Micro-Service Clusters**: Manage isomorphic micro-services in a spanning tree
-- 🚀 **Object Orientation**: Handle the web requests in a service object
+- 🚀 **Object Orientation**: Handle web requests in a service object
 ### License
 
 
