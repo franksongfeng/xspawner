@@ -7,16 +7,13 @@
 ### Key Features
 
 
-
-- 🐍 **Full Python Stack**: Pure Python implementation for both front-end and back-end components
-- 📦 **Lightweight Core**: Minimalist code architecture for small functional web applications
-- 🎨 **Interactive Web UIs**: Rapid User Interface development via PyWebIO integration
-- ⚡ **Asynchronous Support**: Powered by Tornado's battle-tested coroutine mechanism
-- 🔒 **HTTPS Support**: Production-ready security for deployed services
+- 🐍 **Full Python Stack**: Pure Python development for both front-end and back-end
+- 📦 **CaaS**: Class as a Service!
+- ⚡ **Asynchronous Support**: Powered by Tornado's battle-tested coroutines
 - 🌐 **Service Clusters**: Isomorphic micro-service clusters in a spanning tree
-- 🚀 **CaaS**: Class as a Service!
+- 🔒 **HTTPS Support**: Production-ready security
+ 
 ### License
-
 
 
 Distributed under **Apache v2.0**
