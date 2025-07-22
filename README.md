@@ -13,8 +13,8 @@
 - 🎨 **Interactive Web UIs**: Rapid User Interface development via PyWebIO integration
 - ⚡ **Asynchronous Support**: Powered by Tornado's battle-tested coroutine mechanism
 - 🔒 **HTTPS Support**: Production-ready security for deployed services
-- 🌐 **Micro-Service Clusters**: Manage isomorphic micro-services in a spanning tree
-- 🚀 **Object Orientation**: Handle web requests in a service object
+- 🌐 **Service Clusters**: Isomorphic micro-service clusters in a spanning tree
+- 🚀 **CaaS**: Class as a Service!
 ### License
 
 
