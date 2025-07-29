@@ -7,7 +7,7 @@
 SYSTEM_ID = "xspawner"
 APP_PKG = f"{SYSTEM_ID}.apps"
 APP_DIR = f"{SYSTEM_ID}/apps"
-PAGE_DIR = f"{SYSTEM_ID}/pages"
+ASSET_DIR = f"{SYSTEM_ID}/assets"
 LOG_DIR = "logs"
 LOG_FILE_TEMP = LOG_DIR + "/{}.log"
 PYTHON_MIME_TYPE = "text/x-python"

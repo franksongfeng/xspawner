@@ -39,7 +39,7 @@ class ReserveHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("GET",)
     def get(self):
         self.set_header("Content-Type", "text/html")
-        self.render("pages/index.html")
+        self.render("assets/index.html")
 
 class StaticFileHandler(tornado.web.StaticFileHandler):
     def set_default_headers(self):
@@ -273,7 +273,7 @@ class Server(Serviceable):
             )
         handlers.extend([
             (r"/", ReserveHandler),
-            (r"/pages/(.*)", StaticFileHandler, {"path": PAGE_DIR}),
+            (r"/assets/(.*)", StaticFileHandler, {"path": ASSET_DIR}),
             (r"/ping", PingHandler),
             (r"/stop", StopHandler)
         ])
