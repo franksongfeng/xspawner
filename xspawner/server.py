@@ -15,7 +15,7 @@ from .utilities.msg import syncReq, asyncReq, postAsync # NOQA
 from .utilities.log import DLine, ILine, WLine, ELine, CLine # NOQA
 from .utilities.misc import make_multipart_request, get_file_type, get_child_cls # NOQA
 from .serviceable import Serviceable, Config, State # NOQA
-from . import PAGE_DIR # NOQA
+from . import ASSET_DIR # NOQA
 import os
 import json
 import importlib
