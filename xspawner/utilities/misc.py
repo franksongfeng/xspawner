@@ -460,6 +460,11 @@ def read_data_from_file(filename):
         return f.read()
 
 
+def read_text_file(filename):
+  with open(filename, "r", encoding="utf-8") as file:
+      return file.read()
+
+
 def kill_process_on_port(port):
     cmdstr = "ps -ef|grep python3|grep %s|%s" % (port, "awk '{print $2;}'")
     result = subprocess.run(

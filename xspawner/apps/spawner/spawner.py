@@ -7,7 +7,7 @@ from pywebio.session import run_js, set_env
 from xspawner.serviceable import Config, State, SrvJSONEncoder # NOQA
 from xspawner.server import Server, Reaction, Interaction, Contaction # NOQA
 from xspawner.utilities.log import LEVELS, DLine, ILine, ELine, WLine, CLine # NOQA
-from xspawner.utilities.misc import filter_logs, is_port_used, is_module_available, import_package_modules, get_child_cls # NOQA
+from xspawner.utilities.misc import read_text_file, filter_logs, is_port_used, is_module_available, import_package_modules, get_child_cls # NOQA
 from xspawner import * # NOQA
 import inspect
 import importlib
@@ -35,88 +35,7 @@ from requests.exceptions import RequestException
 # Constants and Variables and Classes
 ##############################################################################
 BASIC_CMD = "sudo python3 -u -m xspawner --name {} --app {} --host {} --port {} --severity {} --ancestry {}"
-CSS = """
-.link-list-container {
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    margin: 15px 0;
-    box-shadow: 0 1px 1px rgba(0,0,0,0.05);
-    background: white;
-}
-.list-title {
-    padding: 12px 15px;
-    margin: 0;
-    border-bottom: 1px solid #eee;
-    font-size: 16px;
-    font-weight: 600;
-    color: #333;
-    background-color: #f8f9fa;
-}
-.link-item {
-    padding: 12px 24px;
-    border-bottom: 1px solid #f5f5f5;
-    transition: background 0.2s;
-}
-.link-item:hover {
-    background: #fafafa;
-}
-
-.link-item:last-child {
-    border-bottom: none;
-}
-.link-icon {
-    margin-right: 12px;
-    color: #3498db;
-}
-
-.markdown-table-container {
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    margin: 15px 0;
-    box-shadow: 0 1px 1px rgba(0,0,0,0.05);
-    background: white;
-}
-.markdown-table-title {
-    padding: 12px 15px;
-    margin: 0;
-    border-bottom: 1px solid #eee;
-    font-size: 16px;
-    font-weight: 600;
-    color: #333;
-    background-color: #f8f9fa;
-}
-.markdown-table-container table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 0;
-}
-.markdown-table-container th {
-    padding: 12px 15px;
-    text-align: left;
-    background-color: #f8f9fa;
-    border-bottom: 2px solid #eee;
-    color: #666;
-}
-.markdown-table-container td {
-    padding: 12px 15px;
-    border-bottom: 1px solid #eee;
-    color: #444;
-}
-.markdown-table-container tr:last-child td {
-    border-bottom: none;
-}
-.progress-bar {
-    background: #f0f0f0;
-    border-radius: 12px;
-    height: 8px;
-    width: 120px;
-}
-.progress-fill {
-    height: 100%;
-    border-radius: 12px;
-}
-
-"""
+CSS = read_text_file("xspawner/apps/spawner/assets/common.css")
 
 class Spawner(Server): # NOQA
 
