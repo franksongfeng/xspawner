@@ -28,6 +28,8 @@ import itertools
 import ssl
 
 
+HANDLER_FUNC_TYPES = ["Reaction", "Interaction", "Contaction"]
+
 class PingHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("GET",)
     # ping/pong test
@@ -319,7 +321,7 @@ class Server(Serviceable):
                 return ssl_ctx
 
     def postCallback(self, future, condition, res):
-        if any([isinstance(res, t) for t in (str, bool, dict , int, list, tuple)]):
+        if any([isinstance(res, t) for t in (str, bool, dict , int, float, list, tuple)]):
             if not future.done():
                 future.set_result(res)
                 condition.notify()
@@ -344,17 +346,16 @@ class Server(Serviceable):
             return res
 
         def make_cbf_params(fun, ct, body):
-            DLine("make_cbf_params BEG {} {} {}".format(fun, ct, body))
             # fun.__code__.co_argcount = 1(self) + N({}|args|fdata, fname, farg)
-            if fun.__code__.co_argcount == 2:
+            if fun.__code__.co_argcount == 1: # for Interaction
                 ILine("{} BEG".format(fun.__code__.co_name))
-                return (None,)
-            elif fun.__code__.co_argcount == 3:
+                return ()
+            elif fun.__code__.co_argcount == 3: # for Reaction I (normal) or Contaction
                 # transport JSON
                 jdata = body.decode()
                 ILine("{} BEG {}".format(fun.__code__.co_name, jdata))
                 return (json.loads(jdata),)
-            elif fun.__code__.co_argcount == 5:
+            elif fun.__code__.co_argcount == 5: # for Reaction II (upload)
                 # transport File
                 boundary = parse_multipart_boundary(ct)
                 args, docs = dict(), dict()
@@ -374,24 +375,19 @@ class Server(Serviceable):
                     fname = ""
                 fargs = {k: args[k][0].decode() for k in args}
                 ILine("{} BEG [{}] {} {}".format(fun.__code__.co_name, len(fdata), fname, fargs))             
-                DLine("make_cbf_params END {} {} {}".format(fdata, fname, fargs))
                 return (fdata, fname, fargs)
-
             else:
                 ELine('{}: invalid argument count {}'.format(fun.__code__.co_name, fun.__code__.co_argcount))
-            DLine("make_cbf_params END {}".format(None))
 
 
         async for (future, condition, path, headers, body) in self._req_queue:
             try:
                 fun = Reaction.path_map[path]
                 ct = headers["Content-Type"] if "Content-Type" in headers else None
+                DLine("make_cbf_params {} {} {}".format(fun, ct, body))
                 params = make_cbf_params(fun, ct, body)
-                if params:
-                    if params[0] == None:
-                        res = await call_cbf(fun, self)
-                    else:
-                        res = await call_cbf(fun, self, headers, *params)
+                if isinstance(params, tuple):
+                    res = await call_cbf(fun, self, headers, *params) if params else await call_cbf(fun, self)
                     if res is None:
                         CLine('{} return None, stop!'.format(fun.__code__.co_name))
                         self.stop()
@@ -403,7 +399,7 @@ class Server(Serviceable):
                             ILine("{} END {}".format(fun.__code__.co_name, res))
                     self.postCallback(future, condition, res)
                 else:
-                    ELine('invalid request param count!')
+                    # invalid args
                     self.stop()
             except Exception as e:
                 WLine(traceback.format_exc())
