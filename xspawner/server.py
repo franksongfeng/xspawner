@@ -27,8 +27,8 @@ import functools
 import itertools
 import ssl
 
-
-HANDLER_FUNC_TYPES = ["Reaction", "Interaction", "Contaction"]
+FIXED_HANDLERS = ["PingHandler", "ReserveHandler", "StaticFileHandler", "StopHandler"]
+USER_HANDLERS = ["Reaction", "Interaction", "Contaction"]
 
 class PingHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("GET",)
@@ -158,6 +158,15 @@ class Reaction(tornado.web.RequestHandler):
 class Interaction:
     path_map = {}
 
+    def __new__(cls, path, srv):
+        f = cls.path_map[path]
+        return pywebio.platform.tornado.webio_handler(
+            functools.partial(f, srv),
+            reconnect_timeout=3,
+            check_origin=False
+        )
+
+
     @classmethod
     def route(cls, path):
         def decorator(f):
@@ -257,22 +266,14 @@ class Server(Serviceable):
         self._ioloop.add_callback(self.req_loop)
 
         handlers = []
+        # user handlers are prior
         for path in Reaction.path_map:
             handlers.append((path, Reaction))
         for path in Contaction.path_map:
             handlers.append((path, Contaction))
         for path in Interaction.path_map:
-            f = Interaction.path_map[path]
-            handlers.append(
-                (
-                    path,
-                    pywebio.platform.tornado.webio_handler(
-                        functools.partial(f, self),
-                        reconnect_timeout=3,
-                        check_origin=False
-                    )
-                )
-            )
+            handlers.append((path, Interaction(path, self)))
+        # fixed handlers are at the bottom
         handlers.extend([
             (r"/", ReserveHandler),
             (r"/assets/(.*)", StaticFileHandler, {"path": ASSET_DIR}),
