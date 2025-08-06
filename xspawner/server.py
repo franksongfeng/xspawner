@@ -15,7 +15,7 @@ from .utilities.msg import syncReq, asyncReq, postAsync # NOQA
 from .utilities.log import DLine, ILine, WLine, ELine, CLine # NOQA
 from .utilities.misc import make_multipart_request, get_file_type, get_child_cls # NOQA
 from .serviceable import Serviceable, Config, State # NOQA
-from . import ASSET_DIR # NOQA
+from . import ASSET_DIR_TEMP # NOQA
 import os
 import json
 import importlib
@@ -274,9 +274,10 @@ class Server(Serviceable):
         for path in Interaction.path_map:
             handlers.append((path, Interaction(path, self)))
         # fixed handlers are at the bottom
+        assets_path = ASSET_DIR_TEMP.format(self._config.app)
         handlers.extend([
             (r"/", ReserveHandler),
-            (r"/assets/(.*)", StaticFileHandler, {"path": ASSET_DIR}),
+            (r"/assets/(.*)", StaticFileHandler, {"path": assets_path}),
             (r"/ping", PingHandler),
             (r"/stop", StopHandler)
         ])
