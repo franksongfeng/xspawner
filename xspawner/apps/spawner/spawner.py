@@ -35,7 +35,7 @@ from requests.exceptions import RequestException
 # Constants and Variables and Classes
 ##############################################################################
 BASIC_CMD = "sudo python3 -u -m xspawner --name {} --app {} --host {} --port {} --severity {} --ancestry {}"
-CSS = read_text_file("xspawner/apps/spawner/assets/common.css")
+CSS = read_text_file("xspawner/apps/spawner/resources/common.css")
 
 class Spawner(Server): # NOQA
 
