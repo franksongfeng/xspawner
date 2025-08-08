@@ -53,7 +53,7 @@ class StopHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("DELETE",)
     # terminate server
     def delete(self):
-        gServer = Server.getServer()
+        gServer = XSpawner.getServer()
         assert gServer
         gServer.stop()
         self.write('stopped')
@@ -77,7 +77,7 @@ class Reaction(tornado.web.RequestHandler):
 
     async def post(self):
         """ handle http/post request with data in body"""
-        gServer = Server.getServer()
+        gServer = XSpawner.getServer()
         assert gServer
         q = gServer._req_queue
         future = tornado.concurrent.Future()
@@ -112,7 +112,7 @@ class Reaction(tornado.web.RequestHandler):
 
     async def get(self):
         """ handle http/get request with arguments in url"""
-        gServer = Server.getServer()
+        gServer = XSpawner.getServer()
         assert gServer
         q = gServer._req_queue
         future = tornado.concurrent.Future()
@@ -187,7 +187,7 @@ class Contaction(tornado.web.RequestHandler):
         WLine(f"on_finish BEG")
         path = self.request.path
         ILine(f"path = {path}")
-        gServer = Server.getServer()
+        gServer = XSpawner.getServer()
         assert gServer
         # Ensure the client disconnects when the handler is finished
         if not self._finished:
@@ -208,7 +208,7 @@ class Contaction(tornado.web.RequestHandler):
         ILine(f"request a stream {path}")
         # no Content-Type in self.request.headers
         # self.request.body should be empty
-        gServer = Server.getServer()
+        gServer = XSpawner.getServer()
         assert gServer
         if path in self.path_map:
             f, varnames, timeout = self.path_map[path]
@@ -246,7 +246,7 @@ class Contaction(tornado.web.RequestHandler):
         return decorator
 
 
-class Server(Serviceable):
+class XSpawner(Serviceable):
     _instance = None
     _config: Config = None
     _state: State = None
@@ -256,7 +256,7 @@ class Server(Serviceable):
     # ioloop is the only main event loop
     # server is http server instance
     def __init__(self, config, state, **kwargs):
-        ILine("Server::__init__ BEG {} {}".format(config, kwargs))
+        ILine("__init__ BEG {} {}".format(config, kwargs))
         self._config = config
         self._state = state
 
@@ -293,7 +293,7 @@ class Server(Serviceable):
             )
         else:
             self._server = tornado.httpserver.HTTPServer(app)
-        ILine("Server::__init__ END")
+        ILine("__init__ END")
 
     def getSSLOptions(self, mtls, **kwargs):
         if "certfile" in kwargs and "keyfile" in kwargs:
@@ -439,13 +439,13 @@ class Server(Serviceable):
     @classmethod
     def getServer(cls,**kwargs):
         ILine("{}::getServer BEG {}".format(cls.__name__, kwargs))
-        if Server._instance is None:
-            Server._instance = cls(
+        if XSpawner._instance is None:
+            XSpawner._instance = cls(
                 **kwargs
             )
             ILine("{}::_instance is created".format(cls.__name__))
-        ILine("{}::getServer END {}".format(cls.__name__, Server._instance))
-        return Server._instance
+        ILine("{}::getServer END {}".format(cls.__name__, XSpawner._instance))
+        return XSpawner._instance
 
     @classmethod
     def isChildClass(cls, kls):
@@ -478,7 +478,7 @@ class Server(Serviceable):
         }
         body = json.dumps(jdata) 
         rt = await postAsync(url, headers, body)
-        ILine("Server::postJson END {}".format(rt))
+        ILine("postJson END {}".format(rt))
         return rt
 
     # fdata is bytes

@@ -6,7 +6,7 @@ from pywebio.input import *
 from pywebio.output import *
 from pywebio.session import *
 
-from xspawner.server import Server, Reaction, Interaction, Contaction # NOQA
+from xspawner.xspawner import XSpawner, Reaction, Interaction, Contaction # NOQA
 from xspawner.utilities.log import DLine, ILine, WLine, ELine, CLine # NOQA
 import traceback
 
@@ -60,7 +60,7 @@ E_HTML = """
 </html>
 """
 
-class Xui(Server):
+class Xui(XSpawner):
     _code = ""
 
     def __init__(self, **kwargs):

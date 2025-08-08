@@ -2,14 +2,14 @@
 # Copyright © 2025 Song Feng.
 from pywebio.input import input, TEXT, PASSWORD
 from pywebio.output import put_text, put_error
-from xspawner.server import Server, Reaction, Interaction, Contaction # NOQA
+from xspawner.xspawner import XSpawner, Reaction, Interaction, Contaction # NOQA
 from xspawner.utilities.log import DLine, ILine, WLine # NOQA
 import os.path
 import datetime
 import json
 
 
-class Misc(Server):
+class Misc(XSpawner):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

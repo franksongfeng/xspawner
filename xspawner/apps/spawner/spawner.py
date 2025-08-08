@@ -5,7 +5,7 @@ from pywebio.input import input, select, radio, checkbox, input_update, input_gr
 from pywebio.output import use_scope, put_warning, put_scope, put_code, put_html, put_column, put_tabs, put_markdown, put_link, put_text, put_error, put_success, put_buttons, popup, close_popup, put_table, put_collapse
 from pywebio.session import run_js, set_env
 from xspawner.serviceable import Config, State, SrvJSONEncoder # NOQA
-from xspawner.server import Server, Reaction, Interaction, Contaction # NOQA
+from xspawner.xspawner import XSpawner, Reaction, Interaction, Contaction # NOQA
 from xspawner.utilities.log import LEVELS, DLine, ILine, ELine, WLine, CLine # NOQA
 from xspawner.utilities.misc import read_text_file, filter_logs, is_port_used, is_module_available, import_package_modules, get_child_cls # NOQA
 from xspawner import * # NOQA
@@ -37,7 +37,7 @@ from requests.exceptions import RequestException
 BASIC_CMD = "sudo python3 -u -m xspawner --name {} --app {} --host {} --port {} --severity {} --ancestry {}"
 CSS = read_text_file("xspawner/apps/spawner/resources/common.css")
 
-class Spawner(Server): # NOQA
+class Spawner(XSpawner): # NOQA
 
     @Interaction.route("/")
     @config(theme="yeti")
@@ -121,7 +121,7 @@ class Spawner(Server): # NOQA
             mod , _ = fname.split(".")
             if "__" in mod:
                 return False
-            if mod.lower() in ["xspawner", "spawner", "server"]:
+            if mod.lower() in ["xspawner", "spawner"]:
                 return False
             return True
 
@@ -516,7 +516,7 @@ def search_for_service_cls(fpath):
     ILine("search_for_service_cls BEG {}".format(fpath))
     if get_file_type(fpath) == PYTHON_MIME_TYPE:
         mod_name = path_to_pkg(fpath)
-        srv_cls = Server.getChildClass(mod_name)
+        srv_cls = XSpawner.getChildClass(mod_name)
         if srv_cls:
             ILine("srv_cls: {}".format(srv_cls))
             ILine("search_for_service_cls END {}".format(srv_cls))
@@ -550,7 +550,7 @@ def search_for_service_cls_in_pkg(fpath):
                     zip_ref.extractall(APP_DIR)
                     DLine("{} is unzipped .".format(fpath))
                     pkg_name, _ = entry.split("/")
-                    srv_cls = Server.getChildClass(f"{APP_PKG}.{pkg_name}")
+                    srv_cls = XSpawner.getChildClass(f"{APP_PKG}.{pkg_name}")
                     if srv_cls:
                         ILine("search_for_service_cls_in_pkg END {}".format(srv_cls))
                         return srv_cls

@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 
-from xspawner.server import Server, Reaction # NOQA
+from xspawner.xspawner import XSpawner, Reaction # NOQA
 
 
-class Helloworld(Server):
+class Helloworld(XSpawner):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
