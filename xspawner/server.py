@@ -15,7 +15,7 @@ from .utilities.msg import syncReq, asyncReq, postAsync # NOQA
 from .utilities.log import DLine, ILine, WLine, ELine, CLine # NOQA
 from .utilities.misc import make_multipart_request, get_file_type, get_child_cls # NOQA
 from .serviceable import Serviceable, Config, State # NOQA
-from . import RESOURCE_DIR_TEMP # NOQA
+from . import RES_DIR_TEMP # NOQA
 import os
 import json
 import importlib
@@ -41,7 +41,7 @@ class ReserveHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("GET",)
     def get(self):
         self.set_header("Content-Type", "text/html")
-        self.render("resources/index.html")
+        self.render("index.html")
 
 class StaticFileHandler(tornado.web.StaticFileHandler):
     def set_default_headers(self):
@@ -274,7 +274,7 @@ class Server(Serviceable):
         for path in Interaction.path_map:
             handlers.append((path, Interaction(path, self)))
         # fixed handlers are at the bottom
-        resource_dir = RESOURCE_DIR_TEMP.format(self._config.app)
+        resource_dir = RES_DIR_TEMP.format(self._config.app)
         handlers.extend([
             (r"/", ReserveHandler),
             (r"/resources/(.*)", StaticFileHandler, {"path": resource_dir}),
