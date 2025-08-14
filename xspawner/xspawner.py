@@ -283,8 +283,8 @@ class XSpawner(Serviceable):
         ])
         # start http server
         app = tornado.web.Application(
-            default_host="0.0.0.0",
-            handlers=handlers
+            handlers=handlers,
+            default_host="0.0.0.0"
         )
         if "security" in kwargs and kwargs["security"]:
             self._server = tornado.httpserver.HTTPServer(
