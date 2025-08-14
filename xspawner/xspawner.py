@@ -245,6 +245,20 @@ class Contaction(tornado.web.RequestHandler):
             return f
         return decorator
 
+class CORSApplication(tornado.web.Application):
+    def __init__(self, handlers=None, default_host="", transforms=None, **settings):
+        super().__init__(handlers, default_host, transforms, **settings)
+
+    def set_default_headers(self):
+        self.set_header("Access-Control-Allow-Origin", "*")
+        self.set_header("Access-Control-Allow-Headers", "x-requested-with, content-type")
+        self.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+
+    # optional
+    def options(self, *args, **kwargs):
+        # nothing to do beyond setting status as 204 mean no content for OPTIONS request
+        self.set_status(204)
+        self.finish()
 
 class XSpawner(Serviceable):
     _instance = None
@@ -282,7 +296,7 @@ class XSpawner(Serviceable):
             (r"/stop", StopHandler)
         ])
         # start http server
-        app = tornado.web.Application(
+        app = CORSApplication(
             handlers=handlers,
             default_host="0.0.0.0"
         )
