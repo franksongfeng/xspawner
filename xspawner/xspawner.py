@@ -65,14 +65,12 @@ class Reaction(tornado.web.RequestHandler):
     path_map = {}
 
     def options(self):  
-        self.set_header("Access-Control-Allow-Origin", "*")
-        self.set_header("Access-Control-Allow-Methods", "POST,GET")
         self.set_status(200)
         self.finsih()
 
     def set_default_headers(self):
         self.set_header("Access-Control-Allow-Origin", "*")
-        self.set_header("Access-Control-Allow-Headers", "Content-Type")
+        self.set_header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type")
         self.set_header("Access-Control-Allow-Methods", "POST,GET,OPTIONS")
 
     async def post(self):
@@ -160,12 +158,21 @@ class Interaction:
 
     def __new__(cls, path, srv):
         f = cls.path_map[path]
-        return pywebio.platform.tornado.webio_handler(
+        WIOHandler = pywebio.platform.tornado.webio_handler(
             functools.partial(f, srv),
             reconnect_timeout=3,
             check_origin=False
         )
-
+        class InteractionHandler(WIOHandler):
+            def set_default_headers(self):
+                self.set_header("Access-Control-Allow-Origin", "*")
+                self.set_header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type")
+                self.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+            # optional
+            def options(self, *args, **kwargs):
+                self.set_status(204)
+                self.finish()
+        return InteractionHandler
 
     @classmethod
     def route(cls, path):
