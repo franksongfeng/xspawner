@@ -59,7 +59,7 @@ class StopHandler(tornado.web.RequestHandler):
         self.write('stopped')
 
 class Reaction(tornado.web.RequestHandler):
-    SUPPORTED_METHODS = ("POST", "GET")
+    SUPPORTED_METHODS = ("POST", "GET", "OPTIONS")
     # path_map is path to handlers like dict {<post path> : <handle function>}
     #   url path begins with '/'
     path_map = {}
