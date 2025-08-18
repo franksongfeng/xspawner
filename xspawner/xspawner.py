@@ -65,7 +65,7 @@ class Reaction(tornado.web.RequestHandler):
     path_map = {}
 
     def options(self):  
-        self.set_status(200)
+        self.set_status(204)
         self.finsih()
 
     def set_default_headers(self):
