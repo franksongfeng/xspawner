@@ -22,9 +22,9 @@ fi
 
 export SERVER_NAME=root
 
-# start xspawner daemon and root app
+# start spawner
 nohup sudo python3 -u -m xspawner --name $SERVER_NAME --app spawner --host $SERVER_IP --port $SERVER_PORT --severity info &
 
-# test xspawner
+# test spawner
 sleep 1
 sudo python3 -m xspawner.apps.spawner.tests http://$SERVER_IP:$SERVER_PORT
