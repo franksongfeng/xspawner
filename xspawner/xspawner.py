@@ -166,10 +166,16 @@ class Interaction:
         class InteractionHandler(WIOHandler):
             def set_default_headers(self):
                 self.set_header("Access-Control-Allow-Origin", "*")
-                self.set_header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type")
-                self.set_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+                self.set_header("Access-Control-Allow-Headers", "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization")
+                self.set_header("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS")
+                self.set_header("Access-Control-Expose-Headers", "Content-Length,Content-Range")
             # optional
             def options(self, *args, **kwargs):
+                self.set_header("Access-Control-Allow-Origin", "*")
+                self.set_header("Access-Control-Allow-Headers", "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization")
+                self.set_header("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS")
+                self.set_header("Access-Control-Max-Age", "1728000")
+                self.set_header("Content-Type", "text/plain; charset=utf-8")
                 self.set_status(204)
                 self.finish()
         return InteractionHandler
