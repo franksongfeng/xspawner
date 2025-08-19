@@ -27,7 +27,7 @@ import functools
 import itertools
 import ssl
 
-FIXED_HANDLERS = ["PingHandler", "ReserveHandler", "StaticFileHandler", "StopHandler"]
+FIXED_HANDLERS = ["PingHandler", "MainHandler", "StaticFileHandler", "StopHandler"]
 USER_HANDLERS = ["Reaction", "Interaction", "Contaction"]
 
 class PingHandler(tornado.web.RequestHandler):
@@ -37,7 +37,7 @@ class PingHandler(tornado.web.RequestHandler):
         self.write('pong')
         self.finish()
 
-class ReserveHandler(tornado.web.RequestHandler):
+class MainHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("GET",)
     def get(self):
         self.set_header("Content-Type", "text/html")
@@ -283,7 +283,7 @@ class XSpawner(Serviceable):
         # fixed handlers are at the bottom
         resource_dir = RES_DIR_TEMP.format(self._config.app)
         handlers.extend([
-            (r"/", ReserveHandler),
+            (r"/", MainHandler),
             (r"/resources/(.*)", StaticFileHandler, {"path": resource_dir}),
             (r"/ping", PingHandler),
             (r"/stop", StopHandler)
