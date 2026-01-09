@@ -2,7 +2,7 @@
 # Copyright © 2025 Song Feng.
 from pywebio.input import input, TEXT, PASSWORD
 from pywebio.output import put_text, put_error
-from xspawner.xspawner import XSpawner, Reaction, Interaction, Contaction # NOQA
+from xspawner.xspawner import XSpawner, Reaction, Interaction, Retroaction # NOQA
 from xspawner.utilities.log import DLine, ILine, WLine # NOQA
 import os.path
 import datetime
@@ -26,7 +26,7 @@ class Misc(XSpawner):
         fname = "a.xml"
         return (fdata, fname)
 
-    @Contaction.route("/loop", 5)
+    @Retroaction.route("/loop", 5)
     def _loop(self, headers: dict, data: dict):
         evt = {
             "event": "current_time",
