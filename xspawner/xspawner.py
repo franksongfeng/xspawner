@@ -28,7 +28,7 @@ import itertools
 import ssl
 
 FIXED_HANDLERS = ["PingHandler", "MainHandler", "StaticFileHandler", "StopHandler"]
-USER_HANDLERS = ["Reaction", "Interaction", "Contaction"]
+USER_HANDLERS = ["Reaction", "Interaction", "Retroaction"]
 
 class PingHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("GET",)
@@ -187,7 +187,7 @@ class Interaction:
             return f
         return decorator
 
-class Contaction(tornado.web.RequestHandler):
+class Retroaction(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("POST", "GET")
     path_map = {}
 
@@ -282,8 +282,8 @@ class XSpawner(Serviceable):
         # user handlers are prior
         for path in Reaction.path_map:
             handlers.append((path, Reaction))
-        for path in Contaction.path_map:
-            handlers.append((path, Contaction))
+        for path in Retroaction.path_map:
+            handlers.append((path, Retroaction))
         for path in Interaction.path_map:
             handlers.append((path, Interaction(path, self)))
         # fixed handlers are at the bottom
@@ -365,7 +365,7 @@ class XSpawner(Serviceable):
             if fun.__code__.co_argcount == 1: # for Interaction
                 ILine("{} BEG".format(fun.__code__.co_name))
                 return ()
-            elif fun.__code__.co_argcount == 3: # for Reaction I (normal) or Contaction
+            elif fun.__code__.co_argcount == 3: # for Reaction I (normal) or Retroaction
                 # transport JSON
                 jdata = body.decode()
                 ILine("{} BEG {}".format(fun.__code__.co_name, jdata))
