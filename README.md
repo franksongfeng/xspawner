@@ -8,10 +8,10 @@
 
 
 - 🐍 **Full Python Stack**: Pure Python development for both front-end and back-end
-- 📦 **CaaS**: Class as a Service!
+- 📦 **CaaS**: Class as a Service
 - ⚡ **Asynchronous Support**: Powered by Tornado's battle-tested coroutines
-- 🌐 **Service Clusters**: Isomorphic micro-service clusters in a spanning tree
-- 🔒 **HTTPS Support**: Production-ready security
+- 🌐 **Minimal Life Manangement**: Visualize the dependencies among services and manage their lifecycles accordingly
+- 🔒 **HTTPS Support**: Standalone security enhancement
  
 ### License
 
