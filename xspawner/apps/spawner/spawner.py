@@ -5,7 +5,7 @@ from pywebio.input import input, select, radio, checkbox, input_update, input_gr
 from pywebio.output import use_scope, put_warning, put_scope, put_code, put_html, put_column, put_tabs, put_markdown, put_link, put_text, put_error, put_success, put_buttons, popup, close_popup, put_table, put_collapse
 from pywebio.session import run_js, set_env
 from xspawner.serviceable import Config, State, SrvJSONEncoder # NOQA
-from xspawner.xspawner import XSpawner, Reaction, Interaction, Retroaction # NOQA
+from xspawner.xspawner import XSpawner, Reaction, Interaction, Circulation # NOQA
 from xspawner.utilities.log import LEVELS, DLine, ILine, ELine, WLine, CLine # NOQA
 from xspawner.utilities.misc import read_text_file, filter_logs, is_port_used, is_module_available, import_package_modules, get_child_cls # NOQA
 from xspawner import * # NOQA
