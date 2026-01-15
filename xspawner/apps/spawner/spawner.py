@@ -65,17 +65,17 @@ class Spawner(XSpawner): # NOQA
         tab_text = "| 名称 | 应用程序 | 类型 | 版本 | 进程 | 地址 |\n"
         tab_text +="| ---- | ---- | ---- | ---- | ---- | ---- |\n"
         tab_text +="| {} | {} | {} | {} | {} | {} |\n".format(
-            self._config.name,
-            self._config.app,
+            self.getConfig().name,
+            self.getConfig().app,
             self.__class__.__name__,
-            self._config.vsn,
+            self.getConfig().vsn,
             self.getPid(),
             self.getAddr()
             )
         put_markdown(tab_text, sanitize=False)
 
         put_html(tab_title.format("配置"))
-        json_str = json.dumps(self._config._asdict(), indent=4, separators=(',', ':'))
+        json_str = json.dumps(self.getConfig()._asdict(), indent=4, separators=(',', ':'))
         put_code(json_str, language="json")
 
         if self.getState():
@@ -274,13 +274,13 @@ class Spawner(XSpawner): # NOQA
         ancestry = self.getAncestry()
         ancestry.append(
             (
-                self._config.name,
+                self.getConfig().name,
                 self.getAddr()
             )
         )
         srvancestry = json.dumps(ancestry, cls=SrvJSONEncoder, separators=(',', ':'))
         ILine(f"srvancestry: {srvancestry}")
-        cmd = BASIC_CMD.format(srvname, srvapp, self._config.host, srvport, srvloglevel, srvancestry)
+        cmd = BASIC_CMD.format(srvname, srvapp, self.getConfig().host, srvport, srvloglevel, srvancestry)
         if srvscheme == "https": 
             cmd += " --security --certfile {} --keyfile {}".format(srvcertfile, srvkeyfile)
         ILine(f"cmd: {cmd}")
@@ -288,7 +288,7 @@ class Spawner(XSpawner): # NOQA
         if srvpid is None:
             put_error("Failed to start service <{} :{}>.".format(srvname, srvpid))
             return True
-        srvaddr = "{}://{}:{}".format(srvscheme, self._config.host, srvport)
+        srvaddr = "{}://{}:{}".format(srvscheme, self.getConfig().host, srvport)
         ILine("srvpid: {}, srvaddr: {}".format(srvpid, srvaddr))
 
         # set environment variables
@@ -458,13 +458,13 @@ class Spawner(XSpawner): # NOQA
 
 
     def getLogFile(self):
-        return LOG_FILE_TEMP.format(self._config.name)
+        return LOG_FILE_TEMP.format(self.getConfig().name)
 
     def getAddr(self):
         return "{}://{}:{}".format(
             self.getScheme(),
-            self._config.host,
-            self._config.port)
+            self.getConfig().host,
+            self.getConfig().port)
 
     def getPid(self):
         return os.getpid()
@@ -477,7 +477,10 @@ class Spawner(XSpawner): # NOQA
         return self.__class__.__name__
 
     def getScheme(self):
-        return "https" if self._config.security else "http"
+        return "https" if self.getConfig().security else "http"
+
+    def getConfig(self):
+        return self._config
 
     def getState(self):
         return self._state
@@ -496,10 +499,10 @@ class Spawner(XSpawner): # NOQA
 
 
     def getAncestry(self):
-        if not self._config.ancestry:
+        if not self.getConfig().ancestry:
             return []
-        if isinstance(self._config.ancestry, str):
-            return list(json.loads(self._config.ancestry))
+        if isinstance(self.getConfig().ancestry, str):
+            return list(json.loads(self.getConfig().ancestry))
 
 
     def __init__(self, **kwargs):
