@@ -91,12 +91,13 @@ class Spawner(XSpawner): # NOQA
             put_markdown(tab_text, sanitize=False)
 
         put_html(tab_title.format("配置"))
-        json_str = json.dumps(self._config, cls=SrvJSONEncoder, ensure_ascii=False, indent=4)
+        json_str = json.dumps(self._config._asdict(), indent=4, separators=(',', ':'))
         put_code(json_str, language="json")
 
-        put_html(tab_title.format("状态"))
-        json_str = json.dumps(self._state, cls=SrvJSONEncoder, ensure_ascii=False, indent=4)
-        put_code(json_str, language="json")
+        if self._state:
+            put_html(tab_title.format("状态"))
+            json_str = json.dumps(self._state, cls=SrvJSONEncoder, ensure_ascii=False, indent=4)
+            put_code(json_str, language="json")
 
         put_html(tab_title.format("功能"))
         addr = self.getAddr()
@@ -215,13 +216,11 @@ class Spawner(XSpawner): # NOQA
         srvkeyfile = data["keyfile"]
         srvloglevel = data["severity"]
 
-        json_children = self.getChildren()
         if srvname:
-            if "children" in self._state:
-                elm = search_list_of_dict(self.getChildren(), "name", srvname)
-                if elm:
-                    put_error('Repeated server name {}!'.format(srvname))
-                    return False
+            elm = search_list_of_dict(self.getChildren(), "name", srvname)
+            if elm:
+                put_error('Repeated server name {}!'.format(srvname))
+                return False
 
         if srvport:
             if is_port_used(srvport):
@@ -342,16 +341,14 @@ class Spawner(XSpawner): # NOQA
     @config(theme="yeti")
     async def _service_delete(self):
         def update_pid(name):
-            if "children" in self._state:
-                elm = search_list_of_dict(self.getChildren(), "name", name)
-                if elm:
-                    input_update("pid", value=elm["pid"])
+            elm = search_list_of_dict(self.getChildren(), "name", name)
+            if elm:
+                input_update("pid", value=elm["pid"])
 
         def update_name(pid):
-            if "children" in self._state:
-                elm = search_list_of_dict(self.getChildren(), "pid", pid)
-                if elm:
-                    input_update("name", value=elm["name"])
+            elm = search_list_of_dict(self.getChildren(), "pid", pid)
+            if elm:
+                input_update("name", value=elm["name"])
 
         def select_service(set_value):
             def set_value_and_close_popup(v):
@@ -483,13 +480,10 @@ class Spawner(XSpawner): # NOQA
         return "https" if self._config.security else "http"
 
     def getChildren(self):
-        return self._state.get("children", [])
+        return self._children
 
     def addChild(self, child):
-        if "children" not in self._state:
-            self._state["children"] = [child]
-        else:
-            self.getChildren().append(child)
+        self.getChildren().append(child)
 
     def delChild(self, child):
         self.getChildren().remove(child)

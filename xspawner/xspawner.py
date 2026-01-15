@@ -263,15 +263,17 @@ class XSpawner(Serviceable):
     _instance = None
     _config: Config = None
     _state: State = None
+    _children: list =[]
     _rq_count = 256
 
     # host & port is internal address
     # ioloop is the only main event loop
     # server is http server instance
-    def __init__(self, config, state, **kwargs):
+    def __init__(self, config, state, children, **kwargs):
         ILine("__init__ BEG {} {}".format(config, kwargs))
         self._config = config
         self._state = state
+        self._children = children
 
         # core queue
         self._req_queue = tornado.queues.Queue(self._rq_count)

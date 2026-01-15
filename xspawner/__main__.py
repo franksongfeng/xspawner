@@ -55,7 +55,7 @@ if __name__ == '__main__':
                 cmd_args["vsn"] = mod.__version__
             else:
                 WLine("no app version found for {}!".format(args.app))
-            srv_cls.getServer(config=Config(**cmd_args),state=State()).start()
+            srv_cls.getServer(config=Config(**cmd_args),state=State(),children=[]).start()
         else:
             CLine("no app {}!".format(args.app))
     except Exception as e:

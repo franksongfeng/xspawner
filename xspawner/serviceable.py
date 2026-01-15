@@ -52,7 +52,7 @@ class SrvJSONEncoder(json.JSONEncoder):
 
 class Serviceable(object):
 
-    def __init__(self, config: Config, state: State, **others):
+    def __init__(self, config: Config, state: State, children: list, **others):
         raise NotImplementedError
 
     def start(self):
