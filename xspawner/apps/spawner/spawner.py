@@ -74,6 +74,15 @@ class Spawner(XSpawner): # NOQA
             )
         put_markdown(tab_text, sanitize=False)
 
+        put_html(tab_title.format("配置"))
+        json_str = json.dumps(self._config._asdict(), indent=4, separators=(',', ':'))
+        put_code(json_str, language="json")
+
+        if self.getState():
+            put_html(tab_title.format("状态"))
+            json_str = json.dumps(self.getState(), cls=SrvJSONEncoder, ensure_ascii=False, indent=4)
+            put_code(json_str, language="json")
+
         if self.getChildren():
             put_html(tab_title.format("子服务"))
             tab_text = "| 名称 | 应用程序 | 类型 | 版本 | 进程 | 地址 |\n"
@@ -89,15 +98,6 @@ class Spawner(XSpawner): # NOQA
                     )
                 tab_text += tab_line
             put_markdown(tab_text, sanitize=False)
-
-        put_html(tab_title.format("配置"))
-        json_str = json.dumps(self._config._asdict(), indent=4, separators=(',', ':'))
-        put_code(json_str, language="json")
-
-        if self._state:
-            put_html(tab_title.format("状态"))
-            json_str = json.dumps(self._state, cls=SrvJSONEncoder, ensure_ascii=False, indent=4)
-            put_code(json_str, language="json")
 
         put_html(tab_title.format("功能"))
         addr = self.getAddr()
@@ -444,12 +444,12 @@ class Spawner(XSpawner): # NOQA
 
     @Reaction.route("/state/get")
     def _state_get(self, headers: dict, data: dict):
-        return dict(self._state)
+        return dict(self.getState())
 
 
     @Reaction.route("/state/set")
     def _state_set(self, headers: dict, data: dict):
-        self._state.update(data)
+        self.setState(data)
         return True
 
     @Reaction.route("/children/get")
@@ -478,6 +478,12 @@ class Spawner(XSpawner): # NOQA
 
     def getScheme(self):
         return "https" if self._config.security else "http"
+
+    def getState(self):
+        return self._state
+
+    def setState(self, data):
+        return self._state.update(data)
 
     def getChildren(self):
         return self._children
