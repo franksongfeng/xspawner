@@ -3,7 +3,7 @@
 import json
 from collections import namedtuple, UserDict
 
-Config = namedtuple('Config', ['name', 'app', 'host', 'port', 'severity', 'security', 'certfile', 'keyfile', 'ancestry', 'vsn'])
+Config = namedtuple('Config', ['name', 'app', 'host', 'port', 'severity', 'ancestry', 'vsn'])
 
 class State(UserDict):
     JSON_ALLOWED_TYPES = (str, int, float, bool, type(None))

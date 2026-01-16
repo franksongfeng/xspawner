@@ -27,9 +27,6 @@ if __name__ == '__main__':
         parser.add_argument("--host", type=str, required=True, help="Host address")
         parser.add_argument("--port", type=int, required=True, help="Server port")
         parser.add_argument("--severity", type=str, default="debug", help="Log level")
-        parser.add_argument("--security", action="store_true", help="SSL/TLS Support")
-        parser.add_argument("--certfile", type=str, default=None, help="Certification")
-        parser.add_argument("--keyfile", type=str, default=None, help="Private key")
         parser.add_argument("--ancestry", type=str, default=None, help="Ancestry")
         parser.add_argument("--vsn", type=str, default="undefined", help="Version")
         args = parser.parse_args()
@@ -45,8 +42,6 @@ if __name__ == '__main__':
         srv_cls = XSpawner.getChildClass("{}.{}".format(APP_PKG, args.app))
         if srv_cls:
             # start server
-            if args.security:
-                ILine("SSL/TLS Support is enabled")
             ILine("server is starting {} {} {} {}".format(args.name, args.app, args.host, args.port))
             # cmd_args = {k: getattr(args, k) if hasattr(args, k) else None for k in Config._fields}
             cmd_args = vars(args)

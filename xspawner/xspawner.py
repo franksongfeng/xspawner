@@ -301,41 +301,9 @@ class XSpawner(Serviceable):
             handlers=handlers,
             default_host="0.0.0.0"
         )
-        if "security" in kwargs and kwargs["security"]:
-            self._server = tornado.httpserver.HTTPServer(
-                app,
-                ssl_options=self.getSSLContext(mtls=False, **kwargs)
-            )
-        else:
-            self._server = tornado.httpserver.HTTPServer(app)
+        self._server = tornado.httpserver.HTTPServer(app)
         ILine("__init__ END")
 
-    def getSSLOptions(self, mtls, **kwargs):
-        if "certfile" in kwargs and "keyfile" in kwargs:
-            if os.path.isfile(kwargs["certfile"]) and os.path.isfile(kwargs["keyfile"]):
-                ssl_opts = {
-                    "certfile": kwargs["certfile"],
-                    "keyfile": kwargs["keyfile"]
-                }
-                if mtls and "ca_certs" in kwargs:
-                    if os.path.isfile(kwargs["ca_certs"]):
-                        ssl_opts["cert_reqs"] = ssl.CERT_REQUIRED
-                        ssl_opts["ca_certs"] = kwargs["ca_certs"]
-                return ssl_opts
-
-    def getSSLContext(self, mtls, **kwargs):
-        if "certfile" in kwargs and "keyfile" in kwargs:
-            if os.path.isfile(kwargs["certfile"]) and os.path.isfile(kwargs["keyfile"]):
-                ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-                ssl_ctx.load_cert_chain(certfile=kwargs["certfile"], keyfile=kwargs["keyfile"])
-                # Optional: Require client certificates
-                if mtls and "ca_certs" in kwargs:
-                    if os.path.isfile(kwargs["ca_certs"]):
-                        ssl_ctx.verify_mode = ssl.CERT_REQUIRED
-                        ssl_ctx.load_verify_locations(kwargs["ca_certs"])  # CA to verify client certs
-                else:
-                    ssl_ctx.verify_mode = ssl.CERT_NONE
-                return ssl_ctx
 
     def postCallback(self, future, condition, res):
         if any([isinstance(res, t) for t in (str, bool, dict , int, float, list, tuple)]):

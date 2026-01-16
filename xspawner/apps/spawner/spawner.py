@@ -126,13 +126,6 @@ class Spawner(XSpawner): # NOQA
                 return False
             return True
 
-        def update_scheme(scheme):
-            if scheme == "https":
-                input_update("certfile", readonly=False, placeholder="输入证书文件路径")
-                input_update("keyfile", readonly=False, placeholder="输入私钥文件路径")
-            else:
-                input_update("certfile", readonly=True, placeholder="")
-                input_update("keyfile", readonly=True, placeholder="")
         DLine("{}::_service_create BEG".format(self.__class__.__name__))
         set_env(title="服务创建", output_animation=False)
         put_html(f'<style>{CSS}</style>')
@@ -152,29 +145,6 @@ class Spawner(XSpawner): # NOQA
                     type=NUMBER,
                     placeholder="输入一个可用的端口号(大于1000但小于65536的数字)",
                     required=True
-                ),
-                radio(
-                    label="传输协议",
-                    name="scheme",
-                    options=["http","https"],
-                    inline=True,
-                    value="http",
-                    onchange=update_scheme,
-                    required=False
-                ),
-                input(
-                    label="安全证书",
-                    name="certfile",
-                    type=TEXT,
-                    readonly=True,
-                    required=False
-                ),
-                input(
-                    label="私钥文件",
-                    name="keyfile",
-                    type=TEXT,
-                    readonly=True,
-                    required=False
                 ),
                 select(
                     label="日志级别",
@@ -211,9 +181,6 @@ class Spawner(XSpawner): # NOQA
         ftype = data["source"]["mime_type"]
         srvname = data["name"]
         srvport = data["port"]
-        srvscheme = data["scheme"]
-        srvcertfile = data["certfile"]
-        srvkeyfile = data["keyfile"]
         srvloglevel = data["severity"]
 
         if srvname:
@@ -281,14 +248,13 @@ class Spawner(XSpawner): # NOQA
         srvancestry = json.dumps(ancestry, cls=SrvJSONEncoder, separators=(',', ':'))
         ILine(f"srvancestry: {srvancestry}")
         cmd = BASIC_CMD.format(srvname, srvapp, self.getConfig().host, srvport, srvloglevel, srvancestry)
-        if srvscheme == "https": 
-            cmd += " --security --certfile {} --keyfile {}".format(srvcertfile, srvkeyfile)
+
         ILine(f"cmd: {cmd}")
         srvpid = start_background_process(cmd.split())
         if srvpid is None:
             put_error("Failed to start service <{} :{}>.".format(srvname, srvpid))
             return True
-        srvaddr = "{}://{}:{}".format(srvscheme, self.getConfig().host, srvport)
+        srvaddr = "http://{}:{}".format(self.getConfig().host, srvport)
         ILine("srvpid: {}, srvaddr: {}".format(srvpid, srvaddr))
 
         # set environment variables
@@ -461,8 +427,7 @@ class Spawner(XSpawner): # NOQA
         return LOG_FILE_TEMP.format(self.getConfig().name)
 
     def getAddr(self):
-        return "{}://{}:{}".format(
-            self.getScheme(),
+        return "http://{}:{}".format(
             self.getConfig().host,
             self.getConfig().port)
 
@@ -475,9 +440,6 @@ class Spawner(XSpawner): # NOQA
 
     def getClassName(self):
         return self.__class__.__name__
-
-    def getScheme(self):
-        return "https" if self.getConfig().security else "http"
 
     def getConfig(self):
         return self._config
