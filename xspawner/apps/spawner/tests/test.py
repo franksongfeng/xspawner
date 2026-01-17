@@ -29,20 +29,20 @@ class Test(unittest.TestCase):
         rt = requests.get(f"{self.addr}/")
         self.assertTrue(is_html(rt.text))
 
-    def test_service_create(self):
+    def test_server_create(self):
         if self.addr is None:
             raise ValueError("addr is None")
-        rt = requests.get(f"{self.addr}/service/create")
+        rt = requests.get(f"{self.addr}/server/create")
         self.assertTrue(is_html(rt.text))
 
-    def test_service_delete(self):
+    def test_server_delete(self):
         if self.addr is None:
             raise ValueError("addr is None")
-        rt = requests.get(f"{self.addr}/service/delete")
+        rt = requests.get(f"{self.addr}/server/delete")
         self.assertTrue(is_html(rt.text))
 
-    def test_service_log(self):
+    def test_server_log(self):
         if self.addr is None:
             raise ValueError("addr is None")
-        rt = requests.get(f"{self.addr}/service/log")
+        rt = requests.get(f"{self.addr}/server/log")
         self.assertTrue(is_html(rt.text))
