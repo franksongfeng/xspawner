@@ -99,7 +99,7 @@ class Spawner(XSpawner): # NOQA
                 tab_text += tab_line
             put_markdown(tab_text, sanitize=False)
 
-        put_html(tab_title.format("功能"))
+        put_html(tab_title.format("管理"))
         addr = self.getAddr()
         funcs = [
             {"name": "创建服务", "url": "{}/server/create".format(addr)},
@@ -115,7 +115,7 @@ class Spawner(XSpawner): # NOQA
 
     @Interaction.route("/server/create")
     @config(theme="yeti")
-    async def _service_create(self):
+    async def _server_create(self):
         def check_mod_file(filename):
             if get_file_type(filename) != PYTHON_MIME_TYPE:
                 return False
@@ -126,7 +126,7 @@ class Spawner(XSpawner): # NOQA
                 return False
             return True
 
-        DLine("{}::_service_create BEG".format(self.__class__.__name__))
+        DLine("{}::_server_create BEG".format(self.__class__.__name__))
         set_env(title="服务创建", output_animation=False)
         put_html(f'<style>{CSS}</style>')
         data = await input_group(
@@ -202,7 +202,7 @@ class Spawner(XSpawner): # NOQA
             pkgfname = tempfile.mktemp()+".zip"
             with open(pkgfname, "wb") as f:
                 f.write(fdata)
-            srvcls = search_for_service_cls_in_pkg(pkgfname)
+            srvcls = search_for_server_cls_in_pkg(pkgfname)
             delete_file(pkgfname)
             if not srvcls:
                 put_error('No required server class in {}!'.format(pkgfname))
@@ -216,7 +216,7 @@ class Spawner(XSpawner): # NOQA
             with open(pkgfname, "wb") as f:
                 f.write(fdata)
 
-            srvcls = search_for_service_cls(pkgfname)
+            srvcls = search_for_server_cls(pkgfname)
 
             if not srvcls:
                 put_error('No required server class in {}!'.format(pkgfname))
@@ -252,13 +252,13 @@ class Spawner(XSpawner): # NOQA
         ILine(f"cmd: {cmd}")
         srvpid = start_background_process(cmd.split())
         if srvpid is None:
-            put_error("Failed to start service <{} :{}>.".format(srvname, srvpid))
+            put_error("Failed to start server <{} :{}>.".format(srvname, srvpid))
             return True
         srvaddr = "http://{}:{}".format(self.getConfig().host, srvport)
         ILine("srvpid: {}, srvaddr: {}".format(srvpid, srvaddr))
 
         # set environment variables
-        os.environ["SERVICE"] = srvaddr
+        os.environ["SERVER"] = srvaddr
 
         # check unittest
         test_dir = "{}/{}/tests".format(APP_DIR, srvapp)
@@ -275,15 +275,15 @@ class Spawner(XSpawner): # NOQA
                 if result.errors or result.failures:
                     if is_port_used(srvport):
                         os.kill(srvpid, signal.SIGTERM)
-                    put_error("unittest upon Service <{} :{}> failed.".format(srvname, srvpid))
-                    ELine("unittest upon Service <{} :{}> failed.".format(srvname, srvpid))
+                    put_error("unittest upon server <{} :{}> failed.".format(srvname, srvpid))
+                    ELine("unittest upon server <{} :{}> failed.".format(srvname, srvpid))
                     return True
                 else:
-                    put_success("unittest upon Service <{} :{}> passed.".format(srvname, srvpid))
+                    put_success("unittest upon server <{} :{}> passed.".format(srvname, srvpid))
                     ILine("unittest passed.")
             else:
-                WLine("service <{} :{}> is not running.".format(srvname, srvpid))
-                put_error("service <{} :{}> is not running.".format(srvname, srvpid))
+                WLine("server <{} :{}> is not running.".format(srvname, srvpid))
+                put_error("server <{} :{}> is not running.".format(srvname, srvpid))
                 return True
         else:
             WLine("no unittest case.")
@@ -298,14 +298,14 @@ class Spawner(XSpawner): # NOQA
         self.addChild(new_srv)
         ILine("new_srv: {}".format(new_srv))
 
-        put_success("Service <{} :{}> is loaded to port {} successfully.".format(srvname, srvpid, srvport))
-        DLine("{}::_service_create END".format(self.__class__.__name__))
+        put_success("server <{} :{}> is loaded to port {} successfully.".format(srvname, srvpid, srvport))
+        DLine("{}::_server_create END".format(self.__class__.__name__))
         return True
 
 
     @Interaction.route("/server/delete")
     @config(theme="yeti")
-    async def _service_delete(self):
+    async def _server_delete(self):
         def update_pid(name):
             elm = search_list_of_dict(self.getChildren(), "name", name)
             if elm:
@@ -316,7 +316,7 @@ class Spawner(XSpawner): # NOQA
             if elm:
                 input_update("name", value=elm["name"])
 
-        def select_service(set_value):
+        def select_server(set_value):
             def set_value_and_close_popup(v):
                 set_value(v)
                 close_popup()
@@ -324,6 +324,7 @@ class Spawner(XSpawner): # NOQA
             srv_names = [server["name"] for server in self.getChildren()]
             with popup('选择已运行的服务'):
                 put_buttons(srv_names, onclick=set_value_and_close_popup, outline=True)
+        DLine("{}::_server_delete BEG".format(self.__class__.__name__))
         set_env(title="服务销毁", output_animation=False)
         put_html(f'<style>{CSS}</style>')
         data = await input_group(
@@ -334,7 +335,7 @@ class Spawner(XSpawner): # NOQA
                     name="name",
                     type=TEXT,
                     placeholder="输入已运行的服务名称",
-                    action=("现有服务", select_service),
+                    action=("现有服务", select_server),
                     onchange=update_pid,
                     required=False
                 ),
@@ -375,7 +376,7 @@ class Spawner(XSpawner): # NOQA
                 os.kill(srvpid, signal.SIGTERM)
             except Exception as e:
                 CLine(traceback.format_exc()) # NOQA
-                put_warning("service <{} :{}> dont exist.".format(srvname, srvpid))
+                put_warning("server <{} :{}> dont exist.".format(srvname, srvpid))
                 return True
             pkgdir = f"{APP_PKG}.{srvapp}".replace('.', '/')
             if os.path.exists(pkgdir) and srvapp != "spawner":
@@ -388,7 +389,8 @@ class Spawner(XSpawner): # NOQA
                     ILine(f"file {modfile} is deleted")
                 else:
                     ILine(f"file {modfile} dont exist")
-            put_success("Service <{} :{}> is deleted.".format(srvname, srvpid))
+            put_success("server <{} :{}> is deleted.".format(srvname, srvpid))
+            DLine("{}::_server_delete END".format(self.__class__.__name__))
             return True
 
         put_error("Failed to find server <{} :{}>.".format(srvname, srvpid))
@@ -477,16 +479,16 @@ def search_list_of_dict(l, k, v):
             return e
 
 
-def search_for_service_cls(fpath):
-    ILine("search_for_service_cls BEG {}".format(fpath))
+def search_for_server_cls(fpath):
+    ILine("search_for_server_cls BEG {}".format(fpath))
     if get_file_type(fpath) == PYTHON_MIME_TYPE:
         mod_name = path_to_pkg(fpath)
         srv_cls = XSpawner.getChildClass(mod_name)
         if srv_cls:
             ILine("srv_cls: {}".format(srv_cls))
-            ILine("search_for_service_cls END {}".format(srv_cls))
+            ILine("search_for_server_cls END {}".format(srv_cls))
             return srv_cls
-    ILine("search_for_service_cls END {}".format(None))
+    ILine("search_for_server_cls END {}".format(None))
 
 def delete_file(file):
     if os.path.isfile(file):
@@ -503,8 +505,8 @@ def delete_entries(entries):
         else:
             delete_dir(entry)
 
-def search_for_service_cls_in_pkg(fpath):
-    ILine("search_for_service_cls_in_pkg BEG {}".format(fpath))
+def search_for_server_cls_in_pkg(fpath):
+    ILine("search_for_server_cls_in_pkg BEG {}".format(fpath))
     if get_file_type(fpath) == ZIP_MIME_TYPE:
         with zipfile.ZipFile(fpath, 'r') as zip_ref:
             zip_ref.testzip()
@@ -517,9 +519,9 @@ def search_for_service_cls_in_pkg(fpath):
                     pkg_name, _ = entry.split("/")
                     srv_cls = XSpawner.getChildClass(f"{APP_PKG}.{pkg_name}")
                     if srv_cls:
-                        ILine("search_for_service_cls_in_pkg END {}".format(srv_cls))
+                        ILine("search_for_server_cls_in_pkg END {}".format(srv_cls))
                         return srv_cls
-    ILine("search_for_service_cls_in_pkg END {}".format(None))
+    ILine("search_for_server_cls_in_pkg END {}".format(None))
 
 def start_background_process(command):
     proc = subprocess.Popen(

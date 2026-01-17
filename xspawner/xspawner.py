@@ -440,17 +440,17 @@ class XSpawner(Serviceable):
         return get_child_cls(mod, cls.__name__)
 
     @staticmethod
-    def testService(url):
-        ILine("postJson BEG {}".format(url))
+    def testServer(url):
+        ILine("testServer BEG {}".format(url))
         rt = syncReq(url, 'GET')
-        ILine("postJson END {}".format(rt))
+        ILine("testServer END {}".format(rt))
         return rt
 
     @staticmethod
-    async def stopService(url):
-        ILine("stopService BEG {}".format(url))
+    async def stopServer(url):
+        ILine("stopServer BEG {}".format(url))
         rt = await asyncReq(url, 'DELETE')
-        ILine("stopService END {}".format(rt))
+        ILine("stopServer END {}".format(rt))
         return rt
 
     # jdata is dict or bool/int/list or None

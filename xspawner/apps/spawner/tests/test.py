@@ -15,7 +15,7 @@ class Test(unittest.TestCase):
     addr: str = None
     def setUp(self):
         super().setUp()
-        self.addr = os.getenv("SERVICE")
+        self.addr = os.getenv("SERVER")
 
     def tearDown(self):
         return super().tearDown()

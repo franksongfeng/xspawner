@@ -7,7 +7,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         arguments = sys.argv[1:]
         print("Arguments: ", arguments)
-        os.environ["SERVICE"] = sys.argv[1]
+        os.environ["SERVER"] = sys.argv[1]
 
         loader = unittest.TestLoader()
         suite = loader.discover(start_dir=f"{APP_DIR}/spawner/tests")
