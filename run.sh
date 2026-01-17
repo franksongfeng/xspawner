@@ -2,12 +2,6 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 
-# download xspawner
-# sudo rm xspawner -rf
-# sudo git clone https://github.com/franksongfeng/xspawner
-
-# cd xspawner
-
 if [ -z "$1" ]; then
   export SERVER_IP=127.0.0.1
 else
