@@ -102,9 +102,9 @@ class Spawner(XSpawner): # NOQA
         put_html(tab_title.format("管理"))
         addr = self.getAddr()
         funcs = [
-            {"name": "创建服务", "url": "{}/server/create".format(addr)},
-            {"name": "销毁服务", "url": "{}/server/delete".format(addr)},
-            {"name": "查看服务日志", "url": "{}/server/log".format(addr)}
+            {"name": "创建", "url": "{}/server/create".format(addr)},
+            {"name": "销毁", "url": "{}/server/delete".format(addr)},
+            {"name": "查看日志", "url": "{}/server/log".format(addr)}
         ]
         funcs_text = "\n".join(
             f"- [{item['name']}]({item['url']})" for item in funcs
