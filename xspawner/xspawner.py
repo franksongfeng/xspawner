@@ -26,6 +26,7 @@ import types
 import functools
 import itertools
 import ssl
+from typing import List
 
 FIXED_HANDLERS = ["PingHandler", "MainHandler", "StaticFileHandler", "StopHandler"]
 USER_HANDLERS = ["Reaction", "Interaction", "Circulation"]
@@ -263,7 +264,7 @@ class XSpawner(Serviceable):
     _instance = None
     _config: Config = None
     _state: State = None
-    _children: list =[]
+    _children: List[Config] = []
     _rq_count = 256
 
     # host & port is internal address

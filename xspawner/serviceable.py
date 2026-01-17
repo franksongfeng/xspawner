@@ -2,11 +2,12 @@
 # Copyright © 2025 Song Feng.
 import json
 from collections import namedtuple, UserDict
+from typing import List
 
 Config = namedtuple('Config', ['name', 'app', 'host', 'port', 'severity', 'ancestry', 'vsn'])
 
 class State(UserDict):
-    JSON_ALLOWED_TYPES = (str, int, float, bool, type(None))
+    SerializableTypes = (str, int, float, bool, type(None))
 
     def __init__(self, *args, **kwargs):
         super().__init__()
@@ -34,11 +35,11 @@ class State(UserDict):
         elif isinstance(value, (list, tuple)):
             for item in value:
                 self._validate_value(item)
-        elif isinstance(value, self.JSON_ALLOWED_TYPES):
+        elif isinstance(value, self.SerializableTypes):
             pass
         else:
             raise TypeError(
-                f"{type(value)} is not JSON serializable, just allow {self.JSON_ALLOWED_TYPES}"
+                f"{type(value)} is not JSON serializable, just allow {self.SerializableTypes}"
             )
 
 class SrvJSONEncoder(json.JSONEncoder):
@@ -52,7 +53,7 @@ class SrvJSONEncoder(json.JSONEncoder):
 
 class Serviceable(object):
 
-    def __init__(self, config: Config, state: State, children: list, **others):
+    def __init__(self, config: Config, state: State, children: List[Config], **others):
         raise NotImplementedError
 
     def start(self):
