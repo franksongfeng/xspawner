@@ -99,7 +99,7 @@ class Spawner(XSpawner): # NOQA
                 tab_text += tab_line
             put_markdown(tab_text, sanitize=False)
 
-        put_html(tab_title.format("管理"))
+        put_html(tab_title.format("功能"))
         addr = self.getAddr()
         funcs = [
             {"name": "创建", "url": "{}/server/create".format(addr)},
