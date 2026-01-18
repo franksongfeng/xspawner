@@ -157,8 +157,10 @@ class Spawner(XSpawner): # NOQA
                     label="源代码",
                     name="source",
                     accept=[".py", ".zip"],
+                    multiple=False,
                     max_size="10M",
-                    placeholder="选择一个源文件或压缩包 (*.py/*.zip)",
+                    placeholder="选择一个源文件或包 (*.py/*.zip)",
+                    help_text="支持拖拽文件到此区域",
                     required=True
                 )
             ]
