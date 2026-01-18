@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 from pywebio import config
-from pywebio.input import input, select, radio, checkbox, input_update, input_group, file_upload, TEXT, PASSWORD, NUMBER
-from pywebio.output import use_scope, put_warning, put_scope, put_code, put_html, put_column, put_tabs, put_markdown, put_link, put_text, put_error, put_success, put_buttons, popup, close_popup, put_table, put_collapse
-from pywebio.session import run_js, set_env
+from pywebio.input import *
+from pywebio.output import *
+from pywebio.session import *
 from xspawner.serviceable import Config, State, SrvJSONEncoder # NOQA
 from xspawner.xspawner import XSpawner, Reaction, Interaction, Circulation # NOQA
 from xspawner.utilities.log import LEVELS, DLine, ILine, ELine, WLine, CLine # NOQA
@@ -102,9 +102,10 @@ class Spawner(XSpawner): # NOQA
         put_html(tab_title.format("功能"))
         addr = self.getAddr()
         funcs = [
-            {"name": "创建", "url": "{}/server/create".format(addr)},
-            {"name": "销毁", "url": "{}/server/delete".format(addr)},
-            {"name": "查看日志", "url": "{}/server/log".format(addr)}
+            {"name": "创建服务", "url": "{}/server/create".format(addr)},
+            {"name": "销毁服务", "url": "{}/server/delete".format(addr)},
+            {"name": "查看日志", "url": "{}/server/log".format(addr)},
+            {"name": "调试接口", "url": "{}/dbg".format(addr)}
         ]
         funcs_text = "\n".join(
             f"- [{item['name']}]({item['url']})" for item in funcs
@@ -411,6 +412,68 @@ class Spawner(XSpawner): # NOQA
                 text = "```log\n" + text + "\n```"
                 put_markdown(text)
             return True
+
+
+    @Interaction.route("/dbg/output")
+    @config(theme="yeti")
+    def _dbg_output(self):
+        try:
+            ILine("_dbg_output BEG")
+            exec(self._dbg_code, globals(), locals())
+            ILine("_dbg_output END")
+            return True
+        except Exception as e:
+            e_str = "Exception: {}\n{}".format(str(e), traceback.format_exc())
+            ELine(e_str)
+            put_error("执行出错")
+            put_code(e_str, language='text')
+            return False
+
+
+    @Interaction.route("/dbg")
+    @config(theme="yeti")
+    def _dbg(self):
+
+        def show_form(init_data):
+            def open_url(url):
+                run_js('window.open(url)', url=url)
+
+            # 显示表单
+            with use_scope("form_scope", clear=True):
+                data = input_group(
+                    "调试接口",
+                    [
+                        textarea(
+                            label='代码',
+                            name='code',
+                            value=init_data["code"],
+                            rows=25,
+                            code={
+                                'mode': "python",
+                                'theme': 'eclipse'
+                            }
+                        )
+                    ]
+                )
+            # 处理请求
+            if data:
+                self._dbg_code = data["code"]
+                # 延时后重新渲染表单区域
+                run_js("setTimeout(() => { PyWebIO.reload_scope('form_scope'); }, 20)")
+                # 打开新的URL
+                open_url(self.getAddr() + "/dbg/output")
+                # 递归地重新显示表单
+                show_form(data)
+
+        ILine("_dbg BEG")
+        set_env(title="调试接口", output_animation=False)
+
+        # 显示表单
+        put_scope("form_scope")
+        show_form({'code':'put_text("Hello world!")\n'})
+        ILine("_dbg END")
+        return True
+
 
     @Reaction.route("/state/get")
     def _state_get(self, headers: dict, data: dict):
