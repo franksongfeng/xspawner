@@ -450,18 +450,35 @@ class Spawner(XSpawner): # NOQA
                             rows=25,
                             code={
                                 "mode": "python",
-                                "theme": "idea" # eclipse, idea, ssms
+                                "theme": "idea", # eclipse, idea, ssms
+                                "lineNumbers": True,
+                                "indentUnit": 4
                             }
+                        ),
+                        actions(
+                            name='action',
+                            buttons=[
+                                {'label': '提交', 'value': 'submit', 'color': 'primary'},
+                                {'label': '修剪', 'value': 'trim', 'color': 'secondary'},
+                                {'label': '重置', 'value': 'reset', 'color': 'warning'}
+                            ]
                         )
                     ]
                 )
             # 处理请求
             if data:
-                self._dbg_code = data["code"]
                 # 延时后重新渲染表单区域
                 run_js("setTimeout(() => { PyWebIO.reload_scope('form_scope'); }, 20)")
-                # 打开新的URL
-                open_url(self.getAddr() + "/dbg/output")
+                if data['action'] == 'trim':
+                    # 处理缩进整理
+                    data['code'] = trim_code(data['code'])
+                elif data['action'] == 'reset':
+                    # 清空 textarea 内容
+                    data['code'] = ""
+                else:
+                    self._dbg_code = data["code"]
+                    # 打开新的URL
+                    open_url(self.getAddr() + "/dbg/output")
                 # 递归地重新显示表单
                 show_form(data)
 
@@ -624,3 +641,41 @@ def pkg_to_path(mod):
 
 def get_loaded_mods():
     return list(sys.modules.keys())
+
+def trim_code(code):
+    """去除代码左侧公共的缩进"""
+    if not code:
+        return code
+    
+    lines = code.split('\n')
+
+    # 清除头部空行
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    
+    # 清除尾部空行
+    while lines and not lines[-1].strip():
+        lines.pop()
+    
+    if not lines:  # 如果所有行都是空行
+        return ""
+
+    # 找到非空行的最小缩进
+    min_indent = float('inf')
+    for line in lines:
+        if line.strip():  # 忽略空行
+            leading_spaces = len(line) - len(line.lstrip())
+            min_indent = min(min_indent, leading_spaces)
+    
+    if min_indent == float('inf'):  # 全是空行
+        return code
+
+    # 移除每行的最小缩进
+    trimmed_lines = []
+    for line in lines:
+        if len(line) > min_indent:
+            trimmed_lines.append(line[min_indent:])
+        else:
+            trimmed_lines.append(line.lstrip())
+    
+    return '\n'.join(trimmed_lines)
