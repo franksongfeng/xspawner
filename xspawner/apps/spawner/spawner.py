@@ -449,8 +449,8 @@ class Spawner(XSpawner): # NOQA
                             value=init_data["code"],
                             rows=25,
                             code={
-                                'mode': "python",
-                                'theme': 'eclipse'
+                                "mode": "python",
+                                "theme": "idea" # eclipse, idea, ssms
                             }
                         )
                     ]
