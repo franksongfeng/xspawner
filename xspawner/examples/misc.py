@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
-from pywebio.input import input, TEXT, PASSWORD
-from pywebio.output import put_text, put_error
-from xspawner.xspawner import XSpawner, Reaction, Interaction, Circulation # NOQA
-from xspawner.utilities.log import DLine, ILine, WLine # NOQA
+from pywebio.input import *
+from pywebio.output import *
+from xspawner.xspawner import * # NOQA
+from xspawner.utilities.log import * # NOQA
 import os.path
 import datetime
 import json
