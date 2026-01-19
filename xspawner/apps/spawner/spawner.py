@@ -447,6 +447,7 @@ class Spawner(XSpawner): # NOQA
                             label='代码',
                             name='code',
                             value=init_data["code"],
+                            help_text="支持拖拽文件到此区域",
                             rows=25,
                             code={
                                 "mode": "python",
