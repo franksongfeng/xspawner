@@ -483,6 +483,7 @@ class Spawner(XSpawner): # NOQA
                     # 打开新的URL
                     open_url(self.getAddr() + "/dbg/output")
                 # 递归地重新显示表单
+                await tornado.gen.sleep(0.1)
                 await show_form(data)
 
         ILine("_dbg BEG")
