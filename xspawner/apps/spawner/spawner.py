@@ -434,15 +434,15 @@ class Spawner(XSpawner): # NOQA
 
     @Interaction.route("/dbg")
     @config(theme="yeti")
-    def _dbg(self):
+    async def _dbg(self):
 
-        def show_form(init_data):
+        async def show_form(init_data):
             def open_url(url):
                 run_js('window.open(url)', url=url)
 
             # 显示表单
             with use_scope("form_scope", clear=True):
-                data = input_group(
+                data = await input_group(
                     "调试接口",
                     [
                         textarea(
@@ -483,14 +483,14 @@ class Spawner(XSpawner): # NOQA
                     # 打开新的URL
                     open_url(self.getAddr() + "/dbg/output")
                 # 递归地重新显示表单
-                show_form(data)
+                await show_form(data)
 
         ILine("_dbg BEG")
         set_env(title="调试接口", output_animation=False)
 
         # 显示表单
         put_scope("form_scope")
-        show_form({'code':'put_text("Hello world!")\n'})
+        await show_form({'code':'put_text("Hello world!")\n'})
         ILine("_dbg END")
         return True
 
