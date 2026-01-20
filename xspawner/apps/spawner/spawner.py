@@ -32,12 +32,14 @@ import signal
 import mimetypes
 import requests
 from requests.exceptions import RequestException
+from .fmt_dict import get_first_level_json
 
 ##############################################################################
 # Constants and Variables and Classes
 ##############################################################################
 BASIC_CMD = "sudo python3 -u -m xspawner --name {} --app {} --host {} --port {} --severity {} --ancestry {}"
 CSS = read_text_file("xspawner/apps/spawner/resources/common.css")
+
 
 class Spawner(XSpawner): # NOQA
 
@@ -421,13 +423,20 @@ class Spawner(XSpawner): # NOQA
     def _dbg_output(self):
         try:
             ILine("_dbg_output BEG")
-            exec(self._dbg_code, globals(), locals())
+            exec(self._dbg_data["code"], globals(), locals())
+            if self._dbg_data["func"] == "Eval":
+                ldata = locals().copy()
+                del ldata["self"]
+                if ldata:
+                    ILine("local vars: {}".format(str(ldata)))
+                    put_markdown("***\n变量值")
+                    put_code(get_first_level_json(ldata), language='json')
             ILine("_dbg_output END")
             return True
         except Exception as e:
             e_str = "Exception: {}\n{}".format(str(e), traceback.format_exc())
             ELine(e_str)
-            put_error("执行出错")
+            put_error("出错")
             put_code(e_str, language='text')
             return False
 
@@ -445,6 +454,14 @@ class Spawner(XSpawner): # NOQA
                 data = await input_group(
                     "调试接口",
                     [
+                        radio(
+                            label="类型",
+                            name="func",
+                            options=["UI","Eval"],
+                            inline=True,
+                            value=init_data["func"],
+                            required=True
+                        ),
                         textarea(
                             label='代码',
                             name='code',
@@ -479,7 +496,7 @@ class Spawner(XSpawner): # NOQA
                     # 清空 textarea 内容
                     data['code'] = ""
                 else:
-                    self._dbg_code = data["code"]
+                    self._dbg_data = data
                     # 打开新的URL
                     await open_url(self.getAddr() + "/dbg/output")
                 # 递归地重新显示表单
@@ -491,7 +508,7 @@ class Spawner(XSpawner): # NOQA
 
         # 显示表单
         put_scope("form_scope")
-        await show_form({'code':'put_text("Hello world!")\n'})
+        await show_form({'code':'put_text("Hello world!")\n','func':'UI'})
         ILine("_dbg END")
         return True
 
