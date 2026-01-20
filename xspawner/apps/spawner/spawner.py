@@ -437,7 +437,7 @@ class Spawner(XSpawner): # NOQA
     async def _dbg(self):
 
         async def show_form(init_data):
-            def open_url(url):
+            async def open_url(url):
                 run_js('window.open(url)', url=url)
 
             # 显示表单
@@ -471,7 +471,7 @@ class Spawner(XSpawner): # NOQA
             # 处理请求
             if data:
                 # 延时后重新渲染表单区域
-                run_js("setTimeout(() => { PyWebIO.reload_scope('form_scope'); }, 20)")
+                run_js("setTimeout(() => { PyWebIO.reload_scope('form_scope'); }, 50)")
                 if data['action'] == 'trim':
                     # 处理缩进整理
                     data['code'] = trim_code(data['code'])
@@ -481,9 +481,9 @@ class Spawner(XSpawner): # NOQA
                 else:
                     self._dbg_code = data["code"]
                     # 打开新的URL
-                    open_url(self.getAddr() + "/dbg/output")
+                    async open_url(self.getAddr() + "/dbg/output")
                 # 递归地重新显示表单
-                await tornado.gen.sleep(0.1)
+                await tornado.gen.sleep(0.2)
                 await show_form(data)
 
         ILine("_dbg BEG")
