@@ -481,7 +481,7 @@ class Spawner(XSpawner): # NOQA
                 else:
                     self._dbg_code = data["code"]
                     # 打开新的URL
-                    async open_url(self.getAddr() + "/dbg/output")
+                    await open_url(self.getAddr() + "/dbg/output")
                 # 递归地重新显示表单
                 await tornado.gen.sleep(0.2)
                 await show_form(data)
