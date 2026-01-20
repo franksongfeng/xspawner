@@ -52,7 +52,7 @@ def serialize_first_level_to_json(obj, indent=2, ensure_ascii=False):
             # 无法序列化，只提供类型信息
             value_type = type(value).__name__
                       
-            result_dict[str(key)] = "<{} unserialize>".format(value_type)
+            result_dict[str(key)] = "<{} unserializable>".format(value_type)
 
     
     # 返回JSON字符串
