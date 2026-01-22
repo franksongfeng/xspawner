@@ -10,6 +10,7 @@ from xspawner.xspawner import * # NOQA
 from xspawner.utilities.log import * # NOQA
 from xspawner.utilities.misc import * # NOQA
 from xspawner import * # NOQA
+import psutil
 
 import inspect
 import importlib
@@ -30,6 +31,7 @@ import socket
 import time
 import signal
 import mimetypes
+import datetime
 import requests
 from requests.exceptions import RequestException
 from .fmt_dict import get_first_level_json
@@ -66,14 +68,15 @@ class Spawner(XSpawner): # NOQA
             put_markdown(tab_text, sanitize=False)
 
         put_html(tab_title.format("服务"))
-        tab_text = "| 名称 | 应用 | 类型 | 版本 | 进程 | 地址 |\n"
-        tab_text +="| ---- | ---- | ---- | ---- | ---- | ---- |\n"
-        tab_text +="| {} | {} | {} | {} | {} | {} |\n".format(
+        tab_text = "| 名称 | 应用 | 类型 | 版本 | 进程 | 时间 | 地址 |\n"
+        tab_text +="| ---- | ---- | ---- | ---- | ---- | ---- | ---- |\n"
+        tab_text +="| {} | {} | {} | {} | {} | {} | {} |\n".format(
             self.getConfig().name,
             self.getConfig().app,
             self.__class__.__name__,
             self.getConfig().vsn,
             self.getPid(),
+            self.getPidTime(),
             self.getAddr()
             )
         put_markdown(tab_text, sanitize=False)
@@ -89,15 +92,16 @@ class Spawner(XSpawner): # NOQA
 
         if self.getChildren():
             put_html(tab_title.format("子服务"))
-            tab_text = "| 名称 | 应用 | 类型 | 版本 | 进程 | 地址 |\n"
-            tab_text +="| ---- | ---- | ---- | ---- | ---- | ---- |\n"
+            tab_text = "| 名称 | 应用 | 类型 | 版本 | 进程 | 时间 | 地址 |\n"
+            tab_text +="| ---- | ---- | ---- | ---- | ---- | ---- | ---- |\n"
             for elm in self.getChildren():
-                tab_line = "| {} | {} | {} | {} | {} | {} |\n".format(
+                tab_line = "| {} | {} | {} | {} | {} | {} | {} |\n".format(
                     elm["name"],
                     elm["app"],
                     elm["cls"],
                     elm["vsn"],
                     elm["pid"],
+                    self.getPidTime(elm["pid"]),
                     elm["addr"]
                     )
                 tab_text += tab_line
@@ -539,6 +543,17 @@ class Spawner(XSpawner): # NOQA
     def getPid(self):
         return os.getpid()
 
+    def getPidTime(self, pid=None):
+        if not pid:
+            pid = self.getPid()
+        try:
+            process = psutil.Process(pid)
+            start_timestamp = process.create_time()
+            formatted_time = datetime.datetime.fromtimestamp(start_timestamp).strftime("%Y-%m-%d %H:%M:%S")
+            return formatted_time
+        except Exception as e:
+            ELine("exception getPidTime: {}".format(str(e)))
+            return "unknown"
 
     def getWorkDir(self):
         return os.getcwd()
