@@ -10,6 +10,9 @@ from xspawner.xspawner import * # NOQA
 from xspawner.utilities.log import * # NOQA
 from xspawner.utilities.misc import * # NOQA
 from xspawner import * # NOQA
+import tornado.gen
+import requests
+from requests.exceptions import RequestException
 import psutil
 
 import inspect
@@ -22,7 +25,6 @@ import json
 import traceback
 import hashlib
 import uuid
-import tornado.gen
 import zipfile
 import tempfile
 import shutil
@@ -32,8 +34,7 @@ import time
 import signal
 import mimetypes
 import datetime
-import requests
-from requests.exceptions import RequestException
+
 from .fmt_dict import get_first_level_json
 
 ##############################################################################
@@ -55,19 +56,8 @@ class Spawner(XSpawner): # NOQA
             <div class="markdown-table-title">{}</div>
         </div>
         """
-        if self.getAncestry():
-            put_html(tab_title.format("族谱"))
-            tab_text = "| 名称 | 地址 |\n"
-            tab_text +="| ---- | ---- |\n"
-            for name, addr in self.getAncestry():
-                tab_line = "| {} | {} |\n".format(
-                    name,
-                    addr
-                    )
-                tab_text += tab_line
-            put_markdown(tab_text, sanitize=False)
 
-        put_html(tab_title.format("服务"))
+        put_html(tab_title.format("基本信息"))
         tab_text = "| 名称 | 应用 | 类型 | 版本 | 进程 | 时间 | 地址 |\n"
         tab_text +="| ---- | ---- | ---- | ---- | ---- | ---- | ---- |\n"
         tab_text +="| {} | {} | {} | {} | {} | {} | {} |\n".format(
@@ -81,7 +71,7 @@ class Spawner(XSpawner): # NOQA
             )
         put_markdown(tab_text, sanitize=False)
 
-        put_html(tab_title.format("配置"))
+        put_html(tab_title.format("启动配置"))
         json_str = json.dumps(self.getConfig()._asdict(), indent=4, separators=(',', ':'))
         put_code(json_str, language="json")
 
@@ -90,24 +80,23 @@ class Spawner(XSpawner): # NOQA
             json_str = json.dumps(self.getState(), cls=SrvJSONEncoder, ensure_ascii=False, indent=4)
             put_code(json_str, language="json")
 
+        put_html(tab_title.format("拓扑结构"))
+        content = []
+        for name, addr in self.getAncestry():
+            ILine(name)
+            ILine(addr)
+            content.append(put_link(name, url=addr))
+            content.append(put_text('>'))
+        content.append(put_text(self.getConfig().name))
         if self.getChildren():
-            put_html(tab_title.format("子服务"))
-            tab_text = "| 名称 | 应用 | 类型 | 版本 | 进程 | 时间 | 地址 |\n"
-            tab_text +="| ---- | ---- | ---- | ---- | ---- | ---- | ---- |\n"
-            for elm in self.getChildren():
-                tab_line = "| {} | {} | {} | {} | {} | {} | {} |\n".format(
-                    elm["name"],
-                    elm["app"],
-                    elm["cls"],
-                    elm["vsn"],
-                    elm["pid"],
-                    self.getPidTime(elm["pid"]),
-                    elm["addr"]
-                    )
-                tab_text += tab_line
-            put_markdown(tab_text, sanitize=False)
+            content.append(put_text('>'))
+            content.append(put_link(self.getChildren()[0]["name"], url=self.getChildren()[0]["addr"]))
+            for elm in self.getChildren()[1:]:
+                content.append(put_text('|'))
+                content.append(put_link(elm["name"], url=elm["addr"]))
+        put_row(content)
 
-        put_html(tab_title.format("功能"))
+        put_html(tab_title.format("管理功能"))
         addr = self.getAddr()
         funcs = [
             {"name": "创建服务", "url": "{}/server/create".format(addr)},

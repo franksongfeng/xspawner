@@ -11,11 +11,7 @@ import tornado.locks
 import tornado.httpserver
 import tornado.httputil
 import pywebio.platform.tornado
-from .utilities.msg import syncReq, asyncReq, postAsync # NOQA
-from .utilities.log import DLine, ILine, WLine, ELine, CLine # NOQA
-from .utilities.misc import make_multipart_request, get_file_type, get_child_cls # NOQA
-from .serviceable import Serviceable, Config, State # NOQA
-from . import RES_DIR_TEMP # NOQA
+
 import os
 import json
 import importlib
@@ -27,6 +23,13 @@ import functools
 import itertools
 import ssl
 from typing import List
+
+from .utilities.msg import syncReq, asyncReq, postAsync # NOQA
+from .utilities.log import DLine, ILine, WLine, ELine, CLine # NOQA
+from .utilities.misc import make_multipart_request, get_file_type, get_child_cls # NOQA
+from .serviceable import Serviceable, Config, State # NOQA
+from . import RES_DIR_TEMP # NOQA
+
 
 FIXED_HANDLERS = ["PingHandler", "MainHandler", "StaticFileHandler", "StopHandler"]
 USER_HANDLERS = ["Reaction", "Interaction", "Circulation"]
