@@ -66,7 +66,7 @@ class Spawner(XSpawner): # NOQA
             put_markdown(tab_text, sanitize=False)
 
         put_html(tab_title.format("服务"))
-        tab_text = "| 名称 | 应用程序 | 类型 | 版本 | 进程 | 地址 |\n"
+        tab_text = "| 名称 | 应用 | 类型 | 版本 | 进程 | 地址 |\n"
         tab_text +="| ---- | ---- | ---- | ---- | ---- | ---- |\n"
         tab_text +="| {} | {} | {} | {} | {} | {} |\n".format(
             self.getConfig().name,
@@ -89,7 +89,7 @@ class Spawner(XSpawner): # NOQA
 
         if self.getChildren():
             put_html(tab_title.format("子服务"))
-            tab_text = "| 名称 | 应用程序 | 类型 | 版本 | 进程 | 地址 |\n"
+            tab_text = "| 名称 | 应用 | 类型 | 版本 | 进程 | 地址 |\n"
             tab_text +="| ---- | ---- | ---- | ---- | ---- | ---- |\n"
             for elm in self.getChildren():
                 tab_line = "| {} | {} | {} | {} | {} | {} |\n".format(
