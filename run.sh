@@ -2,23 +2,9 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 
-if [ -z "$1" ]; then
-  export SERVER_IP=127.0.0.1
-else
-  export SERVER_IP=$1
-fi
-
-if [ -z "$2" ];  then
-  export SERVER_PORT=8080
-else
-  export SERVER_PORT=$2
-fi
-
-export SERVER_NAME=root
-
 # start spawner
-nohup sudo python3 -u -m xspawner --name $SERVER_NAME --app spawner --host $SERVER_IP --port $SERVER_PORT --severity info &
+nohup sudo python3 -u -m xspawner --name $1 --app $2 --host $3 --port $4 --severity debug &
 
 # test spawner
 sleep 1
-sudo python3 -m xspawner.apps.spawner.tests http://$SERVER_IP:$SERVER_PORT
+sudo python3 -m xspawner.apps.spawner.tests http://$3:$4
