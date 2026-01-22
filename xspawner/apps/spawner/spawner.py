@@ -80,7 +80,7 @@ class Spawner(XSpawner): # NOQA
             json_str = json.dumps(self.getState(), cls=SrvJSONEncoder, ensure_ascii=False, indent=4)
             put_code(json_str, language="json")
 
-        put_html(tab_title.format("拓扑结构"))
+        put_html(tab_title.format("层次结构"))
         content = []
         for name, addr in self.getAncestry():
             ILine(name)
