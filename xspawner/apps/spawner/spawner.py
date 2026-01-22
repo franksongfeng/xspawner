@@ -80,21 +80,22 @@ class Spawner(XSpawner): # NOQA
             json_str = json.dumps(self.getState(), cls=SrvJSONEncoder, ensure_ascii=False, indent=4)
             put_code(json_str, language="json")
 
-        put_html(tab_title.format("层次结构"))
-        content = []
-        for name, addr in self.getAncestry():
-            ILine(name)
-            ILine(addr)
-            content.append(put_link(name, url=addr))
-            content.append(put_text('>'))
-        content.append(put_text(self.getConfig().name))
-        if self.getChildren():
-            content.append(put_text('>'))
-            content.append(put_link(self.getChildren()[0]["name"], url=self.getChildren()[0]["addr"]))
-            for elm in self.getChildren()[1:]:
-                content.append(put_text('|'))
-                content.append(put_link(elm["name"], url=elm["addr"]))
-        put_row(content)
+        if self.getAncestry() or self.getChildren():
+            put_html(tab_title.format("层次结构"))
+            content = []
+            for name, addr in self.getAncestry():
+                ILine(name)
+                ILine(addr)
+                content.append(put_link(name, url=addr))
+                content.append(put_text('>'))
+            content.append(put_text(self.getConfig().name))
+            if self.getChildren():
+                content.append(put_text('>'))
+                content.append(put_link(self.getChildren()[0]["name"], url=self.getChildren()[0]["addr"]))
+                for elm in self.getChildren()[1:]:
+                    content.append(put_text('|'))
+                    content.append(put_link(elm["name"], url=elm["addr"]))
+            put_row(content)
 
         put_html(tab_title.format("管理功能"))
         addr = self.getAddr()
