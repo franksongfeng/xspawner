@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 
+import tornado.escape
+import requests
+from requests.exceptions import RequestException
+
 import queue
 import time
 import datetime
@@ -18,14 +22,10 @@ import ssl
 import tempfile
 import socket
 import subprocess
-import requests
-from requests.exceptions import RequestException
 import re
 import importlib
 import inspect
 import hashlib
-import tornado.escape
-import json
 
 
 # better than getCurTimeStr
