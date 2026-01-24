@@ -24,9 +24,11 @@ import socket
 import subprocess
 import re
 import importlib
+import pkgutil
 import inspect
 import hashlib
 
+from .log import *
 
 # better than getCurTimeStr
 def getCurMSecTimeStr():
@@ -466,6 +468,7 @@ def read_text_file(filename):
 
 
 def kill_process_on_port(port):
+    DLine("kill_process_on_port BEG {}".format(port))
     cmdstr = "ps -ef|grep python3|grep %s|%s" % (port, "awk '{print $2;}'")
     result = subprocess.run(
         args=cmdstr,
@@ -478,14 +481,16 @@ def kill_process_on_port(port):
         if len(pids) > 2:
             for p in pids[:2]:
                 os.system("sudo kill -9 %s" % p)
+                DLine("kill_process_on_port END True")
             return True
         else:
             return False
     else:
-        print(result.stderr)
+        ELine("stderr: {}".format(result.stderr))
         return False
 
 def get_child_cls(mod, base_cls_name, inherit=True):
+    DLine("get_child_cls BEG {} {}".format(str(mod), base_cls_name))
     try:
         mod_obj = importlib.import_module(mod) if isinstance(mod, str) else mod
         if mod_obj:
@@ -493,20 +498,26 @@ def get_child_cls(mod, base_cls_name, inherit=True):
                 obj = getattr(mod_obj, name)
                 if inspect.isclass(obj):
                     if inherit and is_descendant_cls(obj, base_cls_name):
+                        DLine("get_child_cls END Inherit {}".format(base_cls_name))
                         return obj
                     else:
                         if obj.__base__.__name__ == base_cls_name:
+                            DLine("get_child_cls END Just Be {}".format(base_cls_name))
                             return obj
     except Exception as e:
-        print("get_child_cls exception: ", e)
+        ELine("exception: {}".format(str(e)))
         return None
 
 def is_descendant_cls(kls, base_cls_name):
+    DLine("is_descendant_cls BEG {} {}".format(str(kls), base_cls_name))
     if not kls:
+        DLine("is_descendant_cls END Empty")
         return False
     if kls.__name__ == "object":
+        DLine("is_descendant_cls END Not found")
         return False
     if kls.__base__.__name__ == base_cls_name:
+        DLine("is_descendant_cls END found")
         return True
     return is_descendant_cls(kls.__base__, base_cls_name)
 
@@ -517,8 +528,6 @@ def is_module_available(module_name):
         return False
 
 def import_package_modules(package_path):
-    import pkgutil
-    import importlib
     package = importlib.import_module(package_path)
     for _, module_name, _ in pkgutil.iter_modules(package.__path__):
         full_name = f"{package_path}.{module_name}"
