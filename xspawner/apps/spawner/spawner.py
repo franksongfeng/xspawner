@@ -90,17 +90,15 @@ class Spawner(XSpawner): # NOQA
             put_html(tab_title.format("层次结构"))
             content = []
             for name, addr in self.getAncestry():
-                ILine(name)
-                ILine(addr)
-                content.append(put_link(name, url=addr))
+                content.append(put_link(name, url=addr+"/oam"))
                 content.append(put_text('>'))
             content.append(put_text(self.getConfig().name))
             if self.getChildren():
                 content.append(put_text('>'))
-                content.append(put_link(self.getChildren()[0]["name"], url=self.getChildren()[0]["addr"]))
+                content.append(put_link(self.getChildren()[0]["name"], url=self.getChildren()[0]["addr"]+"/oam"))
                 for elm in self.getChildren()[1:]:
                     content.append(put_text('|'))
-                    content.append(put_link(elm["name"], url=elm["addr"]))
+                    content.append(put_link(elm["name"], url=elm["addr"]+"/oam"))
             put_row(content)
 
         put_html(tab_title.format("管理功能"))
