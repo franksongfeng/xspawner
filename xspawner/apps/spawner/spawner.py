@@ -507,18 +507,22 @@ class Spawner(XSpawner): # NOQA
         return True
 
 
-    @ApiHandler.route("/state/get")
-    def _state_get(self, headers: dict, data: dict):
+    @ApiHandler.route("/get_config")
+    def _get_config(self, headers: dict, data: dict):
+        return self.getConfig()._asdict()
+
+
+    @ApiHandler.route("/get_state")
+    def _get_state(self, headers: dict, data: dict):
         return dict(self.getState())
 
-
-    @ApiHandler.route("/state/set")
-    def _state_set(self, headers: dict, data: dict):
+    @ApiHandler.route("/set_state")
+    def _set_state(self, headers: dict, data: dict):
         self.setState(data)
         return True
 
-    @ApiHandler.route("/children/get")
-    def _children_get(self, headers: dict, data: dict):
+    @ApiHandler.route("/get_children")
+    def _get_children(self, headers: dict, data: dict):
         return self.getChildren()
 
 
