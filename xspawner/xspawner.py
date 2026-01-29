@@ -32,7 +32,7 @@ from . import RES_DIR_TEMP # NOQA
 
 
 INTERNAL_HANDLERS = ["PingPongHandler", "HomePageHandler", "StaticFileHandler", "SuicideHandler"]
-CUSTOMED_HANDLERS = ["API", "UI", "MON"]
+CUSTOMED_HANDLERS = ["ApiHandler", "UiHandler", "FlowHandler"]
 
 class PingPongHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("GET",)
@@ -62,7 +62,7 @@ class SuicideHandler(tornado.web.RequestHandler):
         gServer.stop()
         self.write('stopped')
 
-class API(tornado.web.RequestHandler):
+class ApiHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("POST", "GET", "OPTIONS")
     # path_map is path to handlers like dict {<post path> : <handle function>}
     #   url path begins with '/'
@@ -157,7 +157,7 @@ class API(tornado.web.RequestHandler):
         return decorator
 
 
-class UI:
+class UiHandler:
     path_map = {}
 
     def __new__(cls, path, srv):
@@ -191,7 +191,7 @@ class UI:
             return f
         return decorator
 
-class MON(tornado.web.RequestHandler):
+class FlowHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("POST", "GET")
     path_map = {}
 
@@ -286,12 +286,12 @@ class XSpawner(Serviceable):
 
         handlers = []
         # user handlers are prior
-        for path in API.path_map:
-            handlers.append((path, API))
-        for path in MON.path_map:
-            handlers.append((path, MON))
-        for path in UI.path_map:
-            handlers.append((path, UI(path, self)))
+        for path in ApiHandler.path_map:
+            handlers.append((path, ApiHandler))
+        for path in FlowHandler.path_map:
+            handlers.append((path, FlowHandler))
+        for path in UiHandler.path_map:
+            handlers.append((path, UiHandler(path, self)))
         # fixed handlers are at the bottom
         resource_dir = RES_DIR_TEMP.format(self._config.app)
         handlers.extend([
@@ -336,15 +336,15 @@ class XSpawner(Serviceable):
 
         def make_cbf_params(fun, ct, body):
             # fun.__code__.co_argcount = 1(self) + N({}|args|fdata, fname, farg)
-            if fun.__code__.co_argcount == 1: # for UI
+            if fun.__code__.co_argcount == 1: # for UiHandler
                 ILine("{} BEG".format(fun.__code__.co_name))
                 return ()
-            elif fun.__code__.co_argcount == 3: # for API I (normal) or MON
+            elif fun.__code__.co_argcount == 3: # for ApiHandler I (normal) or FlowHandler
                 # transport JSON
                 jdata = body.decode()
                 ILine("{} BEG {}".format(fun.__code__.co_name, jdata))
                 return (json.loads(jdata),)
-            elif fun.__code__.co_argcount == 5: # for API II (upload)
+            elif fun.__code__.co_argcount == 5: # for ApiHandler II (upload)
                 # transport File
                 boundary = parse_multipart_boundary(ct)
                 args, docs = dict(), dict()
@@ -371,7 +371,7 @@ class XSpawner(Serviceable):
 
         async for (future, condition, path, headers, body) in self._req_queue:
             try:
-                fun = API.path_map[path]
+                fun = ApiHandler.path_map[path]
                 ct = headers["Content-Type"] if "Content-Type" in headers else None
                 DLine("make_cbf_params {} {} {}".format(fun, ct, body))
                 params = make_cbf_params(fun, ct, body)

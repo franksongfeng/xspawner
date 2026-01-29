@@ -14,19 +14,19 @@ class Misc(XSpawner):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    @API.route("/upload")
+    @ApiHandler.route("/upload")
     def _upload(self, headers: dict, fdata: bytes, fname: str, fargs: dict):
         with open(fname, "wb") as f:
             f.write(fdata)
         return {"succ":True,"data":{}}
 
-    @API.route("/download")
+    @ApiHandler.route("/download")
     def _download(self, headers: dict, data: dict):
         fdata = b"<root>hello, world!</root>"
         fname = "a.xml"
         return (fdata, fname)
 
-    @MON.route("/loop", 5)
+    @FlowHandler.route("/loop", 5)
     def _loop(self, headers: dict, data: dict):
         evt = {
             "event": "current_time",
@@ -40,7 +40,7 @@ class Misc(XSpawner):
             # stop
             return False
 
-    @UI.route("/submit")
+    @UiHandler.route("/submit")
     def _submit(self):
         usr = input("请输入你的姓名：", type=TEXT)
         pwd = input("请输入你的口令：", type=PASSWORD)
