@@ -31,7 +31,7 @@ from .serviceable import Serviceable, Config, State # NOQA
 from . import RES_DIR_TEMP # NOQA
 
 
-INTERNAL_HANDLERS = ["PingPongHandler", "HomePageHandler", "StaticFileHandler", "SuicideHandler"]
+INTERNAL_HANDLERS = ["PingPongHandler", "HomePageHandler", "ResourceHandler", "ExitHandler"]
 CUSTOMED_HANDLERS = ["ApiHandler", "UiHandler", "FlowHandler"]
 
 class PingPongHandler(tornado.web.RequestHandler):
@@ -47,13 +47,13 @@ class HomePageHandler(tornado.web.RequestHandler):
         self.set_header("Content-Type", "text/html")
         self.render("index.html")
 
-class StaticFileHandler(tornado.web.StaticFileHandler):
+class ResourceHandler(tornado.web.StaticFileHandler):
     def set_default_headers(self):
         self.set_header('Cache-Control', 'max-age=0, no-cache, no-store, must-revalidate')
         self.set_header('Pragma', 'no-cache')
         self.set_header('Expires', '0')
 
-class SuicideHandler(tornado.web.RequestHandler):
+class ExitHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("DELETE",)
     # terminate server
     def delete(self):
@@ -296,9 +296,9 @@ class XSpawner(Serviceable):
         resource_dir = RES_DIR_TEMP.format(self._config.app)
         handlers.extend([
             (r"/", HomePageHandler),
-            (r"/resources/(.*)", StaticFileHandler, {"path": resource_dir}),
+            (r"/resources/(.*)", ResourceHandler, {"path": resource_dir}),
             (r"/ping", PingPongHandler),
-            (r"/stop", SuicideHandler)
+            (r"/stop", ExitHandler)
         ])
         # start http server
         app = tornado.web.Application(
