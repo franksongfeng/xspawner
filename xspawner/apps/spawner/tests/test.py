@@ -6,10 +6,19 @@ import requests
 import re
 import sys
 import os
+import json
 
 def is_html(text):
     html_pattern = re.compile(r'<[^>]+>', re.IGNORECASE)
     return bool(html_pattern.search(text))
+
+def is_json(text):
+    try:
+        json.loads(text)
+        return True
+    except (json.JSONDecodeError, TypeError):
+        return False
+
 
 class Test(unittest.TestCase):
     addr: str = None
@@ -29,20 +38,14 @@ class Test(unittest.TestCase):
         rt = requests.get(f"{self.addr}/")
         self.assertTrue(is_html(rt.text))
 
-    def test_server_create(self):
+    def test_get_config(self):
         if self.addr is None:
             raise ValueError("addr is None")
-        rt = requests.get(f"{self.addr}/server/create")
-        self.assertTrue(is_html(rt.text))
+        rt = requests.get(f"{self.addr}/get_config")
+        self.assertTrue(is_json(rt.text))
 
-    def test_server_delete(self):
+    def test_get_state(self):
         if self.addr is None:
             raise ValueError("addr is None")
-        rt = requests.get(f"{self.addr}/server/delete")
-        self.assertTrue(is_html(rt.text))
-
-    def test_server_log(self):
-        if self.addr is None:
-            raise ValueError("addr is None")
-        rt = requests.get(f"{self.addr}/server/log")
-        self.assertTrue(is_html(rt.text))
+        rt = requests.get(f"{self.addr}/get_state")
+        self.assertTrue(is_json(rt.text))

@@ -100,10 +100,10 @@ class Spawner(XSpawner): # NOQA
         put_html(tab_title.format("管理功能"))
         addr = self.getAddr()
         funcs = [
-            {"name": "创建服务", "url": "{}/server/create".format(addr)},
-            {"name": "销毁服务", "url": "{}/server/delete".format(addr)},
-            {"name": "查看日志", "url": "{}/server/log".format(addr)},
-            {"name": "调试接口", "url": "{}/dbg".format(addr)}
+            {"name": "创建服务", "url": "{}/oam/create".format(addr)},
+            {"name": "销毁服务", "url": "{}/oam/delete".format(addr)},
+            {"name": "查看日志", "url": "{}/oam/log".format(addr)},
+            {"name": "调试接口", "url": "{}/oam/debug".format(addr)}
         ]
         funcs_text = "\n".join(
             f"- [{item['name']}]({item['url']})" for item in funcs
@@ -112,9 +112,9 @@ class Spawner(XSpawner): # NOQA
         return True
 
 
-    @UiHandler.route("/server/create")
+    @UiHandler.route("/oam/create")
     @config(theme="yeti")
-    async def _server_create(self):
+    async def _oam_create(self):
         def check_mod_file(filename):
             if get_file_type(filename) != PYTHON_MIME_TYPE:
                 return False
@@ -125,7 +125,7 @@ class Spawner(XSpawner): # NOQA
                 return False
             return True
 
-        DLine("{}::_server_create BEG".format(self.__class__.__name__))
+        DLine("{}::_oam_create BEG".format(self.__class__.__name__))
         set_env(title="服务创建", output_animation=False)
         put_html(f'<style>{CSS}</style>')
         data = await input_group(
@@ -300,13 +300,13 @@ class Spawner(XSpawner): # NOQA
         ILine("new_srv: {}".format(new_srv))
 
         put_success("server <{} :{}> is loaded to port {} successfully.".format(srvname, srvpid, srvport))
-        DLine("{}::_server_create END".format(self.__class__.__name__))
+        DLine("{}::_oam_create END".format(self.__class__.__name__))
         return True
 
 
-    @UiHandler.route("/server/delete")
+    @UiHandler.route("/oam/delete")
     @config(theme="yeti")
-    async def _server_delete(self):
+    async def _oam_delete(self):
         def update_pid(name):
             elm = search_list_of_dict(self.getChildren(), "name", name)
             if elm:
@@ -325,7 +325,7 @@ class Spawner(XSpawner): # NOQA
             srv_names = [server["name"] for server in self.getChildren()]
             with popup('选择已运行的服务'):
                 put_buttons(srv_names, onclick=set_value_and_close_popup, outline=True)
-        DLine("{}::_server_delete BEG".format(self.__class__.__name__))
+        DLine("{}::_oam_delete BEG".format(self.__class__.__name__))
         set_env(title="服务销毁", output_animation=False)
         put_html(f'<style>{CSS}</style>')
         data = await input_group(
@@ -391,16 +391,16 @@ class Spawner(XSpawner): # NOQA
                 else:
                     ILine(f"file {modfile} dont exist")
             put_success("server <{} :{}> is deleted.".format(srvname, srvpid))
-            DLine("{}::_server_delete END".format(self.__class__.__name__))
+            DLine("{}::_oam_delete END".format(self.__class__.__name__))
             return True
 
         put_error("Failed to find server <{} :{}>.".format(srvname, srvpid))
         return False
 
 
-    @UiHandler.route("/server/log")
+    @UiHandler.route("/oam/log")
     @config(theme="yeti")
-    async def _server_log(self):
+    async def _oam_log(self):
         set_env(title="服务日志", output_animation=False)
         logfile = self.getLogFile();
         if os.path.isfile(logfile):
@@ -412,11 +412,11 @@ class Spawner(XSpawner): # NOQA
             return True
 
 
-    @UiHandler.route("/dbg/output")
+    @UiHandler.route("/oam/debug/output")
     @config(theme="yeti")
-    def _dbg_output(self):
+    def _oam_dbg_output(self):
         try:
-            ILine("_dbg_output BEG")
+            ILine("_oam_debug_output BEG")
             exec(self._dbg_data["code"], globals(), locals())
             if self._dbg_data["func"] == "Eval":
                 ldata = locals().copy()
@@ -425,7 +425,7 @@ class Spawner(XSpawner): # NOQA
                     ILine("local vars: {}".format(str(ldata)))
                     put_markdown("***\n变量值")
                     put_code(get_first_level_json(ldata), language='json')
-            ILine("_dbg_output END")
+            ILine("_oam_debug_output END")
             return True
         except Exception as e:
             e_str = "Exception: {}\n{}".format(str(e), traceback.format_exc())
@@ -435,9 +435,9 @@ class Spawner(XSpawner): # NOQA
             return False
 
 
-    @UiHandler.route("/dbg")
+    @UiHandler.route("/oam/debug")
     @config(theme="yeti")
-    async def _dbg(self):
+    async def _oam_debug(self):
 
         async def show_form(init_data):
             async def open_url(url):
@@ -492,18 +492,18 @@ class Spawner(XSpawner): # NOQA
                 else:
                     self._dbg_data = data
                     # 打开新的URL
-                    await open_url(self.getAddr() + "/dbg/output")
+                    await open_url(self.getAddr() + "/oam/debug/output")
                 # 递归地重新显示表单
                 await tornado.gen.sleep(0.2)
                 await show_form(data)
 
-        ILine("_dbg BEG")
+        ILine("_oam_debug BEG")
         set_env(title="调试接口", output_animation=False)
 
         # 显示表单
         put_scope("form_scope")
         await show_form({'code':'put_text("Hello world!")\n','func':'UI'})
-        ILine("_dbg END")
+        ILine("_oam_debug END")
         return True
 
 
