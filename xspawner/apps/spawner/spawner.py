@@ -49,6 +49,12 @@ class Spawner(XSpawner): # NOQA
     @UiHandler.route("/")
     @config(theme="yeti")
     async def _(self):
+        return await Spawner._oam(self)
+
+
+    @UiHandler.route("/oam")
+    @config(theme="yeti")
+    async def _oam(self):
         set_env(title="首页", output_animation=False)
         put_html(f'<style>{CSS}</style>')
         tab_title = """
