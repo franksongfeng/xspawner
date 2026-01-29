@@ -46,7 +46,7 @@ CSS = read_text_file("xspawner/apps/spawner/common.css")
 
 class Spawner(XSpawner): # NOQA
 
-    @Interaction.route("/")
+    @UI.route("/")
     @config(theme="yeti")
     async def _(self):
         set_env(title="首页", output_animation=False)
@@ -112,7 +112,7 @@ class Spawner(XSpawner): # NOQA
         return True
 
 
-    @Interaction.route("/server/create")
+    @UI.route("/server/create")
     @config(theme="yeti")
     async def _server_create(self):
         def check_mod_file(filename):
@@ -304,7 +304,7 @@ class Spawner(XSpawner): # NOQA
         return True
 
 
-    @Interaction.route("/server/delete")
+    @UI.route("/server/delete")
     @config(theme="yeti")
     async def _server_delete(self):
         def update_pid(name):
@@ -398,7 +398,7 @@ class Spawner(XSpawner): # NOQA
         return False
 
 
-    @Interaction.route("/server/log")
+    @UI.route("/server/log")
     @config(theme="yeti")
     async def _server_log(self):
         set_env(title="服务日志", output_animation=False)
@@ -412,7 +412,7 @@ class Spawner(XSpawner): # NOQA
             return True
 
 
-    @Interaction.route("/dbg/output")
+    @UI.route("/dbg/output")
     @config(theme="yeti")
     def _dbg_output(self):
         try:
@@ -435,7 +435,7 @@ class Spawner(XSpawner): # NOQA
             return False
 
 
-    @Interaction.route("/dbg")
+    @UI.route("/dbg")
     @config(theme="yeti")
     async def _dbg(self):
 
@@ -507,17 +507,17 @@ class Spawner(XSpawner): # NOQA
         return True
 
 
-    @Reaction.route("/state/get")
+    @API.route("/state/get")
     def _state_get(self, headers: dict, data: dict):
         return dict(self.getState())
 
 
-    @Reaction.route("/state/set")
+    @API.route("/state/set")
     def _state_set(self, headers: dict, data: dict):
         self.setState(data)
         return True
 
-    @Reaction.route("/children/get")
+    @API.route("/children/get")
     def _children_get(self, headers: dict, data: dict):
         return self.getChildren()
 

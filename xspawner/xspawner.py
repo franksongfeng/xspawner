@@ -31,17 +31,17 @@ from .serviceable import Serviceable, Config, State # NOQA
 from . import RES_DIR_TEMP # NOQA
 
 
-FIXED_HANDLERS = ["PingHandler", "MainHandler", "StaticFileHandler", "StopHandler"]
-USER_HANDLERS = ["Reaction", "Interaction", "Circulation"]
+INTERNAL_HANDLERS = ["PingPongHandler", "HomePageHandler", "StaticFileHandler", "SuicideHandler"]
+CUSTOMED_HANDLERS = ["API", "UI", "MON"]
 
-class PingHandler(tornado.web.RequestHandler):
+class PingPongHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("GET",)
     # ping/pong test
     def get(self):
         self.write('pong')
         self.finish()
 
-class MainHandler(tornado.web.RequestHandler):
+class HomePageHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("GET",)
     def get(self):
         self.set_header("Content-Type", "text/html")
@@ -53,7 +53,7 @@ class StaticFileHandler(tornado.web.StaticFileHandler):
         self.set_header('Pragma', 'no-cache')
         self.set_header('Expires', '0')
 
-class StopHandler(tornado.web.RequestHandler):
+class SuicideHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("DELETE",)
     # terminate server
     def delete(self):
@@ -62,7 +62,7 @@ class StopHandler(tornado.web.RequestHandler):
         gServer.stop()
         self.write('stopped')
 
-class Reaction(tornado.web.RequestHandler):
+class API(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("POST", "GET", "OPTIONS")
     # path_map is path to handlers like dict {<post path> : <handle function>}
     #   url path begins with '/'
@@ -157,7 +157,7 @@ class Reaction(tornado.web.RequestHandler):
         return decorator
 
 
-class Interaction:
+class UI:
     path_map = {}
 
     def __new__(cls, path, srv):
@@ -167,7 +167,7 @@ class Interaction:
             reconnect_timeout=3,
             check_origin=False
         )
-        class InteractionHandler(WIOHandler):
+        class UIHandler(WIOHandler):
             def set_default_headers(self):
                 self.set_header("Access-Control-Allow-Origin", "*")
                 self.set_header("Access-Control-Allow-Headers", "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization")
@@ -182,7 +182,7 @@ class Interaction:
                 self.set_header("Content-Type", "text/plain; charset=utf-8")
                 self.set_status(204)
                 self.finish()
-        return InteractionHandler
+        return UIHandler
 
     @classmethod
     def route(cls, path):
@@ -191,7 +191,7 @@ class Interaction:
             return f
         return decorator
 
-class Circulation(tornado.web.RequestHandler):
+class MON(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("POST", "GET")
     path_map = {}
 
@@ -286,19 +286,19 @@ class XSpawner(Serviceable):
 
         handlers = []
         # user handlers are prior
-        for path in Reaction.path_map:
-            handlers.append((path, Reaction))
-        for path in Circulation.path_map:
-            handlers.append((path, Circulation))
-        for path in Interaction.path_map:
-            handlers.append((path, Interaction(path, self)))
+        for path in API.path_map:
+            handlers.append((path, API))
+        for path in MON.path_map:
+            handlers.append((path, MON))
+        for path in UI.path_map:
+            handlers.append((path, UI(path, self)))
         # fixed handlers are at the bottom
         resource_dir = RES_DIR_TEMP.format(self._config.app)
         handlers.extend([
-            (r"/", MainHandler),
+            (r"/", HomePageHandler),
             (r"/resources/(.*)", StaticFileHandler, {"path": resource_dir}),
-            (r"/ping", PingHandler),
-            (r"/stop", StopHandler)
+            (r"/ping", PingPongHandler),
+            (r"/stop", SuicideHandler)
         ])
         # start http server
         app = tornado.web.Application(
@@ -336,15 +336,15 @@ class XSpawner(Serviceable):
 
         def make_cbf_params(fun, ct, body):
             # fun.__code__.co_argcount = 1(self) + N({}|args|fdata, fname, farg)
-            if fun.__code__.co_argcount == 1: # for Interaction
+            if fun.__code__.co_argcount == 1: # for UI
                 ILine("{} BEG".format(fun.__code__.co_name))
                 return ()
-            elif fun.__code__.co_argcount == 3: # for Reaction I (normal) or Circulation
+            elif fun.__code__.co_argcount == 3: # for API I (normal) or MON
                 # transport JSON
                 jdata = body.decode()
                 ILine("{} BEG {}".format(fun.__code__.co_name, jdata))
                 return (json.loads(jdata),)
-            elif fun.__code__.co_argcount == 5: # for Reaction II (upload)
+            elif fun.__code__.co_argcount == 5: # for API II (upload)
                 # transport File
                 boundary = parse_multipart_boundary(ct)
                 args, docs = dict(), dict()
@@ -371,7 +371,7 @@ class XSpawner(Serviceable):
 
         async for (future, condition, path, headers, body) in self._req_queue:
             try:
-                fun = Reaction.path_map[path]
+                fun = API.path_map[path]
                 ct = headers["Content-Type"] if "Content-Type" in headers else None
                 DLine("make_cbf_params {} {} {}".format(fun, ct, body))
                 params = make_cbf_params(fun, ct, body)

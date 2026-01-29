@@ -8,6 +8,6 @@ class Helloworld(XSpawner):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    @Reaction.route("/")
+    @API.route("/")
     def _(self, headers: dict, data: dict):
         return "hello, world!"
