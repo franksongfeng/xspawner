@@ -46,10 +46,10 @@ CSS = read_text_file("xspawner/apps/spawner/common.css")
 
 class Spawner(XSpawner): # NOQA
 
-    @UiHandler.route("/")
-    @config(theme="yeti")
-    async def _(self):
-        return await Spawner._oam(self)
+    # @UiHandler.route("/")
+    # @config(theme="yeti")
+    # async def _(self):
+    #     return await Spawner._oam(self)
 
 
     @UiHandler.route("/oam")
