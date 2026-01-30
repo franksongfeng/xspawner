@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 
-from pywebio import config
+from pywebio import *
 from pywebio.input import *
 from pywebio.output import *
 from pywebio.session import *
@@ -486,7 +486,7 @@ class Spawner(XSpawner): # NOQA
             # 处理请求
             if data:
                 # 延时后重新渲染表单区域
-                run_js("setTimeout(() => { PyWebIO.reload_scope('form_scope'); }, 50)")
+                # run_js("setTimeout(() => { PyWebIO.reload_scope('form_scope'); }, 50)")
                 if data['action'] == 'trim':
                     # 处理缩进整理
                     data['code'] = trim_code(data['code'])
