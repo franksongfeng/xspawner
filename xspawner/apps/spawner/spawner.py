@@ -246,7 +246,7 @@ class Spawner(XSpawner): # NOQA
         srvapp = topmod.split(".")[2]
         ILine(f"srvapp: {srvapp}")
 
-        res = self._start_server(None, {"name": srvname, "app": srvapp, "port": srvport, "severity": srvseverity})
+        res = self._start_child(None, {"name": srvname, "app": srvapp, "port": srvport, "severity": srvseverity})
         if not res: # res is ""
             put_error("Failed to start server {}.".format(srvname))
             return True
@@ -521,9 +521,9 @@ class Spawner(XSpawner): # NOQA
     def _get_children(self, headers: dict, data: dict):
         return self.getChildren()
 
-    @ApiHandler.route("/start_server")
-    def _start_server(self, headers: dict, data: dict):
-        ILine(f"_start_server BEG {data}")
+    @ApiHandler.route("/start_child")
+    def _start_child(self, headers: dict, data: dict):
+        ILine(f"_start_child BEG {data}")
         if "port" not in data \
         or "severity" not in data \
         or "name" not in data \
@@ -543,7 +543,7 @@ class Spawner(XSpawner): # NOQA
         cmd = BASIC_CMD.format(data["name"], data["app"], self.getConfig().host, data["port"], data["severity"], srvancestry)
         ILine(f"start server command: {cmd}")
         pid = start_background_process(cmd.split())
-        ILine(f"_start_server END {pid}")
+        ILine(f"_start_child END {pid}")
         return pid
 
     def getLogFile(self):
