@@ -189,7 +189,7 @@ class Spawner(XSpawner): # NOQA
         ftype = data["source"]["mime_type"]
         srvname = data["name"]
         srvport = data["port"]
-        srvloglevel = data["severity"]
+        srvseverity = data["severity"]
 
         if srvname:
             elm = search_list_of_dict(self.getChildren(), "name", srvname)
@@ -246,22 +246,11 @@ class Spawner(XSpawner): # NOQA
         srvapp = topmod.split(".")[2]
         ILine(f"srvapp: {srvapp}")
 
-        ancestry = self.getAncestry()
-        ancestry.append(
-            (
-                self.getConfig().name,
-                self.getAddr()
-            )
-        )
-        srvancestry = json.dumps(ancestry, cls=SrvJSONEncoder, separators=(',', ':'))
-        ILine(f"srvancestry: {srvancestry}")
-        cmd = BASIC_CMD.format(srvname, srvapp, self.getConfig().host, srvport, srvloglevel, srvancestry)
-
-        ILine(f"cmd: {cmd}")
-        srvpid = start_background_process(cmd.split())
-        if srvpid is None:
-            put_error("Failed to start server <{} :{}>.".format(srvname, srvpid))
+        res = self._start_server(None, {"name": srvname, "app": srvapp, "port": srvport, "severity": srvseverity})
+        if not res: # res is ""
+            put_error("Failed to start server {}.".format(srvname))
             return True
+        srvpid = int(res)
         srvaddr = "http://{}:{}".format(self.getConfig().host, srvport)
         ILine("srvpid: {}, srvaddr: {}".format(srvpid, srvaddr))
 
@@ -532,6 +521,30 @@ class Spawner(XSpawner): # NOQA
     def _get_children(self, headers: dict, data: dict):
         return self.getChildren()
 
+    @ApiHandler.route("/start_server")
+    def _start_server(self, headers: dict, data: dict):
+        ILine(f"_start_server BEG {data}")
+        if "port" not in data \
+        or "severity" not in data \
+        or "name" not in data \
+        or "app" not in data:
+            ELine("Miss port or severity or name or app in data")
+            return False
+
+        ancestry = self.getAncestry()
+        ancestry.append(
+            (
+                self.getConfig().name,
+                self.getAddr()
+            )
+        )
+        srvancestry = json.dumps(ancestry, cls=SrvJSONEncoder, separators=(',', ':'))
+        ILine(f"srvancestry: {srvancestry}")
+        cmd = BASIC_CMD.format(data["name"], data["app"], self.getConfig().host, data["port"], data["severity"], srvancestry)
+        ILine(f"start server command: {cmd}")
+        pid = start_background_process(cmd.split())
+        ILine(f"_start_server END {pid}")
+        return pid
 
     def getLogFile(self):
         return LOG_FILE_TEMP.format(self.getConfig().name)
@@ -648,10 +661,7 @@ def start_background_process(command):
         shell=False
     )
     time.sleep(0.5) # need a delay
-    child_pid = os.popen(f"pgrep -P {proc.pid}").read().strip()
-    if child_pid:
-        child_pid = int(child_pid)
-        return child_pid
+    return os.popen(f"pgrep -P {proc.pid}").read().strip()
 
 
 def get_public_ip(timeout=5):
