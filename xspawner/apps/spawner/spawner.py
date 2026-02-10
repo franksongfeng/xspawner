@@ -300,6 +300,7 @@ class Spawner(XSpawner): # NOQA
             srv_names = [server["name"] for server in self.getChildren()]
             with popup('选择已运行的服务'):
                 put_buttons(srv_names, onclick=set_value_and_close_popup, outline=True)
+
         DLine("{}::_oam_delete BEG".format(self.__class__.__name__))
         set_env(title="服务销毁", output_animation=False)
         put_html(f'<style>{CSS}</style>')
@@ -452,13 +453,13 @@ class Spawner(XSpawner): # NOQA
                 await tornado.gen.sleep(0.2)
                 await show_form(data)
 
-        ILine("_oam_debug BEG")
+        DLine("{}::_oam_debug BEG".format(self.__class__.__name__))
         set_env(title="调试接口", output_animation=False)
 
         # 显示表单
         put_scope("form_scope")
         await show_form({'code':'put_text("Hello world!")\n','func':'UI'})
-        ILine("_oam_debug END")
+        DLine("{}::_oam_debug END".format(self.__class__.__name__))
         return True
 
 
@@ -482,7 +483,7 @@ class Spawner(XSpawner): # NOQA
 
     @ApiHandler.route("/start_child")
     def _start_child(self, headers: dict, data: dict):
-        ILine(f"_start_child BEG {data}")
+        DLine("{}::_start_child BEG {}".format(self.__class__.__name__, data))
         if "port" not in data \
         or "severity" not in data \
         or "name" not in data \
@@ -502,12 +503,12 @@ class Spawner(XSpawner): # NOQA
         cmd = BASIC_CMD.format(data["name"], data["app"], self.getConfig().host, data["port"], data["severity"], srvancestry)
         ILine(f"start server command: {cmd}")
         pid = start_background_process(cmd.split())
-        ILine(f"_start_child END {pid}")
+        DLine("{}::_start_child END {}".format(self.__class__.__name__, pid))
         return pid
 
     @ApiHandler.route("/stop_child")
     def _stop_child(self, headers: dict, data: dict):
-        ILine(f"_stop_child BEG {data}")
+        DLine("{}::_stop_child BEG {}".format(self.__class__.__name__, data))
         if "name" not in data and "pid" not in data:
             ELine(f"Miss name or pid in data {data}")
             return False
@@ -537,12 +538,12 @@ class Spawner(XSpawner): # NOQA
             WLine("server <{} :{}> dont exist.".format(srvname, srvpid))
             return False
 
-        ILine(f"_stop_child END")
+        DLine("{}::_stop_child END".format(self.__class__.__name__))
         return True
 
     @ApiHandler.route("/test_child")
     async def _test_cases(self, headers: dict, data: dict):
-        ILine(f"_test_cases BEG {data}")
+        DLine("{}::_test_cases BEG {}".format(self.__class__.__name__, data))
         if "app" not in data \
         or "port" not in data \
         or "pid" not in data:
@@ -572,7 +573,7 @@ class Spawner(XSpawner): # NOQA
                 return False
         else:
             WLine("no unittest case.")
-        ILine(f"_test_cases END")
+        DLine("{}::_test_cases END".format(self.__class__.__name__))
         return True
 
     def getLogFile(self):
