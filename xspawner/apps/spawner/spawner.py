@@ -250,8 +250,7 @@ class Spawner(XSpawner): # NOQA
         res = self._start_child(None, {"name": srvname, "app": srvapp, "port": srvport, "severity": srvseverity})
         if not res: # res is ""
             put_error("Failed to start server {}.".format(srvname))
-            return False
-        
+            return True
         srvpid = int(res)
         srvaddr = "http://{}:{}".format(self.getConfig().host, srvport)
         ILine("srvpid: {}, srvaddr: {}".format(srvpid, srvaddr))
@@ -327,51 +326,31 @@ class Spawner(XSpawner): # NOQA
             ]
         )
 
-        srvname = data["name"]
-        srvpid = data["pid"]
+        elm = search_list_of_dict(
+            self.getChildren(),
+            "name" if data["name"] else "pid",
+            data["name"] if data["name"] else data["pid"]
+        )
+        srvapp = elm["app"]
+        srvpid = elm["pid"]
+        srvname = elm["name"]
 
-        if not srvname and not srvpid:
-            put_error('No selected server')
-            return False
+        self._stop_child(None, {"name": srvname})
 
-        valid_srv = False
-        srvapp = None
-        if srvpid:
-            elm = search_list_of_dict(self.getChildren(), "pid", srvpid)
-            if elm:
-                srvapp = elm["app"]
-                valid_srv = True
-        if srvname:
-            elm = search_list_of_dict(self.getChildren(), "name", srvname)
-            if elm:
-                srvpid = int(elm["pid"])
-                srvapp = elm["app"]
-                valid_srv = True
-        if valid_srv:
-            self.delChild(elm)
-            try:
-                os.kill(srvpid, signal.SIGTERM)
-            except Exception as e:
-                CLine(traceback.format_exc()) # NOQA
-                put_warning("server <{} :{}> dont exist.".format(srvname, srvpid))
-                return True
-            pkgdir = f"{APP_PKG}.{srvapp}".replace('.', '/')
-            if os.path.exists(pkgdir) and srvapp != "spawner":
-                shutil.rmtree(pkgdir)
-                ILine(f"directory {pkgdir} is deleted")
+        pkgdir = f"{APP_PKG}.{srvapp}".replace('.', '/')
+        if os.path.exists(pkgdir) and srvapp != "spawner":
+            shutil.rmtree(pkgdir)
+            ILine(f"directory {pkgdir} is deleted")
+        else:
+            modfile = pkgdir + ".py"
+            if os.path.isfile(modfile):
+                os.remove(modfile)
+                ILine(f"file {modfile} is deleted")
             else:
-                modfile = pkgdir + ".py"
-                if os.path.isfile(modfile):
-                    os.remove(modfile)
-                    ILine(f"file {modfile} is deleted")
-                else:
-                    ILine(f"file {modfile} dont exist")
-            put_success("server <{} :{}> is deleted.".format(srvname, srvpid))
-            DLine("{}::_oam_delete END".format(self.__class__.__name__))
-            return True
-
-        put_error("Failed to find server <{} :{}>.".format(srvname, srvpid))
-        return False
+                ILine(f"file {modfile} doesnt exist")
+        put_success("server <{} :{}> is deleted.".format(srvname, srvpid))
+        DLine("{}::_oam_delete END".format(self.__class__.__name__))
+        return True
 
 
     @UiHandler.route("/oam/log")
@@ -525,6 +504,41 @@ class Spawner(XSpawner): # NOQA
         pid = start_background_process(cmd.split())
         ILine(f"_start_child END {pid}")
         return pid
+
+    @ApiHandler.route("/stop_child")
+    def _stop_child(self, headers: dict, data: dict):
+        ILine(f"_stop_child BEG {data}")
+        if "name" not in data and "pid" not in data:
+            ELine(f"Miss name or pid in data {data}")
+            return False
+
+        elm = search_list_of_dict(
+            self.getChildren(),
+            "name" if data["name"] else "pid",
+            data["name"] if data["name"] else data["pid"]
+        )
+        if not elm:
+            WLine("cannot find child server on {}".format(data))
+            return False
+
+        if "app" not in elm or "pid" not in elm or "name" not in elm:
+            WLine(f"Miss app or pid or name in elm {elm}")
+            return False
+
+        srvapp = elm["app"]
+        srvpid = elm["pid"]
+        srvname = elm["name"]
+
+        self.delChild(elm)
+        try:
+            os.kill(int(srvpid), signal.SIGTERM)
+        except Exception as e:
+            CLine(traceback.format_exc()) # NOQA
+            WLine("server <{} :{}> dont exist.".format(srvname, srvpid))
+            return False
+
+        ILine(f"_stop_child END")
+        return True
 
     @ApiHandler.route("/test_child")
     async def _test_cases(self, headers: dict, data: dict):
