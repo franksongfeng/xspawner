@@ -246,6 +246,7 @@ class Spawner(XSpawner): # NOQA
         srvapp = topmod.split(".")[2]
         ILine(f"srvapp: {srvapp}")
 
+        # start child and get its pid
         res = self._start_child(None, {"name": srvname, "app": srvapp, "port": srvport, "severity": srvseverity})
         if not res: # res is ""
             put_error("Failed to start server {}.".format(srvname))
@@ -254,37 +255,15 @@ class Spawner(XSpawner): # NOQA
         srvaddr = "http://{}:{}".format(self.getConfig().host, srvport)
         ILine("srvpid: {}, srvaddr: {}".format(srvpid, srvaddr))
 
-        # set environment variables
+        # set environment variables for unittest
         os.environ["SERVER"] = srvaddr
 
         # check unittest
-        test_dir = "{}/{}/tests".format(APP_DIR, srvapp)
-        ILine("test_dir: {}".format(test_dir))
-        if os.path.isdir(test_dir):
-            await tornado.gen.sleep(1)
-            if is_port_used(srvport):
-                # run unittest
-                loader = unittest.TestLoader()
-                suite = loader.discover(start_dir=test_dir, top_level_dir=test_dir)
-                runner = unittest.TextTestRunner(failfast=True)
-                result = runner.run(suite)
-                ILine("unittest result {}".format(result))
-                if result.errors or result.failures:
-                    if is_port_used(srvport):
-                        os.kill(srvpid, signal.SIGTERM)
-                    put_error("unittest upon server <{} :{}> failed.".format(srvname, srvpid))
-                    ELine("unittest upon server <{} :{}> failed.".format(srvname, srvpid))
-                    return True
-                else:
-                    put_success("unittest upon server <{} :{}> passed.".format(srvname, srvpid))
-                    ILine("unittest passed.")
-            else:
-                WLine("server <{} :{}> is not running.".format(srvname, srvpid))
-                put_error("server <{} :{}> is not running.".format(srvname, srvpid))
-                return True
-        else:
-            WLine("no unittest case.")
+        if not await self._test_cases(None, {"app":srvapp, "pid":srvpid, "port":srvport}):
+            ELine("unittest failed!")
+            return False
     
+        # get version
         srvvsn = "undefined"
         if is_module_available(f"{SYSTEM_ID}.apps.{srvapp}.__version__"):
             mod = importlib.import_module(f"{SYSTEM_ID}.apps.{srvapp}.__version__")
@@ -545,6 +524,41 @@ class Spawner(XSpawner): # NOQA
         pid = start_background_process(cmd.split())
         ILine(f"_start_child END {pid}")
         return pid
+
+    @ApiHandler.route("/test_child")
+    async def _test_cases(self, headers: dict, data: dict):
+        ILine(f"_test_cases BEG {data}")
+        if "app" not in data \
+        or "port" not in data \
+        or "pid" not in data:
+            WLine(f"Miss app or port or pid in data: {data}")
+            return True
+        
+        test_dir = "{}/{}/tests".format(APP_DIR, data["app"])
+        ILine("test_dir: {}".format(test_dir))
+        if os.path.isdir(test_dir):
+            await tornado.gen.sleep(1)
+            if is_port_used(data["port"]):
+                # run unittest
+                loader = unittest.TestLoader()
+                suite = loader.discover(start_dir=test_dir, top_level_dir=test_dir)
+                runner = unittest.TextTestRunner(failfast=True)
+                result = runner.run(suite)
+                ILine("unittest result {}".format(result))
+                if result.errors or result.failures:
+                    if is_port_used(data["port"]):
+                        os.kill(data["pid"], signal.SIGTERM)
+                    ELine("unittest upon server <{}:{}> failed.".format(data["app"], data["pid"]))
+                    return False
+                else:
+                    ILine("unittest passed.")
+            else:
+                WLine("server <{}> is not running.".format(data["pid"]))
+                return False
+        else:
+            WLine("no unittest case.")
+        ILine(f"_test_cases END")
+        return True
 
     def getLogFile(self):
         return LOG_FILE_TEMP.format(self.getConfig().name)
