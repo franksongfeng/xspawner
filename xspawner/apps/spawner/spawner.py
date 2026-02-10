@@ -336,20 +336,11 @@ class Spawner(XSpawner): # NOQA
         srvpid = elm["pid"]
         srvname = elm["name"]
 
-        self._stop_child(None, {"name": srvname})
+        if self._stop_child(None, {"name": srvname}):
+            put_success("server <{} :{}> is deleted.".format(srvname, srvpid))
+            if self._clean_app(None, {"app": srvapp}):
+                put_success("app {} is cleaned.".format(srvapp))
 
-        pkgdir = f"{APP_PKG}.{srvapp}".replace('.', '/')
-        if os.path.exists(pkgdir) and srvapp != "spawner":
-            shutil.rmtree(pkgdir)
-            ILine(f"directory {pkgdir} is deleted")
-        else:
-            modfile = pkgdir + ".py"
-            if os.path.isfile(modfile):
-                os.remove(modfile)
-                ILine(f"file {modfile} is deleted")
-            else:
-                ILine(f"file {modfile} doesnt exist")
-        put_success("server <{} :{}> is deleted.".format(srvname, srvpid))
         DLine("{}::_oam_delete END".format(self.__class__.__name__))
         return True
 
@@ -539,6 +530,28 @@ class Spawner(XSpawner): # NOQA
             return False
 
         DLine("{}::_stop_child END".format(self.__class__.__name__))
+        return True
+
+    @ApiHandler.route("/clean_app")
+    def _clean_app(self, headers: dict, data: dict):
+        DLine("{}::_clean_app BEG {}".format(self.__class__.__name__, data))
+        if "app" not in data or not data["app"]:
+            WLine(f"Miss app in data {data}")
+            return False
+
+        srvapp = data["app"]
+        pkgdir = f"{APP_PKG}.{srvapp}".replace('.', '/')
+        if os.path.exists(pkgdir) and srvapp != "spawner":
+            shutil.rmtree(pkgdir)
+            ILine(f"directory {pkgdir} is deleted")
+        else:
+            modfile = pkgdir + ".py"
+            if os.path.isfile(modfile):
+                os.remove(modfile)
+                ILine(f"file {modfile} is deleted")
+            else:
+                ILine(f"file {modfile} doesnt exist")
+        DLine("{}::_clean_app END".format(self.__class__.__name__))
         return True
 
     @ApiHandler.route("/test_child")
