@@ -250,7 +250,8 @@ class Spawner(XSpawner): # NOQA
         res = self._start_child(None, {"name": srvname, "app": srvapp, "port": srvport, "severity": srvseverity})
         if not res: # res is ""
             put_error("Failed to start server {}.".format(srvname))
-            return True
+            return False
+        
         srvpid = int(res)
         srvaddr = "http://{}:{}".format(self.getConfig().host, srvport)
         ILine("srvpid: {}, srvaddr: {}".format(srvpid, srvaddr))
