@@ -493,8 +493,28 @@ class Spawner(XSpawner): # NOQA
         cmd = BASIC_CMD.format(data["name"], data["app"], self.getConfig().host, data["port"], data["severity"], srvancestry)
         ILine(f"start server command: {cmd}")
         pid = start_background_process(cmd.split())
-        DLine("{}::_start_child END {}".format(self.__class__.__name__, pid))
-        return pid
+
+        srvname = data["name"]
+        srvapp = data["app"]
+        srvport = data["port"]
+        pkgdir = "{}/{}".format(APP_DIR, srvapp)
+        if os.path.exists(pkgdir):
+            pkgfname = "{}/{}.py".format(pkgdir, srvapp)
+        else:
+            pkgfname = "{}.py".format(pkgdir)
+        srvcls = search_for_server_cls(pkgfname)
+
+        srvvsn = "undefined"
+        if is_module_available(f"{SYSTEM_ID}.apps.{srvapp}.__version__"):
+            mod = importlib.import_module(f"{SYSTEM_ID}.apps.{srvapp}.__version__")
+            if hasattr(mod, "__version__"):
+                srvvsn = mod.__version__
+
+        srvaddr = "http://{}:{}".format(self.getConfig().host, srvport)
+        new_srv = {"name": srvname, "app": srvapp, "cls": srvcls.__name__, "vsn": srvvsn, "pid": int(pid), "addr": srvaddr}
+        self.addChild(new_srv)
+        DLine("{}::_start_child END {}".format(self.__class__.__name__, new_srv))
+        return new_srv
 
     @ApiHandler.route("/stop_child")
     def _stop_child(self, headers: dict, data: dict):
