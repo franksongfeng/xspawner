@@ -22,7 +22,6 @@ import inspect
 import importlib
 import unittest
 import os
-import os.path
 import sys
 import json
 import traceback
@@ -767,34 +766,29 @@ def get_loaded_mods():
     return list(sys.modules.keys())
 
 def trim_code(code):
-    """去除代码左侧公共的缩进"""
     if not code:
         return code
     
     lines = code.split('\n')
 
-    # 清除头部空行
     while lines and not lines[0].strip():
         lines.pop(0)
     
-    # 清除尾部空行
     while lines and not lines[-1].strip():
         lines.pop()
     
-    if not lines:  # 如果所有行都是空行
+    if not lines:
         return ""
 
-    # 找到非空行的最小缩进
     min_indent = float('inf')
     for line in lines:
-        if line.strip():  # 忽略空行
+        if line.strip():
             leading_spaces = len(line) - len(line.lstrip())
             min_indent = min(min_indent, leading_spaces)
     
-    if min_indent == float('inf'):  # 全是空行
+    if min_indent == float('inf'):
         return code
 
-    # 移除每行的最小缩进
     trimmed_lines = []
     for line in lines:
         if len(line) > min_indent:
@@ -803,15 +797,3 @@ def trim_code(code):
             trimmed_lines.append(line.lstrip())
     
     return '\n'.join(trimmed_lines)
-
-def zip_folder(folder_path, output_path, excluded_subdirs):
-    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-    
-    with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for root, dirs, files in os.walk(folder_path):
-            dirs[:] = [d for d in dirs if d not in excluded_subdirs]
-            
-            for file in files:
-                file_path = os.path.join(root, file)
-                arcname = os.path.relpath(file_path, start=os.path.dirname(folder_path))
-                zipf.write(file_path, arcname)

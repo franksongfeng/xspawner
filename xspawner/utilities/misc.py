@@ -20,6 +20,7 @@ import urllib.parse
 import typing
 import ssl
 import tempfile
+import zipfile
 import socket
 import subprocess
 import re
@@ -606,6 +607,19 @@ def filter_logs(days, log_file):
     else:
         with open(log_file, 'w', encoding='utf-8') as f:
             f.writelines(filtered_lines)
+
+
+def zip_folder(folder_path, output_path, excluded_subdirs):
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    
+    with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(folder_path):
+            dirs[:] = [d for d in dirs if d not in excluded_subdirs]
+            
+            for file in files:
+                file_path = os.path.join(root, file)
+                arcname = os.path.relpath(file_path, start=os.path.dirname(folder_path))
+                zipf.write(file_path, arcname)
 
 
 # the result is ssl.SSLContext object
