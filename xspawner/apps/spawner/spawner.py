@@ -554,6 +554,36 @@ class Spawner(XSpawner): # NOQA
         DLine("{}::_clean_app END".format(self.__class__.__name__))
         return True
 
+
+    @ApiHandler.route("/download_app")
+    def _download_app(self, headers: dict, data: dict):
+        DLine("{}::_download_app BEG {}".format(self.__class__.__name__, data))
+        if "app" not in data or not data["app"]:
+            WLine(f"Miss app in data {data}")
+            return False
+        srvapp = data["app"]
+        pkgdir = f"{APP_PKG}.{srvapp}".replace('.', '/')
+        if os.path.exists(pkgdir):
+            fname = srvapp + ".zip"
+            zip_folder(pkgdir, fname, ["__pycache__", ".git", "logs"])
+            ILine(f"directory {pkgdir} is zipped")
+            with open(fname, 'rb') as f:
+                fdata = f.read()
+            DLine("{}::_download_app END {}".format(self.__class__.__name__, fname))
+            return (fdata, fname)
+        else:
+            fname = pkgdir + ".py"
+            if os.path.isfile(fname):
+                ILine(f"file {fname} is found")
+                with open(fname, 'rb') as f:
+                    fdata = f.read()
+                DLine("{}::_download_app END {}".format(self.__class__.__name__, fname))
+                return (fdata, fname) 
+            else:
+                WLine(f"file {fname} doesnt exist")
+        DLine("{}::_download_app END".format(self.__class__.__name__))
+        return False
+
     @ApiHandler.route("/test_child")
     async def _test_cases(self, headers: dict, data: dict):
         DLine("{}::_test_cases BEG {}".format(self.__class__.__name__, data))
@@ -769,3 +799,15 @@ def trim_code(code):
             trimmed_lines.append(line.lstrip())
     
     return '\n'.join(trimmed_lines)
+
+def zip_folder(folder_path, output_path, excluded_subdirs):
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    
+    with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(folder_path):
+            dirs[:] = [d for d in dirs if d not in excluded_subdirs]
+            
+            for file in files:
+                file_path = os.path.join(root, file)
+                arcname = os.path.relpath(file_path, start=os.path.dirname(folder_path))
+                zipf.write(file_path, arcname)
