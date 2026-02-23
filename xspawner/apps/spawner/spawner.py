@@ -581,11 +581,33 @@ class Spawner(XSpawner): # NOQA
                 with open(fname, 'rb') as f:
                     fdata = f.read()
                 DLine("{}::_download_app END {}".format(self.__class__.__name__, fname))
-                return (fdata, fname) 
+                return (fdata, fname)
             else:
                 WLine(f"file {fname} doesnt exist")
         DLine("{}::_download_app END".format(self.__class__.__name__))
         return False
+
+
+    @ApiHandler.route("/upload_app")
+    def _upload_app(self, headers: dict, fdata: bytes, fname: str, fargs: dict):
+        DLine("{}::_upload_app BEG {} {} {}".format(self.__class__.__name__, len(fdata), fname, fargs))
+        if "app" in fargs:
+            srvapp = data["app"]
+        else:
+            srvapp = os.path.splitext(os.path.basename(fname))[0]
+        if get_file_type(fname) == "application/zip":
+            zip_buffer = io.BytesIO(fdata)
+            with zipfile.ZipFile(zip_buffer, 'r') as zipf:
+                zipf.extractall(APP_DIR)
+                ILine(f'exact {fname} to {APP_DIR}')
+        else:
+            modfile = f"{APP_DIR}/{fname}"
+            with open(modfile, "wb") as f:
+                f.write(fdata)
+                ILine(f'write to {modfile}')
+        DLine("{}::_upload_app END".format(self.__class__.__name__))
+        return True
+
 
     @ApiHandler.route("/test_child")
     async def _test_cases(self, headers: dict, data: dict):
