@@ -565,12 +565,16 @@ class Spawner(XSpawner): # NOQA
         pkgdir = f"{APP_PKG}.{srvapp}".replace('.', '/')
         if os.path.exists(pkgdir):
             fname = srvapp + ".zip"
-            zip_folder(pkgdir, fname, ["__pycache__", ".git", "logs"])
-            ILine(f"directory {pkgdir} is zipped")
-            with open(fname, 'rb') as f:
-                fdata = f.read()
-            DLine("{}::_download_app END {}".format(self.__class__.__name__, fname))
-            return (fdata, fname)
+            try:
+                zip_folder(pkgdir, fname, ["__pycache__", ".git", "logs"])
+                ILine(f"directory {pkgdir} is zipped to {fname}")
+                with open(fname, 'rb') as f:
+                    fdata = f.read()
+                DLine("{}::_download_app END {}".format(self.__class__.__name__, fname))
+                return (fdata, fname)
+            finally:
+                if os.path.exists(fname):
+                    os.unlink(fname)
         else:
             fname = pkgdir + ".py"
             if os.path.isfile(fname):
