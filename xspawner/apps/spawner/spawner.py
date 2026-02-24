@@ -247,33 +247,20 @@ class Spawner(XSpawner): # NOQA
 
         # start child and get its pid
         res = self._start_child(None, {"name": srvname, "app": srvapp, "port": srvport, "severity": srvseverity})
-        if not res: # res is ""
+        if not res: # res is False
             put_error("Failed to start server {}.".format(srvname))
-            return True
-        srvpid = int(res)
-        srvaddr = "http://{}:{}".format(self.getConfig().host, srvport)
-        ILine("srvpid: {}, srvaddr: {}".format(srvpid, srvaddr))
-
-        # set environment variables for unittest
-        os.environ["SERVER"] = srvaddr
-
-        # check unittest
-        if not await self._test_cases(None, {"app":srvapp, "pid":srvpid, "port":srvport}):
-            ELine("unittest failed!")
             return False
-    
-        # get version
-        srvvsn = "undefined"
-        if is_module_available(f"{SYSTEM_ID}.apps.{srvapp}.__version__"):
-            mod = importlib.import_module(f"{SYSTEM_ID}.apps.{srvapp}.__version__")
-            if hasattr(mod, "__version__"):
-                srvvsn = mod.__version__
-       
-        new_srv = {"name": srvname, "app": srvapp, "cls": srvcls.__name__, "vsn": srvvsn, "pid": int(srvpid), "addr": srvaddr}
-        self.addChild(new_srv)
-        ILine("new_srv: {}".format(new_srv))
 
-        put_success("server <{} :{}> is loaded to port {} successfully.".format(srvname, srvpid, srvport))
+        if "addr" in res:
+            # set environment variables for unittest
+            os.environ["SERVER"] = res["addr"]
+
+            # check unittest
+            if not await self._test_cases(None, {"app": srvapp, "pid": res["pid"], "port": srvport}):
+                put_warning("Unittest failed!")
+                return True
+    
+        put_success("server <{} :{}> is loaded to port {} successfully.".format(srvname, res["pid"], srvport))
         DLine("{}::_oam_create END".format(self.__class__.__name__))
         return True
 
@@ -493,6 +480,9 @@ class Spawner(XSpawner): # NOQA
         cmd = BASIC_CMD.format(data["name"], data["app"], self.getConfig().host, data["port"], data["severity"], srvancestry)
         ILine(f"start server command: {cmd}")
         pid = start_background_process(cmd.split())
+        if not pid:
+            ELine("no pid")
+            return False
 
         srvname = data["name"]
         srvapp = data["app"]
@@ -532,11 +522,10 @@ class Spawner(XSpawner): # NOQA
             WLine("cannot find child server on {}".format(data))
             return False
 
-        if "app" not in elm or "pid" not in elm or "name" not in elm:
-            WLine(f"Miss app or pid or name in elm {elm}")
+        if "pid" not in elm or "name" not in elm:
+            WLine(f"Miss pid or name in elm {elm}")
             return False
 
-        srvapp = elm["app"]
         srvpid = elm["pid"]
         srvname = elm["name"]
 
@@ -774,13 +763,16 @@ def search_for_server_cls_in_pkg(fpath):
     ILine("search_for_server_cls_in_pkg END {}".format(None))
 
 def start_background_process(command):
-    proc = subprocess.Popen(
-        command,
-        shell=False
-    )
-    time.sleep(0.5) # need a delay
-    return os.popen(f"pgrep -P {proc.pid}").read().strip()
-
+    try:
+        proc = subprocess.Popen(
+            command,
+            shell=False
+        )
+        time.sleep(0.5) # need a delay
+        return os.popen(f"pgrep -P {proc.pid}").read().strip()
+    except Exception as e:
+        ELine("exception in start_background_process: {}".format(str(e)))
+        return None
 
 def get_public_ip(timeout=5):
     try:
@@ -789,7 +781,8 @@ def get_public_ip(timeout=5):
             ip = response.text.strip()
             if len(ip) >= 7 and '.' in ip or ':' in ip:
                 return ip
-    except RequestException:
+    except Exception as e:
+        ELine("exception in get_public_ip: {}".format(str(e)))
         return None
 
 def get_file_type(filename):
