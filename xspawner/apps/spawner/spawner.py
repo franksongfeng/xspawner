@@ -470,6 +470,15 @@ class Spawner(XSpawner): # NOQA
         srvancestry = json.dumps(ancestry, cls=SrvJSONEncoder, separators=(',', ':'))
         ILine(f"srvancestry: {srvancestry}")
         cmd = BASIC_CMD.format(data["name"], data["app"], self.getConfig().host, data["port"], data["severity"], srvancestry)
+
+        # add SSL options
+        srvsecurity = self.getConfig().security
+        srvcertfile = self.getConfig().certfile
+        srvkeyfile = self.getConfig().keyfile
+        if srvsecurity and srvcertfile and srvkeyfile:
+            cmd += " --security --certfile {} --keyfile {}".format(srvcertfile, srvkeyfile)
+            ILine("security options are passed to child server")
+
         ILine(f"start server command: {cmd}")
         pid = start_background_process(cmd.split())
         if not pid:

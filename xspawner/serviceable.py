@@ -4,7 +4,7 @@ import json
 from collections import namedtuple, UserDict
 from typing import List
 
-Config = namedtuple('Config', ['name', 'app', 'host', 'port', 'severity', 'ancestry', 'vsn'])
+Config = namedtuple('Config', ['name', 'app', 'host', 'port', 'severity', 'security', 'certfile', 'keyfile', 'ancestry', 'vsn'])
 
 class State(UserDict):
     SerializableTypes = (str, int, float, bool, type(None))
