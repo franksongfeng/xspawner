@@ -268,15 +268,11 @@ class Spawner(XSpawner): # NOQA
     @UiHandler.route("/oam/delete")
     @config(theme="yeti")
     async def _oam_delete(self):
-        def update_pid(name):
-            elm = search_list_of_dict(self.getChildren(), "name", name)
-            if elm:
-                input_update("pid", value=elm["pid"])
-
-        def update_name(pid):
-            elm = search_list_of_dict(self.getChildren(), "pid", pid)
-            if elm:
-                input_update("name", value=elm["name"])
+        # # discarded onchange in the name input
+        # def update_pid(name):
+        #     elm = search_list_of_dict(self.getChildren(), "name", name)
+        #     if elm:
+        #         input_update("pid", value=elm["pid"])
 
         def select_server(set_value):
             def set_value_and_close_popup(v):
@@ -299,15 +295,6 @@ class Spawner(XSpawner): # NOQA
                     type=TEXT,
                     placeholder="输入已运行的服务名称",
                     action=("现有服务", select_server),
-                    onchange=update_pid,
-                    required=False
-                ),
-                input(
-                    label="进程",
-                    name="pid",
-                    type=NUMBER,
-                    placeholder="输入已运行的服务进程标识符",
-                    onchange=update_name,
                     required=False
                 )
             ]
@@ -315,9 +302,14 @@ class Spawner(XSpawner): # NOQA
 
         elm = search_list_of_dict(
             self.getChildren(),
-            "name" if data["name"] else "pid",
-            data["name"] if data["name"] else data["pid"]
+            "name",
+            data["name"]
         )
+
+        if "app" not in elm:
+            put_error(f"Miss app in {elm}")
+            return False
+
         srvapp = elm["app"]
         srvpid = elm["pid"]
         srvname = elm["name"]
@@ -509,21 +501,21 @@ class Spawner(XSpawner): # NOQA
     @ApiHandler.route("/stop_child")
     def _stop_child(self, headers: dict, data: dict):
         DLine("{}::_stop_child BEG {}".format(self.__class__.__name__, data))
-        if "name" not in data and "pid" not in data:
-            ELine(f"Miss name or pid in data {data}")
+        if "name" not in data:
+            ELine(f"Miss name in data {data}")
             return False
 
         elm = search_list_of_dict(
             self.getChildren(),
-            "name" if data["name"] else "pid",
-            data["name"] if data["name"] else data["pid"]
+            "name",
+            data["name"]
         )
         if not elm:
             WLine("cannot find child server on {}".format(data))
             return False
 
-        if "pid" not in elm or "name" not in elm:
-            WLine(f"Miss pid or name in elm {elm}")
+        if "pid" not in elm:
+            WLine(f"Miss pid in elm {elm}")
             return False
 
         srvpid = elm["pid"]
