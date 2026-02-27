@@ -65,21 +65,18 @@ class Spawner(XSpawner): # NOQA
         </div>
         """
 
-        put_html(tab_title.format("基本信息"))
-        tab_text = "| 名称 | 应用 | 类型 | 版本 | 进程 | 时间 | 地址 |\n"
-        tab_text +="| ---- | ---- | ---- | ---- | ---- | ---- | ---- |\n"
-        tab_text +="| {} | {} | {} | {} | {} | {} | {} |\n".format(
-            self.getConfig().name,
-            self.getConfig().app,
+        put_html(tab_title.format("信息"))
+        tab_text = "| 类型 | 进程 | 时间 | 地址 |\n"
+        tab_text +="| ---- | ---- | ---- | ---- |\n"
+        tab_text +="| {} | {} | {} | {} |\n".format(
             self.__class__.__name__,
-            self.getConfig().vsn,
             self.getPid(),
             self.getPidTime(),
             self.getAddr()
             )
         put_markdown(tab_text, sanitize=False)
 
-        put_html(tab_title.format("启动配置"))
+        put_html(tab_title.format("配置"))
         json_str = json.dumps(self.getConfig()._asdict(), indent=4, separators=(',', ':'))
         put_code(json_str, language="json")
 
@@ -89,7 +86,7 @@ class Spawner(XSpawner): # NOQA
             put_code(json_str, language="json")
 
         if self.getAncestry() or self.getChildren():
-            put_html(tab_title.format("层次结构"))
+            put_html(tab_title.format("层次"))
             content = []
             for name, addr in self.getAncestry():
                 content.append(put_link(name, url=addr+"/oam"))
@@ -103,7 +100,7 @@ class Spawner(XSpawner): # NOQA
                     content.append(put_link(elm["name"], url=elm["addr"]+"/oam"))
             put_row(content)
 
-        put_html(tab_title.format("管理功能"))
+        put_html(tab_title.format("操作"))
         addr = self.getAddr()
         funcs = [
             {"name": "创建服务", "url": "{}/oam/create".format(addr)},
