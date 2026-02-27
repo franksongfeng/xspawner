@@ -531,6 +531,7 @@ class Spawner(XSpawner): # NOQA
         srvname = elm["name"]
 
         self.delChild(elm)
+
         try:
             os.kill(int(srvpid), signal.SIGTERM)
         except Exception as e:
@@ -657,14 +658,6 @@ class Spawner(XSpawner): # NOQA
     def getLogFile(self):
         return LOG_FILE_TEMP.format(self.getConfig().name)
 
-    def getAddr(self):
-        return "http://{}:{}".format(
-            self.getConfig().host,
-            self.getConfig().port)
-
-    def getPid(self):
-        return os.getpid()
-
     def getPidTime(self, pid=None):
         if not pid:
             pid = self.getPid()
@@ -682,24 +675,6 @@ class Spawner(XSpawner): # NOQA
 
     def getClassName(self):
         return self.__class__.__name__
-
-    def getConfig(self):
-        return self._config
-
-    def getState(self):
-        return self._state
-
-    def setState(self, data):
-        return self._state.update(data)
-
-    def getChildren(self):
-        return self._children
-
-    def addChild(self, child):
-        self.getChildren().append(child)
-
-    def delChild(self, child):
-        self.getChildren().remove(child)
 
 
     def getAncestry(self):

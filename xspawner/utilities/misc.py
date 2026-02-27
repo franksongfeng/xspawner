@@ -622,23 +622,47 @@ def zip_folder(folder_path, output_path, excluded_subdirs):
                 zipf.write(file_path, arcname)
 
 
+
 # the result is ssl.SSLContext object
 # it can be applied for ssl_options, a parameter  of tornado's client.fetch
-# cert_file can be file path or file text
-def getSSLContext(cert_file):
-    if isinstance(cert_file, str) and cert_file:
-        if os.path.isfile(cert_file):
-            context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-            context.verify_mode = ssl.VERIFY_DEFAULT
-            context.load_cert_chain(certfile=cert_file)
-            return context
+# cert_file can be file path or file text containing certificate and private key
+def getSSLContextSimple(cert_file):
+    if os.path.isfile(cert_file):
+        context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+        context.verify_mode = ssl.VERIFY_DEFAULT
+        context.load_cert_chain(certfile=cert_file)
+        return context
+    else:
+        filepath = tempfile.mktemp()
+        with open(filepath, 'wb') as fp:
+            fp.write(cert_file.encode())
+        context = getSSLContextSimple(filepath)
+        os.unlink(filepath)
+        return context
+
+
+def getSSLOptions(certfile, keyfile, ca_certs=None):
+    if os.path.isfile(certfile) and os.path.isfile(keyfile):
+        ssl_opts = {
+            "certfile": certfile,
+            "keyfile": keyfile
+        }
+        if ca_certs and os.path.isfile(ca_certs):
+            ssl_opts["cert_reqs"] = ssl.CERT_REQUIRED
+            ssl_opts["ca_certs"] = ca_certs
+        return ssl_opts
+
+def getSSLContext(certfile, keyfile, ca_certs=None):
+    if os.path.isfile(certfile) and os.path.isfile(keyfile):
+        ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        ssl_ctx.load_cert_chain(certfile=certfile, keyfile=keyfile)
+        # Optional: Require client certificates
+        if ca_certs and os.path.isfile(ca_certs):
+            ssl_ctx.verify_mode = ssl.CERT_REQUIRED
+            ssl_ctx.load_verify_locations(ca_certs)  # CA to verify client certs
         else:
-            filepath = tempfile.mktemp()
-            with open(filepath, 'wb') as fp:
-                fp.write(cert_file.encode())
-            context = getSSLContext(filepath)
-            os.unlink(filepath)
-            return context
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+        return ssl_ctx
 
 
 # add serialization support on python datetime/bytes/function type

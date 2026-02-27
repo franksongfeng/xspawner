@@ -67,3 +67,21 @@ class Serviceable(object):
 
     def getAddr(self):
         raise NotImplementedError
+
+    def getConfig(self):
+        raise NotImplementedError
+
+    def getState(self):
+        raise NotImplementedError
+
+    def setState(self, data):
+        raise NotImplementedError
+
+    def getChildren(self):
+        raise NotImplementedError
+
+    def addChild(self, child):
+        raise NotImplementedError
+
+    def delChild(self, child):
+        raise NotImplementedError
