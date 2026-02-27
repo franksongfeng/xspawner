@@ -438,7 +438,6 @@ def search_for_server_cls(fpath):
         mod_name = path_to_pkg(fpath)
         srv_cls = XSpawner.getChildClass(mod_name)
         if srv_cls:
-            ILine("srv_cls: {}".format(srv_cls))
             ILine("search_for_server_cls END {}".format(srv_cls))
             return srv_cls
     ILine("search_for_server_cls END {}".format(None))
