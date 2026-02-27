@@ -28,6 +28,9 @@ from .utilities.msg import syncReq, asyncReq, postAsync # NOQA
 from .utilities.log import DLine, ILine, WLine, ELine, CLine # NOQA
 from .utilities.misc import make_multipart_request, get_file_type, get_child_cls, getSSLContext # NOQA
 from .serviceable import Serviceable, Config, State # NOQA
+from .api_handler import ApiHandler # NOQA
+from .ui_handler import UiHandler # NOQA
+from .flow_handler import FlowHandler # NOQA
 from . import RES_DIR_TEMP # NOQA
 
 
@@ -61,206 +64,6 @@ class ExitHandler(tornado.web.RequestHandler):
         assert gServer
         gServer.stop()
         self.write('stopped')
-
-class ApiHandler(tornado.web.RequestHandler):
-    SUPPORTED_METHODS = ("POST", "GET", "OPTIONS")
-    # path_map is path to handlers like dict {<post path> : <handle function>}
-    #   url path begins with '/'
-    path_map = {}
-
-    def options(self):  
-        self.set_status(204)
-        self.finsih()
-
-    def set_default_headers(self):
-        self.set_header("Access-Control-Allow-Origin", "*")
-        self.set_header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type")
-        self.set_header("Access-Control-Allow-Methods", "POST,GET,OPTIONS")
-
-    async def post(self):
-        """ handle http/post request with data in body"""
-        gServer = XSpawner.getServer()
-        assert gServer
-        q = gServer._req_queue
-        future = tornado.concurrent.Future()
-        condition = tornado.locks.Condition()
-        path = self.request.path
-        headers = self.request.headers
-        body = self.request.body
-        if path in self.path_map:
-            elem = (future, condition, path, headers, body)
-            await q.put(elem)
-            cond_res = await condition.wait(timeout=datetime.timedelta(seconds=5))
-            if cond_res and future._state == 'FINISHED':
-                if isinstance(future.result(), tuple):
-                    # download file
-                    fdata, fname = future.result()
-                    assert isinstance(fname, str) and \
-                           isinstance(fdata, bytes)
-                    self.set_header('Content-Type', 'application/octet-stream')
-                    self.set_header('Content-Disposition', 'attachment; filename=%s' % fname)
-                    self.write(fdata)
-                else:
-                    self.set_header('Content-Type', 'application/json')
-                    if isinstance(future.result(), str):
-                        self.write(future.result())
-                    else:
-                        self.write(json.dumps(future.result()))
-            else:
-                self.write('false')
-        else:
-            self.write('false')
-        self.finish()
-
-    async def get(self):
-        """ handle http/get request with arguments in url"""
-        gServer = XSpawner.getServer()
-        assert gServer
-        q = gServer._req_queue
-        future = tornado.concurrent.Future()
-        condition = tornado.locks.Condition()
-        path = self.request.path
-        headers = dict(self.request.headers.get_all())
-        reqargs = self.request.arguments
-        args = {arg: reqargs[arg][0].decode() for arg in reqargs}
-        body = json.dumps(args).encode()
-        if path in self.path_map:
-            elem = (future, condition, path, headers, body)
-            await q.put(elem)
-            cond_res = await condition.wait(timeout=datetime.timedelta(seconds=5))
-            if cond_res and future._state == 'FINISHED':
-                if isinstance(future.result(), tuple):
-                    # download file
-                    fdata, fname = future.result()
-                    assert isinstance(fname, str) and \
-                           isinstance(fdata, bytes)
-                    self.set_header('Content-Type', 'application/octet-stream')
-                    self.set_header('Content-Disposition', 'attachment; filename=%s' % fname)
-                    self.write(fdata)
-                else:
-                    self.set_header('Content-Type', 'text/html')
-                    if isinstance(future.result(), str):
-                        self.write(future.result())
-                    else:
-                        self.write(json.dumps(future.result()))
-            else:
-                self.write('false')
-        else:
-            self.write('false')
-        self.finish()
-
-    @classmethod
-    def route(cls, path):
-        def decorator(f):
-            cls.path_map[path] = f
-            return f
-        return decorator
-
-
-class UiHandler:
-    path_map = {}
-
-    def __new__(cls, path, srv):
-        f = cls.path_map[path]
-        WIOHandler = pywebio.platform.tornado.webio_handler(
-            functools.partial(f, srv),
-            reconnect_timeout=3,
-            check_origin=False
-        )
-        class UIHandler(WIOHandler):
-            def set_default_headers(self):
-                self.set_header("Access-Control-Allow-Origin", "*")
-                self.set_header("Access-Control-Allow-Headers", "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization")
-                self.set_header("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS")
-                self.set_header("Access-Control-Expose-Headers", "Content-Length,Content-Range")
-            # optional
-            def options(self, *args, **kwargs):
-                self.set_header("Access-Control-Allow-Origin", "*")
-                self.set_header("Access-Control-Allow-Headers", "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization")
-                self.set_header("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS")
-                self.set_header("Access-Control-Max-Age", "1728000")
-                self.set_header("Content-Type", "text/plain; charset=utf-8")
-                self.set_status(204)
-                self.finish()
-        return UIHandler
-
-    @classmethod
-    def route(cls, path):
-        def decorator(f):
-            cls.path_map[path] = f
-            return f
-        return decorator
-
-class FlowHandler(tornado.web.RequestHandler):
-    SUPPORTED_METHODS = ("POST", "GET")
-    path_map = {}
-
-    def initialize(self):
-        self.set_header('Content-Type', 'text/event-stream')
-        self.set_header('Cache-Control', 'no-cache')
-        self.set_header('Connection', 'keep-alive')
-
-    def on_finish(self):
-        WLine(f"on_finish BEG")
-        path = self.request.path
-        ILine(f"path = {path}")
-        gServer = XSpawner.getServer()
-        assert gServer
-        # Ensure the client disconnects when the handler is finished
-        if not self._finished:
-            WLine(f"force to finish")
-            self.finish()
-        WLine(f"on_finish END")
-
-    async def get(self):
-        async def call_cbf(fun, *args, **kwargs):
-            if inspect.iscoroutinefunction(fun):
-                res = await fun(*args, **kwargs)
-            else:
-                res = fun(*args, **kwargs)
-            return res
-        # Send a message to the client every second
-        path = self.request.path
-        headers = dict(self.request.headers.get_all())
-        ILine(f"request a stream {path}")
-        # no Content-Type in self.request.headers
-        # self.request.body should be empty
-        gServer = XSpawner.getServer()
-        assert gServer
-        if path in self.path_map:
-            f, varnames, timeout = self.path_map[path]
-            assert isinstance(timeout, int) and (timeout > 0)
-            reqargs = self.request.arguments
-            args = {arg: reqargs[arg][0].decode() for arg in reqargs}
-            try:
-                while True:
-                    evt = await call_cbf(f, gServer, headers, args)
-                    if evt:
-                        for k in evt:
-                            text = "{}: {}\n".format(k, evt[k])
-                            self.write(text)
-                        self.write("\n")
-                        await self.flush()
-                        ILine(f"flush {evt}")
-                    elif evt is False:
-                        ILine(f"stream is closed from server {path}")
-                        self.finish()
-                        return
-                    await tornado.gen.sleep(timeout)
-            except tornado.iostream.StreamClosedError:
-                WLine(f"stream closed error {path}")
-                await tornado.gen.sleep(timeout)
-            else:
-                WLine(f"stream is closed on invalid condition {path}")
-            self.finish()
-
-    @classmethod
-    def route(cls, path, timeout=300):
-        def decorator(f):
-            varnames = f.__code__.co_varnames[1:] if len(f.__code__.co_varnames) > 1 else ()
-            cls.path_map[path] = (f, varnames, timeout)
-            return f
-        return decorator
 
 
 class XSpawner(Serviceable):
@@ -310,6 +113,7 @@ class XSpawner(Serviceable):
                 app,
                 ssl_options=getSSLContext(kwargs["certfile"], kwargs["keyfile"])
             )
+            ILine("httpserver is enhanced with security")
         else:
             self._server = tornado.httpserver.HTTPServer(app)
         ILine("__init__ END")
