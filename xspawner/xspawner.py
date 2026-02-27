@@ -26,7 +26,7 @@ from typing import List
 
 from .utilities.msg import syncReq, asyncReq, postAsync # NOQA
 from .utilities.log import DLine, ILine, WLine, ELine, CLine # NOQA
-from .utilities.misc import make_multipart_request, get_file_type, get_child_cls # NOQA
+from .utilities.misc import make_multipart_request, get_file_type, get_child_cls, getSSLContext # NOQA
 from .serviceable import Serviceable, Config, State # NOQA
 from . import RES_DIR_TEMP # NOQA
 
@@ -308,7 +308,7 @@ class XSpawner(Serviceable):
         if "security" in kwargs and kwargs["security"]:
             self._server = tornado.httpserver.HTTPServer(
                 app,
-                ssl_options=self.getSSLContext(kwargs["certfile"], kwargs["keyfile"])
+                ssl_options=getSSLContext(kwargs["certfile"], kwargs["keyfile"])
             )
         else:
             self._server = tornado.httpserver.HTTPServer(app)
