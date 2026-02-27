@@ -738,32 +738,6 @@ def search_for_server_cls_in_pkg(fpath):
                         return srv_cls
     ILine("search_for_server_cls_in_pkg END {}".format(None))
 
-def start_background_process(command):
-    try:
-        proc = subprocess.Popen(
-            command,
-            shell=False
-        )
-        time.sleep(0.5) # need a delay
-        return os.popen(f"pgrep -P {proc.pid}").read().strip()
-    except Exception as e:
-        ELine("exception in start_background_process: {}".format(str(e)))
-        return None
-
-def get_public_ip(timeout=5):
-    try:
-        response = requests.get("https://icanhazip.com", timeout=timeout)
-        if response.status_code == 200:
-            ip = response.text.strip()
-            if len(ip) >= 7 and '.' in ip or ':' in ip:
-                return ip
-    except Exception as e:
-        ELine("exception in get_public_ip: {}".format(str(e)))
-        return None
-
-def get_file_type(filename):
-    ftype = mimetypes.guess_type(filename)[0]
-    return ftype if isinstance(ftype, str) else ""
 
 def path_to_pkg(path):
     without_extension = path.replace('.py', '')

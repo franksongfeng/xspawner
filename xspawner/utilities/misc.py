@@ -221,14 +221,16 @@ def get_public_ip(timeout=5):
     return None
 
 def start_background_process(command):
-    proc = subprocess.Popen(
-        command,
-        shell=False
-    )
-    time.sleep(0.5) # need a delay
-    child_pid = os.popen(f"pgrep -P {proc.pid}").read().strip()
-    return child_pid
-
+    try:
+        proc = subprocess.Popen(
+            command,
+            shell=False
+        )
+        time.sleep(0.5) # need a delay
+        return os.popen(f"pgrep -P {proc.pid}").read().strip() # return pid
+    except Exception as e:
+        ELine("exception in start_background_process: {}".format(str(e)))
+        return None
 
 def is_port_used(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
