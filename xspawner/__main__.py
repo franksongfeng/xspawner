@@ -13,10 +13,9 @@ import importlib
 
 from .utilities.log import startLogger, ILine, WLine, ELine, CLine # NOQA
 from .utilities.misc import is_module_available, import_package_modules # NOQA
-from .xspawner import XSpawner # NOQA
-from .serviceable import Config, State # NOQA
-from . import APP_PKG, LOG_FILE_TEMP # NOQA
-from .__version__ import __version__ # NOQA
+from .constants import *
+from . import __version__
+from .serviceable import Config, State
 
 if __name__ == '__main__':
     try:
@@ -42,6 +41,7 @@ if __name__ == '__main__':
             os.remove(log_file)
         startLogger(args.name, log_file, args.severity) # NOQA
         ILine("logger is started {} {} {}".format(args.name, log_file, args.severity))
+        from .xspawner import XSpawner # NOQA
         srv_cls = XSpawner.getChildClass("{}.{}".format(APP_PKG, args.app))
         if srv_cls:
             # start server

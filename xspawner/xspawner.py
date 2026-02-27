@@ -31,7 +31,7 @@ from .serviceable import Serviceable, Config, State # NOQA
 from .api_handler import ApiHandler # NOQA
 from .ui_handler import UiHandler # NOQA
 from .flow_handler import FlowHandler # NOQA
-from . import RES_DIR_TEMP # NOQA
+from .constants import RES_DIR_TEMP # NOQA
 
 
 INTERNAL_HANDLERS = ["PingPongHandler", "HomePageHandler", "ResourceHandler", "ExitHandler"]
