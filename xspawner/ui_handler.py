@@ -21,7 +21,7 @@ class UiHandler:
             reconnect_timeout=3,
             check_origin=False
         )
-        class UIHandler(WIOHandler):
+        class NewWIOHandler(WIOHandler):
             def set_default_headers(self):
                 self.set_header("Access-Control-Allow-Origin", "*")
                 self.set_header("Access-Control-Allow-Headers", "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization")
@@ -36,7 +36,7 @@ class UiHandler:
                 self.set_header("Content-Type", "text/plain; charset=utf-8")
                 self.set_status(204)
                 self.finish()
-        return UIHandler
+        return NewWIOHandler
 
     @classmethod
     def route(cls, path):
