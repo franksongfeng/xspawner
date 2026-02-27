@@ -119,8 +119,6 @@ class Supervisor(Spawner): # NOQA
             mod , _ = fname.split(".")
             if "__" in mod:
                 return False
-            if mod.lower() in ["xspawner", "spawner"]:
-                return False
             return True
 
         DLine("{}::_create BEG".format(self.__class__.__name__))
