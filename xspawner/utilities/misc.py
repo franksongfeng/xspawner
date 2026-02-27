@@ -510,15 +510,15 @@ def get_child_cls(mod, base_cls_name, inherit=True):
         return None
 
 def is_descendant_cls(kls, base_cls_name):
-    DLine("is_descendant_cls BEG {} {}".format(str(kls), base_cls_name))
+    DLine("is_descendant_cls {} {}".format(str(kls), base_cls_name))
     if not kls:
-        DLine("is_descendant_cls END Empty")
+        DLine("is_descendant_cls paused")
         return False
     if kls.__name__ == "object":
-        DLine("is_descendant_cls END Not found")
+        DLine("is_descendant_cls terminated")
         return False
     if kls.__base__.__name__ == base_cls_name:
-        DLine("is_descendant_cls END found")
+        DLine("is_descendant_cls found!")
         return True
     return is_descendant_cls(kls.__base__, base_cls_name)
 
