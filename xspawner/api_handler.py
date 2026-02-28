@@ -7,7 +7,6 @@ import tornado.web
 import tornado.locks
 import tornado.httpserver
 import tornado.httputil
-from xspawner import * # NOQA
 
 import os
 import json
@@ -41,6 +40,7 @@ class ApiHandler(tornado.web.RequestHandler):
 
     async def post(self):
         """ handle http/post request with data in body"""
+        from xspawner import * # NOQA
         gServer = XSpawner.getServer()
         assert gServer
         q = gServer._req_queue
@@ -76,6 +76,7 @@ class ApiHandler(tornado.web.RequestHandler):
 
     async def get(self):
         """ handle http/get request with arguments in url"""
+        from xspawner import * # NOQA
         gServer = XSpawner.getServer()
         assert gServer
         q = gServer._req_queue

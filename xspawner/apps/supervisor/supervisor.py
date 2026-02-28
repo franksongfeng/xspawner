@@ -11,7 +11,6 @@ from pywebio_battery import *
 from xspawner.apps.spawner import * # NOQA
 from xspawner.utilities.log import * # NOQA
 from xspawner.utilities.misc import * # NOQA
-from xspawner import * # NOQA
 from xspawner.constants import * # NOQA
 from xspawner.serviceable import * # NOQA
 from xspawner.ui_handler import UiHandler #NOQA
@@ -432,6 +431,7 @@ def search_for_server_cls(fpath):
     ILine("search_for_server_cls BEG {}".format(fpath))
     if get_file_type(fpath) == PYTHON_MIME_TYPE:
         mod_name = path_to_pkg(fpath)
+        from xspawner import XSpawner
         srv_cls = XSpawner.getChildClass(mod_name)
         if srv_cls:
             ILine("search_for_server_cls END {}".format(srv_cls))
@@ -465,6 +465,7 @@ def search_for_server_cls_in_pkg(fpath):
                     zip_ref.extractall(APP_DIR)
                     DLine("{} is unzipped .".format(fpath))
                     pkg_name, _ = entry.split("/")
+                    from xspawner import XSpawner
                     srv_cls = XSpawner.getChildClass(f"{APP_PKG}.{pkg_name}")
                     if srv_cls:
                         ILine("search_for_server_cls_in_pkg END {}".format(srv_cls))

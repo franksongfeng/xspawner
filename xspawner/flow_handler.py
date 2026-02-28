@@ -4,7 +4,6 @@
 import tornado.iostream
 import tornado.gen
 import tornado.web
-from xspawner import * # NOQA
 
 import os
 import json
@@ -30,6 +29,7 @@ class FlowHandler(tornado.web.RequestHandler):
         WLine(f"on_finish BEG")
         path = self.request.path
         ILine(f"path = {path}")
+        from xspawner import * # NOQA
         gServer = XSpawner.getServer()
         assert gServer
         # Ensure the client disconnects when the handler is finished
@@ -51,6 +51,7 @@ class FlowHandler(tornado.web.RequestHandler):
         ILine(f"request a stream {path}")
         # no Content-Type in self.request.headers
         # self.request.body should be empty
+        from xspawner import * # NOQA
         gServer = XSpawner.getServer()
         assert gServer
         if path in self.path_map:
