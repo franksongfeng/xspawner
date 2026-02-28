@@ -3,7 +3,7 @@
 
 from xspawner.utilities.log import * # NOQA
 from xspawner.utilities.misc import * # NOQA
-from xspawner import * # NOQA
+from xspawner import XSpawner # NOQA
 from xspawner.constants import * # NOQA
 from xspawner.serviceable import * # NOQA
 from xspawner.api_handler import ApiHandler # NOQA
@@ -264,6 +264,10 @@ class Spawner(XSpawner): # NOQA
         DLine("{}::_test_cases END".format(self.__class__.__name__))
         return True
 
+    @ApiHandler.route("/get_info")
+    def _get_info(self, headers: dict, data: dict):
+        return self.getInfo()
+
     def getLogFile(self):
         return LOG_FILE_TEMP.format(self.getConfig().name)
 
@@ -283,6 +287,16 @@ class Spawner(XSpawner): # NOQA
     def getClassName(self):
         return self.__class__.__name__
 
+    def getInfo(self):
+        info = self.getConfig()._asdict()
+        info.update(self.getState())
+        info["children"] = self.getChildren()
+        info["class"] = self.getClassName()
+        info["pid"] = self.getPid()
+        info["start_time"] = self.getPidTime(self.getPid())
+        info["work_dir"] = getWorkDir()
+        info["logfile"] = self.getLogFile()
+        return info
 
     def getAncestry(self):
         if not self.getConfig().ancestry:
