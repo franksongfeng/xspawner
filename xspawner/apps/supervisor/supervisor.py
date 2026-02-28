@@ -15,6 +15,7 @@ from xspawner import * # NOQA
 from xspawner.constants import * # NOQA
 from xspawner.serviceable import * # NOQA
 from xspawner.ui_handler import UiHandler #NOQA
+from xspawner.api_handler import ApiHandler #NOQA
 import tornado.gen
 import requests
 from requests.exceptions import RequestException

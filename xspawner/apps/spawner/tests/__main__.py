@@ -1,7 +1,7 @@
 import os
 import sys
 import unittest
-from xspawner import APP_DIR
+from xspawner.constants import * # NOQA
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
