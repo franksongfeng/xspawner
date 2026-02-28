@@ -81,13 +81,12 @@ class Supervisor(Spawner): # NOQA
             json_str = json.dumps(self.getState(), cls=SrvJSONEncoder, ensure_ascii=False, indent=4)
             put_code(json_str, language="json")
 
-        if self.getAncestry() or self.getChildren():
+        if self.getChildren():
             put_html(tab_title.format("服务"))
             content = []
-            if self.getChildren():
-                content.append(put_link(self.getChildren()[0]["name"], url=self.getChildren()[0]["addr"]))
-                for elm in self.getChildren()[1:]:
-                    content.append(put_link(elm["name"], url=elm["addr"]))
+            content.append(put_link(self.getChildren()[0]["name"], url=self.getChildren()[0]["addr"]))
+            for elm in self.getChildren()[1:]:
+                content.append(put_link(elm["name"], url=elm["addr"]))
             put_row(content)
 
         put_html(tab_title.format("操作"))
