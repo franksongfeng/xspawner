@@ -7,6 +7,7 @@ import tornado.web
 import tornado.locks
 import tornado.httpserver
 import tornado.httputil
+from xspawner import * # NOQA
 
 import os
 import json

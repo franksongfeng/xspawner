@@ -4,6 +4,7 @@
 import tornado.iostream
 import tornado.gen
 import tornado.web
+from xspawner import * # NOQA
 
 import os
 import json
