@@ -140,16 +140,9 @@ class Spawner(XSpawner): # NOQA
 
         srvaddr = elm["addr"]
 
-        try:
-            res = requests.post(f"{srvaddr}/get_info", json={})
-            if res.status_code != 200:
-                WLine("wrong status code {}".format(res.status_code))
-                return False
-        except Exception as e:
-            ELine('requests.post exception {}:{}'.format(e.__class__.__name__, e))
+        res = await self.postJson(f"{srvaddr}/get_info", {})
 
-        jd = res.json()
-        srvpid = jd["pid"]
+        srvpid = res["pid"]
 
         self.delChild(elm)
 

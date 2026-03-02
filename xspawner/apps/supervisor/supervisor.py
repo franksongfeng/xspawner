@@ -293,17 +293,10 @@ class Supervisor(Spawner): # NOQA
         srvname = elm["name"]
         srvaddr = elm["addr"]
 
-        try:
-            res = requests.post(f"{srvaddr}/get_info", json={})
-            if res.status_code != 200:
-                WLine("wrong status code {}".format(res.status_code))
-                return False
-        except Exception as e:
-            ELine('requests.post exception {}:{}'.format(e.__class__.__name__, e))
+        res = await self.postJson(f"{srvaddr}/get_info", {})
 
-        jd = res.json()
-        srvpid = jd["pid"]
-        srvapp = jd["app"]
+        srvpid = res["pid"]
+        srvapp = res["app"]
         if await self._stop_child(None, {"name": srvname}):
             put_success("server <{} :{}> is deleted.".format(srvname, srvpid))
             if await self._clean_app(None, {"app": srvapp}):
