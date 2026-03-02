@@ -147,6 +147,10 @@ def suicide():
     os.kill(os.getpid(), signal.SIGTERM)
 
 
+def getWorkDir():
+    return os.getcwd()
+
+
 def runPy(dir, script):
     subprocess.Popen(
         args="python3 {}".format(script),

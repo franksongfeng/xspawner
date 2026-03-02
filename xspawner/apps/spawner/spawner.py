@@ -313,8 +313,3 @@ class Spawner(XSpawner): # NOQA
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-
-
-def getWorkDir():
-    return os.getcwd()
-
