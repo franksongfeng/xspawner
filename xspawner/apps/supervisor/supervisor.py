@@ -193,7 +193,8 @@ class Supervisor(Spawner): # NOQA
             pkgfname = tempfile.mktemp()+".zip"
             with open(pkgfname, "wb") as f:
                 f.write(fdata)
-            srvcls = search_for_server_cls_in_pkg(pkgfname)
+            from xspawner import XSpawner
+            srvcls = XSpawner.search_for_server_cls_in_pkg(pkgfname)
             delete_file(pkgfname)
             if not srvcls:
                 put_error('No required server class in {}!'.format(pkgfname))
@@ -207,7 +208,8 @@ class Supervisor(Spawner): # NOQA
             with open(pkgfname, "wb") as f:
                 f.write(fdata)
 
-            srvcls = search_for_server_cls(pkgfname)
+            from xspawner import XSpawner
+            srvcls = XSpawner.search_for_server_cls(pkgfname)
 
             if not srvcls:
                 put_error('No required server class in {}!'.format(pkgfname))
@@ -418,69 +420,6 @@ class Supervisor(Spawner): # NOQA
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-
-def search_list_of_dict(l, k, v):
-    for e in l:
-        if k in e and e[k] == v:
-            return e
-
-
-def search_for_server_cls(fpath):
-    ILine("search_for_server_cls BEG {}".format(fpath))
-    if get_file_type(fpath) == PYTHON_MIME_TYPE:
-        mod_name = path_to_pkg(fpath)
-        from xspawner import XSpawner
-        srv_cls = XSpawner.getChildClass(mod_name)
-        if srv_cls:
-            ILine("search_for_server_cls END {}".format(srv_cls))
-            return srv_cls
-    ILine("search_for_server_cls END {}".format(None))
-
-def delete_file(file):
-    if os.path.isfile(file):
-        os.remove(file)
-
-def delete_dir(dir):
-    if os.path.exists(dir):
-        shutil.rmtree(dir)
-
-def delete_entries(entries):
-    for entry in entries:
-        if os.path.isfile(entry):
-            delete_file(entry)
-        else:
-            delete_dir(entry)
-
-def search_for_server_cls_in_pkg(fpath):
-    ILine("search_for_server_cls_in_pkg BEG {}".format(fpath))
-    if get_file_type(fpath) == ZIP_MIME_TYPE:
-        with zipfile.ZipFile(fpath, 'r') as zip_ref:
-            zip_ref.testzip()
-            for entry in zip_ref.namelist():
-                DLine("entry {}".format(entry))
-                if len(entry.split("/")) == 2 and os.path.basename(entry) == "__init__.py":
-                    DLine("zip contains {}".format(entry))
-                    zip_ref.extractall(APP_DIR)
-                    DLine("{} is unzipped .".format(fpath))
-                    pkg_name, _ = entry.split("/")
-                    from xspawner import XSpawner
-                    srv_cls = XSpawner.getChildClass(f"{APP_PKG}.{pkg_name}")
-                    if srv_cls:
-                        ILine("search_for_server_cls_in_pkg END {}".format(srv_cls))
-                        return srv_cls
-    ILine("search_for_server_cls_in_pkg END {}".format(None))
-
-
-def path_to_pkg(path):
-    without_extension = path.replace('.py', '')
-    return without_extension.replace('/', '.')
-
-def pkg_to_path(mod):
-    path = mod.replace('.', '/')
-    return f"{path}.py"
-
-def get_loaded_mods():
-    return list(sys.modules.keys())
 
 def trim_code(code):
     if not code:

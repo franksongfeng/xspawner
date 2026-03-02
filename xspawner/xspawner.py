@@ -21,17 +21,18 @@ import datetime
 import types
 import functools
 import itertools
+import zipfile
 import ssl
 from typing import List
 
-from .utilities.msg import syncReq, asyncReq, postAsync # NOQA
-from .utilities.log import DLine, ILine, WLine, ELine, CLine # NOQA
-from .utilities.misc import make_multipart_request, get_file_type, get_child_cls, getSSLContext # NOQA
-from .serviceable import Serviceable, Config, State # NOQA
-from .api_handler import ApiHandler # NOQA
-from .ui_handler import UiHandler # NOQA
-from .flow_handler import FlowHandler # NOQA
-from .constants import RES_DIR_TEMP # NOQA
+from .utilities.msg import * # NOQA
+from .utilities.log import * # NOQA
+from .utilities.misc import * # NOQA
+from .serviceable import * # NOQA
+from .api_handler import * # NOQA
+from .ui_handler import * # NOQA
+from .flow_handler import * # NOQA
+from .constants import * # NOQA
 
 
 INTERNAL_HANDLERS = ["PingPongHandler", "HomePageHandler", "ResourceHandler", "ExitHandler"]
@@ -276,6 +277,37 @@ class XSpawner(Serviceable):
     @classmethod
     def getChildClass(cls, mod):
         return get_child_cls(mod, cls.__name__)
+
+    @classmethod
+    def search_for_server_cls(cls, fpath):
+        ILine("search_for_server_cls BEG {}".format(fpath))
+        if get_file_type(fpath) == PYTHON_MIME_TYPE:
+            mod_name = path_to_pkg(fpath)
+            srv_cls = cls.getChildClass(mod_name)
+            if srv_cls:
+                ILine("search_for_server_cls END {}".format(srv_cls))
+                return srv_cls
+        ILine("search_for_server_cls END {}".format(None))
+
+    @classmethod
+    def search_for_server_cls_in_pkg(cls, fpath):
+        ILine("search_for_server_cls_in_pkg BEG {}".format(fpath))
+        if get_file_type(fpath) == ZIP_MIME_TYPE:
+            with zipfile.ZipFile(fpath, 'r') as zip_ref:
+                zip_ref.testzip()
+                for entry in zip_ref.namelist():
+                    DLine("entry {}".format(entry))
+                    if len(entry.split("/")) == 2 and os.path.basename(entry) == "__init__.py":
+                        DLine("zip contains {}".format(entry))
+                        zip_ref.extractall(APP_DIR)
+                        DLine("{} is unzipped .".format(fpath))
+                        pkg_name, _ = entry.split("/")
+                        srv_cls = cls.getChildClass(f"{APP_PKG}.{pkg_name}")
+                        if srv_cls:
+                            ILine("search_for_server_cls_in_pkg END {}".format(srv_cls))
+                            return srv_cls
+        ILine("search_for_server_cls_in_pkg END {}".format(None))
+
 
     @staticmethod
     def testServer(url):

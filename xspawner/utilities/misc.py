@@ -538,6 +538,10 @@ def import_package_modules(package_path):
         globals()[full_name] = module
 
 
+def get_loaded_mods():
+    return list(sys.modules.keys())
+
+
 def path_to_pkg(path):
     without_extension = path.replace('.py', '')
     return without_extension.replace('/', '.')
@@ -560,6 +564,11 @@ def delete_entries(entries):
             delete_file(entry)
         else:
             delete_dir(entry)
+
+def search_list_of_dict(l, k, v):
+    for e in l:
+        if k in e and e[k] == v:
+            return e
 
 def filter_logs(days, log_file):
     def get_first_timestamp(lines, pattern):
