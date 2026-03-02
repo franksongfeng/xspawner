@@ -111,8 +111,8 @@ class Spawner(XSpawner): # NOQA
                 srvvsn = mod.__version__
 
         srvaddr = "http://{}:{}".format(self.getConfig().host, srvport)
+        self.addChild({"name": srvname, "addr": srvaddr})
         new_srv = {"name": srvname, "app": srvapp, "cls": srvcls.__name__, "vsn": srvvsn, "pid": int(pid), "addr": srvaddr}
-        self.addChild(new_srv)
         DLine("{}::_start_child END {}".format(self.__class__.__name__, new_srv))
         return new_srv
 
@@ -123,21 +123,33 @@ class Spawner(XSpawner): # NOQA
             ELine(f"Miss name in data {data}")
             return False
 
+        srvname = data["name"]
+
         elm = search_list_of_dict(
             self.getChildren(),
             "name",
-            data["name"]
+            srvname
         )
         if not elm:
             WLine("cannot find child server on {}".format(data))
             return False
 
-        if "pid" not in elm:
-            WLine(f"Miss pid in elm {elm}")
+        if "addr" not in elm:
+            ELine("cannot find addr in elm {}".format(elm))
             return False
 
-        srvpid = elm["pid"]
-        srvname = elm["name"]
+        srvaddr = elm["addr"]
+
+        try:
+            res = requests.post(f"{srvaddr}/get_info", json={})
+            if res.status_code != 200:
+                WLine("wrong status code {}".format(res.status_code))
+                return False
+        except Exception as e:
+            ELine('requests.post exception {}:{}'.format(e.__class__.__name__, e))
+
+        jd = res.json()
+        srvpid = jd["pid"]
 
         self.delChild(elm)
 

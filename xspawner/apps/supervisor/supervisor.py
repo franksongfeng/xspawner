@@ -290,14 +290,20 @@ class Supervisor(Spawner): # NOQA
             data["name"]
         )
 
-        if "app" not in elm:
-            put_error(f"Miss app in {elm}")
-            return False
-
-        srvapp = elm["app"]
-        srvpid = elm["pid"]
         srvname = elm["name"]
+        srvaddr = elm["addr"]
 
+        try:
+            res = requests.post(f"{srvaddr}/get_info", json={})
+            if res.status_code != 200:
+                WLine("wrong status code {}".format(res.status_code))
+                return False
+        except Exception as e:
+            ELine('requests.post exception {}:{}'.format(e.__class__.__name__, e))
+
+        jd = res.json()
+        srvpid = jd["pid"]
+        srvapp = jd["app"]
         if self._stop_child(None, {"name": srvname}):
             put_success("server <{} :{}> is deleted.".format(srvname, srvpid))
             if self._clean_app(None, {"app": srvapp}):
