@@ -60,7 +60,7 @@ class Spawner(XSpawner): # NOQA
         return self.getChildren()
 
     @ApiHandler.route("/start_child")
-    def _start_child(self, headers: dict, data: dict):
+    async def _start_child(self, headers: dict, data: dict):
         DLine("{}::_start_child BEG {}".format(self.__class__.__name__, data))
         if "port" not in data \
         or "severity" not in data \
@@ -117,7 +117,7 @@ class Spawner(XSpawner): # NOQA
         return new_srv
 
     @ApiHandler.route("/stop_child")
-    def _stop_child(self, headers: dict, data: dict):
+    async def _stop_child(self, headers: dict, data: dict):
         DLine("{}::_stop_child BEG {}".format(self.__class__.__name__, data))
         if "name" not in data:
             ELine(f"Miss name in data {data}")
@@ -164,7 +164,7 @@ class Spawner(XSpawner): # NOQA
         return True
 
     @ApiHandler.route("/clean_app")
-    def _clean_app(self, headers: dict, data: dict):
+    async def _clean_app(self, headers: dict, data: dict):
         DLine("{}::_clean_app BEG {}".format(self.__class__.__name__, data))
         if "app" not in data or not data["app"]:
             WLine(f"Miss app in data {data}")
@@ -187,7 +187,7 @@ class Spawner(XSpawner): # NOQA
 
 
     @ApiHandler.route("/download_app")
-    def _download_app(self, headers: dict, data: dict):
+    async def _download_app(self, headers: dict, data: dict):
         DLine("{}::_download_app BEG {}".format(self.__class__.__name__, data))
         if "app" not in data or not data["app"]:
             WLine(f"Miss app in data {data}")
@@ -221,7 +221,7 @@ class Spawner(XSpawner): # NOQA
 
 
     @ApiHandler.route("/upload_app")
-    def _upload_app(self, headers: dict, fdata: bytes, fname: str, fargs: dict):
+    async def _upload_app(self, headers: dict, fdata: bytes, fname: str, fargs: dict):
         DLine("{}::_upload_app BEG {} {} {}".format(self.__class__.__name__, len(fdata), fname, fargs))
         if "app" in fargs:
             srvapp = data["app"]
@@ -277,7 +277,7 @@ class Spawner(XSpawner): # NOQA
         return True
 
     @ApiHandler.route("/get_info")
-    def _get_info(self, headers: dict, data: dict):
+    async def _get_info(self, headers: dict, data: dict):
         return self.getInfo()
 
     def getLogFile(self):

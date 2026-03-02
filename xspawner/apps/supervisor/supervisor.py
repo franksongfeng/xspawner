@@ -230,7 +230,7 @@ class Supervisor(Spawner): # NOQA
         ILine(f"srvapp: {srvapp}")
 
         # start child and get its pid
-        res = self._start_child(None, {"name": srvname, "app": srvapp, "port": srvport, "severity": srvseverity})
+        res = await self._start_child(None, {"name": srvname, "app": srvapp, "port": srvport, "severity": srvseverity})
         if not res: # res is False
             put_error("Failed to start server {}.".format(srvname))
             return False
@@ -304,9 +304,9 @@ class Supervisor(Spawner): # NOQA
         jd = res.json()
         srvpid = jd["pid"]
         srvapp = jd["app"]
-        if self._stop_child(None, {"name": srvname}):
+        if await self._stop_child(None, {"name": srvname}):
             put_success("server <{} :{}> is deleted.".format(srvname, srvpid))
-            if self._clean_app(None, {"app": srvapp}):
+            if await self._clean_app(None, {"app": srvapp}):
                 put_success("app {} is cleaned.".format(srvapp))
 
         DLine("{}::_delete END".format(self.__class__.__name__))
