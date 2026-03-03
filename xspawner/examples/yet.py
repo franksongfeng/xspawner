@@ -2,7 +2,7 @@
 # Copyright © 2025 Song Feng.
 from pywebio.input import *
 from pywebio.output import *
-from xspawner import * # NOQA
+from xspawner.apps.spawner import * # NOQA
 from xspawner.ui_handler import * # NOQA
 from xspawner.api_handler import * # NOQA
 from xspawner.flow_handler import * # NOQA
@@ -12,7 +12,7 @@ import datetime
 import json
 
 
-class Misc(XSpawner):
+class Yet(Spawner):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
