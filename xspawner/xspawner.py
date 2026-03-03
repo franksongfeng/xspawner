@@ -276,7 +276,7 @@ class XSpawner(Serviceable):
 
     @classmethod
     def getChildClass(cls, mod):
-        return get_child_cls(mod, cls.__name__)
+        return get_similar_cls(mod, cls.__name__, 2)
 
     @classmethod
     def search_for_server_cls(cls, fpath):

@@ -102,7 +102,7 @@ class Spawner(XSpawner): # NOQA
             pkgfname = "{}/{}.py".format(pkgdir, srvapp)
         else:
             pkgfname = "{}.py".format(pkgdir)
-        srvcls = XSpawner.search_for_server_cls(pkgfname)
+        srvcls = Spawner.search_for_server_cls(pkgfname)
 
         srvvsn = "undefined"
         if is_module_available(f"{SYSTEM_ID}.apps.{srvapp}.__version__"):

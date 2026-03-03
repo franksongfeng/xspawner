@@ -193,8 +193,7 @@ class Supervisor(Spawner): # NOQA
             pkgfname = tempfile.mktemp()+".zip"
             with open(pkgfname, "wb") as f:
                 f.write(fdata)
-            from xspawner import XSpawner
-            srvcls = XSpawner.search_for_server_cls_in_pkg(pkgfname)
+            srvcls = Spawner.search_for_server_cls_in_pkg(pkgfname)
             delete_file(pkgfname)
             if not srvcls:
                 put_error('No required server class in {}!'.format(pkgfname))
@@ -208,8 +207,7 @@ class Supervisor(Spawner): # NOQA
             with open(pkgfname, "wb") as f:
                 f.write(fdata)
 
-            from xspawner import XSpawner
-            srvcls = XSpawner.search_for_server_cls(pkgfname)
+            srvcls = Spawner.search_for_server_cls(pkgfname)
 
             if not srvcls:
                 put_error('No required server class in {}!'.format(pkgfname))

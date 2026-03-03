@@ -496,21 +496,22 @@ def kill_process_on_port(port):
         ELine("stderr: {}".format(result.stderr))
         return False
 
-def get_child_cls(mod, base_cls_name, inherit=True):
-    DLine("get_child_cls BEG {} {}".format(str(mod), base_cls_name))
+# kind = 0  search for specific class
+# kind = 1  search for specific class's all derivative class
+# kind = 2  search for specific class and its all derivative class
+def get_similar_cls(mod, base_cls_name, kind):
+    DLine("get_similar_cls BEG {} {} {}".format(str(mod), base_cls_name, kind))
     try:
         mod_obj = importlib.import_module(mod) if isinstance(mod, str) else mod
         if mod_obj:
             for name in dir(mod_obj):
                 obj = getattr(mod_obj, name)
                 if inspect.isclass(obj):
-                    if inherit and is_descendant_cls(obj, base_cls_name):
-                        DLine("get_child_cls END Inherit {}".format(base_cls_name))
+                    if (kind == 0 and obj.__name__ == base_cls_name) \
+                    or (kind == 1 and is_descendant_cls(obj, base_cls_name)) \
+                    or (kind == 2 and (obj.__name__ == base_cls_name or is_descendant_cls(obj, base_cls_name))):
+                        DLine("get_similar_cls END Found {}".format(base_cls_name))
                         return obj
-                    else:
-                        if obj.__base__.__name__ == base_cls_name:
-                            DLine("get_child_cls END Just Be {}".format(base_cls_name))
-                            return obj
     except Exception as e:
         ELine("exception: {}".format(str(e)))
         return None
