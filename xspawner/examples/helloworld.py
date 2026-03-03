@@ -4,7 +4,7 @@
 from xspawner.apps.spawner import Spawner # NOQA
 from xspawner.api_handler import ApiHandler #NOQA
 
-class Helloworld(XSpawner):
+class Helloworld(Spawner):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
