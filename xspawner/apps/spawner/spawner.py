@@ -273,43 +273,6 @@ class Spawner(XSpawner): # NOQA
     async def _get_info(self, headers: dict, data: dict):
         return self.getInfo()
 
-    def getLogFile(self):
-        return LOG_FILE_TEMP.format(self.getConfig().name)
-
-    def getPidTime(self, pid=None):
-        if not pid:
-            pid = self.getPid()
-        try:
-            process = psutil.Process(pid)
-            start_timestamp = process.create_time()
-            formatted_time = datetime.datetime.fromtimestamp(start_timestamp).strftime("%Y-%m-%d %H:%M:%S")
-            return formatted_time
-        except Exception as e:
-            ELine("exception getPidTime: {}".format(str(e)))
-            return "unknown"
-
-
-    def getClassName(self):
-        return self.__class__.__name__
-
-    def getInfo(self):
-        info = self.getConfig()._asdict()
-        info.update(self.getState())
-        info["children"] = self.getChildren()
-        info["class"] = self.getClassName()
-        info["pid"] = self.getPid()
-        info["start_time"] = self.getPidTime(self.getPid())
-        info["work_dir"] = getWorkDir()
-        info["logfile"] = self.getLogFile()
-        return info
-
-    def getAncestry(self):
-        if not self.getConfig().ancestry:
-            return []
-        if isinstance(self.getConfig().ancestry, str):
-            return list(json.loads(self.getConfig().ancestry))
-
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
