@@ -12,7 +12,7 @@ from xspawner.apps.spawner import * # NOQA
 from xspawner.utilities.log import * # NOQA
 from xspawner.utilities.misc import * # NOQA
 from xspawner.constants import * # NOQA
-from xspawner.serviceable import * # NOQA
+from xspawner.common import * # NOQA
 from xspawner.ui_handler import UiHandler #NOQA
 from xspawner.api_handler import ApiHandler #NOQA
 import tornado.gen

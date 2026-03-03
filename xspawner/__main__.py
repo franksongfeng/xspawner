@@ -15,7 +15,7 @@ from .utilities.log import startLogger, ILine, WLine, ELine, CLine # NOQA
 from .utilities.misc import is_module_available, import_package_modules # NOQA
 from .constants import *
 from . import __version__
-from .serviceable import Config, State
+from .common import Config, State
 
 if __name__ == '__main__':
     try:
