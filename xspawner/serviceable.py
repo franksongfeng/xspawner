@@ -51,7 +51,7 @@ class SrvJSONEncoder(json.JSONEncoder):
         else:
             return super().default(obj)
 
-class Serviceable(object):
+class Spawnable(object):
 
     def __init__(self, config: Config, state: State, children: List[Config], **others):
         raise NotImplementedError

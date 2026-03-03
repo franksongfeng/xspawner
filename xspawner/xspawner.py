@@ -67,7 +67,7 @@ class ExitHandler(tornado.web.RequestHandler):
         self.write('stopped')
 
 
-class XSpawner(Serviceable):
+class XSpawner(Spawnable):
     _instance = None
     _config: Config = None
     _state: State = None
