@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 
-from xspawner import XSpawner # NOQA
+from xspawner.apps.spawner import Spawner # NOQA
 from xspawner.api_handler import ApiHandler #NOQA
 
 class Helloworld(XSpawner):
