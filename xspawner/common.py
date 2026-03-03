@@ -80,8 +80,11 @@ class Spawnable(object):
     def getChildren(self):
         raise NotImplementedError
 
-    def addChild(self, child):
+    def getChild(self, name):
         raise NotImplementedError
 
-    def delChild(self, child):
+    def delChild(self, name):
+        raise NotImplementedError
+
+    def addChild(self, child):
         raise NotImplementedError

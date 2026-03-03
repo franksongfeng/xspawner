@@ -16,8 +16,6 @@ from xspawner.utilities.log import * # NOQA
 from xspawner.utilities.misc import * # NOQA
 from xspawner import * # NOQA
 import tornado.gen
-import requests
-from requests.exceptions import *
 import psutil
 
 

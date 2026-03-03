@@ -14,6 +14,7 @@ import pywebio.platform.tornado
 
 import os
 import json
+import psutil
 import importlib
 import inspect
 import traceback
@@ -252,11 +253,22 @@ class XSpawner(Spawnable):
     def getChildren(self):
         return self._children
 
-    def addChild(self, child):
-        self.getChildren().append(child)
+    def getChild(self, name):
+        return search_list_of_dict(
+            self.getChildren(),
+            "name",
+            name
+        )
 
-    def delChild(self, child):
-        self.getChildren().remove(child)
+    def delChild(self, name):
+        child = self.getChild(name)
+        if child:
+            self.getChildren().remove(child)
+
+    def addChild(self, child):
+        if child:
+            self.getChildren().append(child)
+
 
     # implement singleton
     @classmethod

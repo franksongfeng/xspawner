@@ -16,8 +16,6 @@ from xspawner.common import * # NOQA
 from xspawner.ui_handler import UiHandler #NOQA
 from xspawner.api_handler import ApiHandler #NOQA
 import tornado.gen
-import requests
-from requests.exceptions import RequestException
 import psutil
 
 import inspect
@@ -175,7 +173,7 @@ class Supervisor(Spawner): # NOQA
         srvseverity = data["severity"]
 
         if srvname:
-            elm = search_list_of_dict(self.getChildren(), "name", srvname)
+            elm = self.getChild(srvname)
             if elm:
                 put_error('Repeated server name {}!'.format(srvname))
                 return False
@@ -254,7 +252,7 @@ class Supervisor(Spawner): # NOQA
     async def _delete(self):
         # # discarded onchange in the name input
         # def update_pid(name):
-        #     elm = search_list_of_dict(self.getChildren(), "name", name)
+        #     elm = self.getChild(name)
         #     if elm:
         #         input_update("pid", value=elm["pid"])
 
@@ -284,12 +282,7 @@ class Supervisor(Spawner): # NOQA
             ]
         )
 
-        elm = search_list_of_dict(
-            self.getChildren(),
-            "name",
-            data["name"]
-        )
-
+        elm = self.getChild(data["name"])
         srvname = elm["name"]
         srvaddr = elm["addr"]
 

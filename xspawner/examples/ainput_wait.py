@@ -10,8 +10,6 @@ from pywebio.utils import *
 from xspawner.ui_handler import * # NOQA
 from xspawner.apps.spawner import * # NOQA
 import tornado.gen
-import requests
-from requests.exceptions import *
 import psutil
 
 

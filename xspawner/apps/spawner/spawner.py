@@ -125,11 +125,7 @@ class Spawner(XSpawner): # NOQA
 
         srvname = data["name"]
 
-        elm = search_list_of_dict(
-            self.getChildren(),
-            "name",
-            srvname
-        )
+        elm = self.getChild(srvname)
         if not elm:
             WLine("cannot find child server on {}".format(data))
             return False
@@ -144,7 +140,7 @@ class Spawner(XSpawner): # NOQA
 
         srvpid = res["pid"]
 
-        self.delChild(elm)
+        self.delChild(srvname)
 
         try:
             os.kill(int(srvpid), signal.SIGTERM)
