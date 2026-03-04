@@ -22,7 +22,7 @@ fi
 
 if [ "$DAEMON" = "true" ]; then
     # daemon
-    $"nohup "$CMD" &"
+    eval "nohup "$CMD" &"
     sleep 1
     sudo python3 -m xspawner.apps.spawner.tests $SCHEME://$3:$4
 else
