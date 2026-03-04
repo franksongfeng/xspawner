@@ -127,8 +127,8 @@ def suicide():
     os.kill(os.getpid(), signal.SIGTERM)
 
 
-def makeRootUrl(host, port):
-    return "http://{}:{}/".format(host, port)
+def makeRootUrl(scheme, host, port):
+    return "{}://{}:{}/".format(scheme, host, port)
 
 
 def runCoroutines(c_list):

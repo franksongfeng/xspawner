@@ -235,7 +235,8 @@ class XSpawner(Spawnable):
         ILine("stop END")
 
     def getAddr(self):
-        return "http://{}:{}".format(
+        return "{}://{}:{}".format(
+            "https" if self.getConfig().ssl else "http",
             self.getConfig().host,
             self.getConfig().port)
 

@@ -110,7 +110,10 @@ class Spawner(XSpawner): # NOQA
             if hasattr(mod, "__version__"):
                 srvvsn = mod.__version__
 
-        srvaddr = "http://{}:{}".format(self.getConfig().host, srvport)
+        srvaddr = "{}://{}:{}".format(
+            "https" if srvssl else "http",
+            self.getConfig().host,
+            srvport)
         self.addChild({"name": srvname, "addr": srvaddr})
         new_srv = {"name": srvname, "app": srvapp, "cls": srvcls.__name__, "vsn": srvvsn, "pid": int(pid), "addr": srvaddr}
         DLine("{}::_start_child END {}".format(self.__class__.__name__, new_srv))
