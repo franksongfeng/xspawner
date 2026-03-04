@@ -4,7 +4,7 @@
 
 # check parameters
 if [ $# -lt 4 ]; then
-    echo "Err: At least 4 parameters are required: name, app, host, port"
+    echo "Alert: At least 4 parameters are required: name, app, host, port"
     exit 1
 fi
 
