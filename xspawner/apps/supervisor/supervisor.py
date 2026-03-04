@@ -82,8 +82,7 @@ class Supervisor(Spawner): # NOQA
         if self.getChildren():
             put_html(tab_title.format("服务"))
             content = []
-            content.append(put_link(self.getChildren()[0]["name"], url=self.getChildren()[0]["addr"]))
-            for elm in self.getChildren()[1:]:
+            for elm in self.getChildren():
                 content.append(put_link(elm["name"], url=elm["addr"]))
             put_row(content)
 
