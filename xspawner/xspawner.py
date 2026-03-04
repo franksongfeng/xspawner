@@ -110,12 +110,12 @@ class XSpawner(Spawnable):
             handlers=handlers,
             default_host="0.0.0.0"
         )
-        if "security" in kwargs and kwargs["security"]:
+        if "ssl" in kwargs and kwargs["ssl"]:
             self._server = tornado.httpserver.HTTPServer(
                 app,
                 ssl_options=getSSLContext(kwargs["certfile"], kwargs["keyfile"])
             )
-            ILine("httpserver is enhanced with security")
+            ILine("httpserver is enhanced with ssl")
         else:
             self._server = tornado.httpserver.HTTPServer(app)
         ILine("__init__ END")

@@ -11,7 +11,7 @@
 - 📦 **Class as a Service(CaaS)**: Each service is packaged as an independant class
 - 🌐 **Simple Life Manangement**: Manage service lifecycles on spawning dependencies
 - ⚡ **Asynchronous Support**: Powered by Tornado's battle-tested coroutines
-- 🔒 **HTTPS Support**: Standalone security enhancement
+- 🔒 **SSL Support**: Standalone ssl/tls enhancement
 
 ### License
 
