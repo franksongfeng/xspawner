@@ -35,7 +35,7 @@ import datetime
 ##############################################################################
 # Constants and Variables and Classes
 ##############################################################################
-BASIC_CMD = "sudo python3 -u -m xspawner --name {} --app {} --host {} --port {} --severity {} --ancestry {}"
+BASIC_CMD = "sudo python3 -u -m xspawner --name {} --app {} --host {} --port {} --severity {} --father {}"
 
 
 class Spawner(XSpawner): # NOQA
@@ -69,16 +69,8 @@ class Spawner(XSpawner): # NOQA
             ELine("Miss port or severity or name or app in data")
             return False
 
-        ancestry = self.getAncestry()
-        ancestry.append(
-            (
-                self.getConfig().name,
-                self.getAddr()
-            )
-        )
-        srvancestry = json.dumps(ancestry, cls=SrvJSONEncoder, separators=(',', ':'))
-        ILine(f"srvancestry: {srvancestry}")
-        cmd = BASIC_CMD.format(data["name"], data["app"], self.getConfig().host, data["port"], data["severity"], srvancestry)
+        srvfather = self.getAddr()
+        cmd = BASIC_CMD.format(data["name"], data["app"], self.getConfig().host, data["port"], data["severity"], srvfather)
 
         # add SSL options
         srvssl = self.getConfig().ssl

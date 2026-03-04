@@ -29,7 +29,7 @@ if __name__ == '__main__':
         parser.add_argument("--ssl", action="store_true", help="SSL/TLS Support")
         parser.add_argument("--certfile", type=str, default=None, help="Certification")
         parser.add_argument("--keyfile", type=str, default=None, help="Private key")
-        parser.add_argument("--ancestry", type=str, default=None, help="Ancestry")
+        parser.add_argument("--father", type=str, default=None, help="Father")
         parser.add_argument("--vsn", type=str, default="undefined", help="Version")
         args = parser.parse_args()
         
