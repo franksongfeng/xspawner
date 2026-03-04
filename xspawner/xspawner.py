@@ -98,7 +98,7 @@ class XSpawner(Spawnable):
         for path in UiHandler.path_map:
             handlers.append((path, UiHandler(path, self)))
         # fixed handlers are at the bottom
-        resource_dir = RES_DIR_TEMP.format(self._config.app)
+        resource_dir = RES_DIR_TEMP.format(config.app)
         handlers.extend([
             (r"/", HomePageHandler),
             (r"/resources/(.*)", ResourceHandler, {"path": resource_dir}),
@@ -110,14 +110,15 @@ class XSpawner(Spawnable):
             handlers=handlers,
             default_host="0.0.0.0"
         )
-        if "ssl" in kwargs and kwargs["ssl"]:
+        if config.ssl:
             self._server = tornado.httpserver.HTTPServer(
                 app,
-                ssl_options=getSSLContext(kwargs["certfile"], kwargs["keyfile"])
+                ssl_options=getSSLContext(config.certfile, config.keyfile)
             )
             ILine("httpserver is enhanced with ssl")
         else:
             self._server = tornado.httpserver.HTTPServer(app)
+            ILine("httpserver is not enhanced with ssl")
         ILine("__init__ END")
 
     def postCallback(self, future, condition, res):
