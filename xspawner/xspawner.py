@@ -397,6 +397,12 @@ class XSpawner(Spawnable):
         info["logfile"] = self.getLogFile()
         return info
 
+    def getAncestry(self):
+        if not self.getConfig().ancestry:
+            return []
+        if isinstance(self.getConfig().ancestry, str):
+            return list(json.loads(self.getConfig().ancestry))
+
     def getFather(self):
-        if isinstance(self.getConfig().father, str) and self.getConfig().father:
-            return self.getConfig().father
+        if self.getAncestry():
+            return self.getAncestry()[-1]
