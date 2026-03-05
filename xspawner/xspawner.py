@@ -406,3 +406,7 @@ class XSpawner(Spawnable):
     def getFather(self):
         if self.getAncestry():
             return self.getAncestry()[-1]
+
+    def getRoot(self):
+        if self.getAncestry():
+            return self.getAncestry()[0]
