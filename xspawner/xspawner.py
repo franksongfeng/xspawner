@@ -36,7 +36,7 @@ from .flow_handler import * # NOQA
 from .constants import * # NOQA
 
 
-INTERNAL_HANDLERS = ["PingPongHandler", "HomePageHandler", "ResourceHandler", "ExitHandler"]
+INTERNAL_HANDLERS = ["PingPongHandler", "HomePageHandler", "LoginPageHandler", "ResourceHandler", "ExitHandler"]
 CUSTOMED_HANDLERS = ["ApiHandler", "UiHandler", "FlowHandler"]
 
 class PingPongHandler(tornado.web.RequestHandler):
@@ -51,6 +51,12 @@ class HomePageHandler(tornado.web.RequestHandler):
     def get(self):
         self.set_header("Content-Type", "text/html")
         self.render("index.html")
+
+class LoginPageHandler(tornado.web.RequestHandler):
+    SUPPORTED_METHODS = ("GET",)
+    def get(self):
+        self.set_header("Content-Type", "text/html")
+        self.render("login.html")
 
 class ResourceHandler(tornado.web.StaticFileHandler):
     def set_default_headers(self):
@@ -101,6 +107,7 @@ class XSpawner(Spawnable):
         resource_dir = RES_DIR_TEMP.format(config.app)
         handlers.extend([
             (r"/", HomePageHandler),
+            (r"/login", LoginPageHandler),
             (r"/resources/(.*)", ResourceHandler, {"path": resource_dir}),
             (r"/ping", PingPongHandler),
             (r"/stop", ExitHandler)

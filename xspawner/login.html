@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企业登录 · 内部系统</title>
+    <style>
+        /* 黑白灰企业风格 - 极简、专业、克制 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f5f5f7;  /* 极浅灰背景 */
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* 登录卡片 - 纯白，极简阴影 */
+        .login-container {
+            background: #ffffff;
+            border: 1px solid #eaeaea;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            padding: 48px 40px;
+            width: 100%;
+            max-width: 400px;
+            transition: box-shadow 0.2s ease;
+        }
+
+        .login-container:hover {
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+        }
+
+        /* Logo/图标区域 - 可选 */
+        .logo-area {
+            width: 48px;
+            height: 48px;
+            background: #333;
+            margin-bottom: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 500;
+            font-size: 20px;
+        }
+
+        /* 标题 */
+        .login-header {
+            margin-bottom: 32px;
+        }
+
+        .login-header h2 {
+            color: #1a1a1a;
+            font-size: 24px;
+            font-weight: 500;
+            letter-spacing: -0.3px;
+            margin-bottom: 8px;
+        }
+
+        .login-header p {
+            color: #6b6b6b;
+            font-size: 14px;
+            font-weight: 400;
+        }
+
+        /* 表单组 */
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: #333;
+            font-size: 13px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        /* 输入框 - 极简边框 */
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            background-color: #ffffff;
+            border: 1px solid #d9d9d9;
+            border-radius: 0;  /* 直角，更显硬朗 */
+            font-size: 15px;
+            color: #1a1a1a;
+            transition: border 0.15s ease;
+            outline: none;
+        }
+
+        .form-group input:hover {
+            border-color: #a6a6a6;
+        }
+
+        .form-group input:focus {
+            border-color: #000000;
+            box-shadow: none;
+        }
+
+        .form-group input::placeholder {
+            color: #b3b3b3;
+            font-size: 14px;
+            font-weight: 300;
+        }
+
+        /* 选项行 */
+        .form-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        /* 记住我 - 自定义复选框 */
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #4d4d4d;
+            font-size: 14px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .remember-me input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            border: 1px solid #b3b3b3;
+            background: white;
+            cursor: pointer;
+            accent-color: #333;  /* 仅部分浏览器支持 */
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            position: relative;
+        }
+
+        /* 自定义复选框选中状态 */
+        .remember-me input[type="checkbox"]:checked {
+            background-color: #333;
+            border-color: #333;
+        }
+
+        .remember-me input[type="checkbox"]:checked::after {
+            content: '';
+            position: absolute;
+            left: 4px;
+            top: 1px;
+            width: 6px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        .remember-me input[type="checkbox"]:focus {
+            outline: none;
+            border-color: #000;
+        }
+
+        /* 忘记密码链接 */
+        .forgot-password {
+            color: #666;
+            text-decoration: none;
+            font-size: 13px;
+            border-bottom: 1px solid #d9d9d9;
+            line-height: 1.4;
+            transition: all 0.15s ease;
+        }
+
+        .forgot-password:hover {
+            color: #000;
+            border-bottom-color: #000;
+        }
+
+        /* 登录按钮 - 深色 */
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            background-color: #1a1a1a;
+            border: none;
+            color: white;
+            font-size: 15px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            border-radius: 0;
+        }
+
+        .login-btn:hover {
+            background-color: #333;
+        }
+
+        .login-btn:active {
+            background-color: #0f0f0f;
+        }
+
+        .login-btn:disabled {
+            background-color: #b3b3b3;
+            cursor: not-allowed;
+        }
+
+        /* 注册链接区域 */
+        .register-link {
+            text-align: center;
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 1px solid #ececec;
+            color: #8c8c8c;
+            font-size: 13px;
+        }
+
+        .register-link a {
+            color: #333;
+            text-decoration: none;
+            font-weight: 500;
+            margin-left: 8px;
+            border-bottom: 1px solid #d9d9d9;
+        }
+
+        .register-link a:hover {
+            color: #000;
+            border-bottom-color: #000;
+        }
+
+        /* 提示消息 - 极简风格 */
+        .message {
+            padding: 12px 16px;
+            margin-bottom: 24px;
+            font-size: 13px;
+            line-height: 1.5;
+            border: 1px solid;
+            display: none;
+        }
+
+        .message.error {
+            display: block;
+            background-color: #fafafa;
+            color: #c00;
+            border-color: #e5e5e5;
+            border-left: 3px solid #c00;
+        }
+
+        .message.success {
+            display: block;
+            background-color: #fafafa;
+            color: #2c6b2c;
+            border-color: #e5e5e5;
+            border-left: 3px solid #2c6b2c;
+        }
+
+        /* 分隔线装饰（可选） */
+        .divider {
+            margin: 24px 0;
+            height: 1px;
+            background: #ececec;
+        }
+
+        /* 底部版权 */
+        .footer-note {
+            margin-top: 24px;
+            text-align: center;
+            color: #b3b3b3;
+            font-size: 11px;
+            letter-spacing: 0.3px;
+        }
+
+        /* 响应式 */
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 32px 24px;
+            }
+            
+            .login-header h2 {
+                font-size: 22px;
+            }
+            
+            .logo-area {
+                width: 40px;
+                height: 40px;
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <!-- 简洁的几何Logo（可选，可替换为实际企业标识） -->
+        <div class="logo-area">
+            ■
+        </div>
+
+        <div class="login-header">
+            <h2>内部系统登录</h2>
+            <p>请输入您的企业凭证</p>
+        </div>
+
+        <!-- 动态消息容器 -->
+        <div id="messageContainer" class="message"></div>
+
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input 
+                    type="text" 
+                    id="username" 
+                    name="username" 
+                    placeholder="例如：zhang.san" 
+                    required
+                    autocomplete="username"
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    name="password" 
+                    placeholder="········" 
+                    required
+                    autocomplete="current-password"
+                >
+            </div>
+
+            <div class="form-options">
+                <label class="remember-me">
+                    <input type="checkbox" id="remember" name="remember">
+                    <span>记住登录状态</span>
+                </label>
+                <a href="#" class="forgot-password" onclick="alert('请联系IT部门重置密码\ninternal-sso@company.com')">忘记密码？</a>
+            </div>
+
+            <button type="submit" class="login-btn" id="loginBtn">登 录</button>
+
+            <div class="register-link">
+                没有账号？
+                <a href="#" onclick="alert('请与HR部门联系开通权限')">申请开通</a>
+            </div>
+            
+            <div class="footer-note">
+                © 企业名称 · 内部网络
+            </div>
+        </form>
+    </div>
+
+    <script>
+        (function() {
+            // DOM 元素
+            const form = document.getElementById('loginForm');
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+            const rememberCheckbox = document.getElementById('remember');
+            const loginBtn = document.getElementById('loginBtn');
+            const messageContainer = document.getElementById('messageContainer');
+
+            // 工具函数：显示消息
+            function showMessage(text, type = 'error') {
+                messageContainer.textContent = text;
+                messageContainer.className = 'message ' + type;  // error 或 success
+                
+                // 自动滚动到消息处
+                messageContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                
+                // 成功消息3秒后自动清除（可选）
+                if (type === 'success') {
+                    setTimeout(() => {
+                        if (messageContainer.classList.contains('success')) {
+                            messageContainer.className = 'message';
+                            messageContainer.textContent = '';
+                        }
+                    }, 3000);
+                }
+            }
+
+            // 清除消息
+            function clearMessage() {
+                messageContainer.className = 'message';
+                messageContainer.textContent = '';
+            }
+
+            // 设置加载状态
+            function setLoading(isLoading) {
+                if (isLoading) {
+                    loginBtn.textContent = '登录中...';
+                    loginBtn.disabled = true;
+                } else {
+                    loginBtn.textContent = '登 录';
+                    loginBtn.disabled = false;
+                }
+            }
+
+            // 模拟登录验证（企业环境通常会走API）
+            function mockLogin(username, password) {
+                return new Promise((resolve, reject) => {
+                    setTimeout(() => {
+                        // 严格的企业验证逻辑（演示用）
+                        if (username === 'admin' && password === 'Admin@2024') {
+                            resolve({ success: true, role: 'admin', name: '管理员' });
+                        } else if (username === 'zhang.san' && password === 'Zhang@123') {
+                            resolve({ success: true, role: 'employee', name: '张三' });
+                        } else if (username === 'li.si' && password === 'Li@456') {
+                            resolve({ success: true, role: 'employee', name: '李四' });
+                        } else if (username === '' || password === '') {
+                            reject(new Error('用户名和密码不能为空'));
+                        } else {
+                            reject(new Error('用户名或密码错误，请重新输入'));
+                        }
+                    }, 800);  // 模拟网络延迟
+                });
+            }
+
+            // 登录处理
+            async function handleLogin(event) {
+                event.preventDefault();
+                clearMessage();
+
+                // 获取并清理输入
+                const username = usernameInput.value.trim();
+                const password = passwordInput.value;
+                const remember = rememberCheckbox.checked;
+
+                // 客户端基础验证
+                if (!username) {
+                    showMessage('请输入用户名', 'error');
+                    usernameInput.focus();
+                    return;
+                }
+
+                if (!password) {
+                    showMessage('请输入密码', 'error');
+                    passwordInput.focus();
+                    return;
+                }
+
+                // 可选的密码复杂度提示（企业规范）
+                if (password.length < 6) {
+                    showMessage('密码长度至少为6位', 'error');
+                    return;
+                }
+
+                // 开始登录请求
+                setLoading(true);
+                
+                try {
+                    const result = await mockLogin(username, password);
+                    
+                    // 登录成功
+                    if (result.success) {
+                        showMessage(`欢迎回来，${result.name}。登录成功`, 'success');
+                        
+                        // 处理"记住我"（实际应用应存储token）
+                        if (remember) {
+                            // 示例：保存最后登录用户（实际应保存加密token）
+                            localStorage.setItem('lastUsername', username);
+                        } else {
+                            localStorage.removeItem('lastUsername');
+                        }
+                        
+                        // 模拟跳转（实际应 window.location.href = '/dashboard'）
+                        console.log('登录成功，用户信息：', result);
+                        
+                        // 可选：延迟后重置按钮（演示用）
+                        setTimeout(() => {
+                            setLoading(false);
+                        }, 1500);
+                    }
+                } catch (error) {
+                    // 登录失败
+                    showMessage(error.message, 'error');
+                    setLoading(false);
+                    
+                    // 失败后清空密码（企业安全规范）
+                    passwordInput.value = '';
+                    passwordInput.focus();
+                }
+            }
+
+            // 绑定事件
+            form.addEventListener('submit', handleLogin);
+
+            // 输入时清除错误（提升体验）
+            usernameInput.addEventListener('input', clearMessage);
+            passwordInput.addEventListener('input', clearMessage);
+
+            // 页面加载时，如果有记住的用户名，可以填充（可选）
+            window.addEventListener('load', () => {
+                const savedUser = localStorage.getItem('lastUsername');
+                if (savedUser) {
+                    usernameInput.value = savedUser;
+                    rememberCheckbox.checked = true;
+                    passwordInput.focus();  // 自动聚焦到密码框
+                }
+            });
+
+            // 添加键盘快捷键提示（Ctrl+Enter 快速登录 - 可选）
+            document.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    handleLogin(new Event('submit'));
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
