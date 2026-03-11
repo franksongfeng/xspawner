@@ -13,11 +13,11 @@ DAEMON="false"
 if [ $# -eq 6 ]; then
     # ssl
     SCHEME="https"
-    CMD="sudo python3 -u -m xspawner --name $1 --app $2 --host $3 --port $4 --severity debug  --ssl --certfile $5 --keyfile $6"
+    CMD="sudo python3 -u -m xspawner --name $1 --app $2 --host $3 --port $4 --ssl --certfile $5 --keyfile $6"
 else
     # no ssl
     SCHEME="http"
-    CMD="sudo python3 -u -m xspawner --name $1 --app $2 --host $3 --port $4 --severity debug"
+    CMD="sudo python3 -u -m xspawner --name $1 --app $2 --host $3 --port $4"
 fi
 
 if [ "$DAEMON" = "true" ]; then
