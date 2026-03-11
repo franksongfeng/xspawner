@@ -35,7 +35,7 @@ import datetime
 ##############################################################################
 # Constants and Variables and Classes
 ##############################################################################
-BASIC_CMD = "sudo python3 -u -m xspawner --name {} --app {} --host {} --port {} --severity {} --ancestry  {}"
+BASIC_CMD = "sudo python3 -u -m xspawner --name {} --app {} --host {} --port {} --severity {} --ancestry {}"
 
 
 class Spawner(XSpawner): # NOQA
@@ -99,18 +99,12 @@ class Spawner(XSpawner): # NOQA
             pkgfname = "{}.py".format(pkgdir)
         srvcls = Spawner.search_for_server_cls(pkgfname)
 
-        srvvsn = "undefined"
-        if is_module_available(f"{SYSTEM_ID}.apps.{srvapp}.__version__"):
-            mod = importlib.import_module(f"{SYSTEM_ID}.apps.{srvapp}.__version__")
-            if hasattr(mod, "__version__"):
-                srvvsn = mod.__version__
-
         srvaddr = "{}://{}:{}".format(
             "https" if srvssl else "http",
             self.getConfig().host,
             srvport)
         self.addChild({"name": srvname, "addr": srvaddr})
-        new_srv = {"name": srvname, "app": srvapp, "cls": srvcls.__name__, "vsn": srvvsn, "pid": int(pid), "addr": srvaddr}
+        new_srv = {"name": srvname, "app": srvapp, "cls": srvcls.__name__, "pid": int(pid), "addr": srvaddr}
         DLine("{}::_start_child END {}".format(self.__class__.__name__, new_srv))
         return new_srv
 

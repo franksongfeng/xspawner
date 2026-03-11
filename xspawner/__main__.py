@@ -30,7 +30,6 @@ if __name__ == '__main__':
         parser.add_argument("--certfile", type=str, default=None, help="Certification")
         parser.add_argument("--keyfile", type=str, default=None, help="Private key")
         parser.add_argument("--ancestry", type=str, default=None, help="Ancestry")
-        parser.add_argument("--vsn", type=str, default="undefined", help="Version")
         args = parser.parse_args()
         
         globals()["__version__"] = __version__
@@ -50,12 +49,12 @@ if __name__ == '__main__':
             ILine("server is starting {} {} {} {}".format(args.name, args.app, args.host, args.port))
             # cmd_args = {k: getattr(args, k) if hasattr(args, k) else None for k in Config._fields}
             cmd_args = vars(args)
-            if args.vsn == "undefined" and is_module_available(f"{APP_PKG}.{args.app}.__version__"):
+            srv_vsn = "undefined"
+            if is_module_available(f"{APP_PKG}.{args.app}.__version__"):
                 mod = importlib.import_module(f"{APP_PKG}.{args.app}.__version__")
-                cmd_args["vsn"] = mod.__version__
-            else:
-                WLine("no app version found for {}!".format(args.app))
-            srv_cls.getServer(config=Config(**cmd_args),state=State(),children=[]).start()
+                if hasattr(mod, "__version__"):
+                    srv_vsn = mod.__version__
+            srv_cls.getServer(config=Config(**cmd_args),state=State(vsn=srv_vsn),children=[]).start()
         else:
             CLine("no app {}!".format(args.app))
     except Exception as e:
