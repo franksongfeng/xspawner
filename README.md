@@ -16,7 +16,7 @@
 ### License
 
 
-Distributed under **Apache v2.0**
+Distributed under **MIT**
 
 **Author**: Song Feng
 **Contact**: [43217183@qq.com](mailto:43217183@qq.com)
