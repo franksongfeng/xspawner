@@ -1,0 +1,37 @@
+[build-system]
+requires = [
+    "setuptools>=61.0.0",
+    "wheel"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xspawner"
+authors = [{name = "Song Feng", email = "43217183@qq.com"}]
+readme = "README.md"
+license = {text = "MIT"}
+dynamic = ["version", "description"]
+dependencies = [
+    "requests>=2.22.0",
+    "tornado>=6.4.1",
+    "pywebio>=1.8.3",
+    "psutil>=5.9.5",
+    "pycurl>=7.45.7",
+    "bokeh>=3.1.1"
+]
+
+[project.urls]
+Home = "https://github.com/franksongfeng/xspawner"
+
+[tool.setuptools]
+# packages = {find = {where = ["xspawner"]}}
+packages = [
+    "xspawner",
+    "xspawner.apps",
+    "xspawner.utilities"
+]
+
+[tool.setuptools.package-data]
+xspawner = [
+    "static/*"
+]

@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>彩色日志查看器</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', monospace;
+        }
+        body {
+            background: #f0f2f5;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .card {
+            max-width: 1400px;
+            width: 100%;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.12);
+            overflow: hidden;
+        }
+        .header {
+            background: #1e293b;
+            color: white;
+            padding: 18px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+        }
+        .header h2 {
+            margin: 0;
+            font-weight: 500;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .badge {
+            background: #3b82f6;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .status-bar {
+            background: #f8fafc;
+            padding: 12px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .connection-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .led {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #94a3b8;
+            transition: background 0.2s;
+        }
+        .led.connected {
+            background: #22c55e;
+            box-shadow: 0 0 8px #22c55e;
+        }
+        .led.error {
+            background: #ef4444;
+        }
+        .counter {
+            background: #e2e8f0;
+            padding: 4px 12px;
+            border-radius: 40px;
+            font-size: 0.9rem;
+            color: #334155;
+        }
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-left: auto;
+        }
+        .action-btn {
+            background: none;
+            border: 1px solid #cbd5e1;
+            padding: 6px 20px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .action-btn:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+        }
+        .export-btn {
+            border-color: #10b981;
+            color: #10b981;
+        }
+        .export-btn:hover {
+            background: #f0fdf4;
+            border-color: #10b981;
+        }
+        .pause-btn {
+            border-color: #f59e0b;
+            color: #f59e0b;
+        }
+        .pause-btn:hover {
+            background: #fffbeb;
+            border-color: #f59e0b;
+        }
+        .pause-btn.active {
+            background: #f59e0b;
+            color: white;
+            border-color: #f59e0b;
+        }
+        .pause-btn.active:hover {
+            background: #d97706;
+        }
+        .clear-btn {
+            border-color: #94a3b8;
+            color: #475569;
+        }
+        /* 表格样式 - 列式布局，左对齐，紧凑列宽 */
+        .log-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+        }
+        .log-table th {
+            position: sticky;
+            top: 0;
+            background: #f8fafc;
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #475569;
+            border-bottom: 2px solid #e2e8f0;
+            letter-spacing: 0.3px;
+            z-index: 10;
+        }
+        .log-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: top;
+            line-height: 1.5;
+        }
+        /* 紧凑列宽设置 */
+        .col-timestamp {
+            width: 170px;
+            min-width: 170px;
+            white-space: nowrap;
+        }
+        .col-system {
+            width: 110px;
+            min-width: 110px;
+        }
+        .col-severity {
+            width: 90px;
+            min-width: 90px;
+        }
+        .col-content {
+            width: auto;
+        }
+        /* 严重级别标签样式 */
+        .severity-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 40px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            text-align: center;
+            background: #e2e8f0;
+            color: #334155;
+        }
+        /* 行背景色 - 根据严重级别 */
+        .log-row {
+            transition: background 0.15s;
+        }
+        .log-row:hover {
+            filter: brightness(0.98);
+        }
+        .log-row.severity-debug {
+            background-color: #ffffff;
+        }
+        .log-row.severity-info {
+            background-color: #eff6ff;
+        }
+        .log-row.severity-warning {
+            background-color: #fef9c3;
+        }
+        .log-row.severity-error {
+            background-color: #fee2e2;
+        }
+        .log-row.severity-critical {
+            background-color: #f3e8ff;
+        }
+        /* 严重级别标签颜色 */
+        .severity-debug .severity-badge {
+            background: #e2e8f0;
+            color: #334155;
+        }
+        .severity-info .severity-badge {
+            background: #3b82f6;
+            color: white;
+        }
+        .severity-warning .severity-badge {
+            background: #eab308;
+            color: black;
+        }
+        .severity-error .severity-badge {
+            background: #b91c1c;
+            color: white;
+        }
+        .severity-critical .severity-badge {
+            background: #7e22ce;
+            color: white;
+        }
+        /* 文字颜色调整 */
+        .log-row.severity-error td {
+            color: #991b1b;
+        }
+        .log-row.severity-critical td {
+            color: #581c87;
+        }
+        .log-row.severity-warning td {
+            color: #854d0e;
+        }
+        .log-row.severity-info td {
+            color: #1e40af;
+        }
+        .log-row.severity-debug td {
+            color: #334155;
+        }
+        /* 内容区域支持换行 */
+        .log-content {
+            word-break: break-word;
+            white-space: pre-wrap;
+        }
+        .log-container {
+            background: #ffffff;
+            height: 500px;
+            overflow-y: auto;
+            padding: 0;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+        }
+        .empty-placeholder {
+            text-align: center;
+            color: #94a3b8;
+            padding: 60px 20px;
+            font-style: italic;
+        }
+        /* 暂停提示浮层 */
+        .pause-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 40px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            pointer-events: none;
+            z-index: 20;
+            backdrop-filter: blur(4px);
+            white-space: nowrap;
+            animation: fadeInOut 2s ease-in-out forwards;
+        }
+        .export-overlay {
+            background: rgba(16, 185, 129, 0.95);
+        }
+        @keyframes fadeInOut {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.9);
+            }
+            15% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            85% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.9);
+                visibility: hidden;
+            }
+        }
+        .footer {
+            background: #f1f5f9;
+            padding: 12px 24px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 0.85rem;
+            color: #475569;
+            display: flex;
+            justify-content: space-between;
+        }
+        .footer a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+        /* 滚动条美化 */
+        .log-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .log-container::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .log-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .log-container::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        /* 相对定位容器用于提示浮层 */
+        .log-container {
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="header">
+            <h2>
+                <span>📋 实时日志监控</span>
+                <span class="badge">Xspawner</span>
+            </h2>
+        </div>
+        <div class="status-bar">
+            <div class="connection-indicator">
+                <span class="led" id="connectionLed"></span>
+                <span id="connectionText">断开</span>
+            </div>
+            <div class="counter" id="counter">0 条事件</div>
+            <div class="button-group">
+                <button class="action-btn export-btn" id="exportBtn">📥 导出日志</button>
+                <button class="action-btn pause-btn" id="pauseBtn">⏸️ 暂停显示</button>
+                <button class="action-btn clear-btn" id="clearBtn">🗑️ 清空显示</button>
+            </div>
+        </div>
+        <div class="log-container" id="logContainer">
+            <div class="empty-placeholder">等待连接或事件推送…</div>
+        </div>
+        <div class="footer">
+            <span>📡 SSE 端点: <code>ENDPOINT</code></span>
+            <span>🎨 按严重级别着色 | 表格布局左对齐 | ⏯️ 可暂停/继续显示 | 📥 可导出CSV</span>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // DOM 元素
+            const logContainer = document.getElementById('logContainer');
+            const connectionLed = document.getElementById('connectionLed');
+            const connectionText = document.getElementById('connectionText');
+            const counterSpan = document.getElementById('counter');
+            const clearBtn = document.getElementById('clearBtn');
+            const pauseBtn = document.getElementById('pauseBtn');
+            const exportBtn = document.getElementById('exportBtn');
+
+            let eventCount = 0;
+            let eventSource = null;
+            let isPaused = false;  // 暂停标志：true-暂停显示，false-正常显示
+            let pendingLogs = [];   // 暂停期间缓存的日志
+            let allLogsData = [];   // 存储所有日志数据用于导出
+
+            // 显示提示消息
+            function showToast(message, isSuccess = false) {
+                const existingToast = logContainer.querySelector('.pause-overlay, .export-overlay');
+                if (existingToast) {
+                    existingToast.remove();
+                }
+
+                const toast = document.createElement('div');
+                toast.className = isSuccess ? 'pause-overlay export-overlay' : 'pause-overlay';
+                toast.textContent = message;
+                logContainer.style.position = 'relative';
+                logContainer.appendChild(toast);
+
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.remove();
+                    }
+                }, 2000);
+            }
+
+            // 更新暂停按钮的样式和文字
+            function updatePauseButton() {
+                if (isPaused) {
+                    pauseBtn.innerHTML = '▶️ 继续显示';
+                    pauseBtn.classList.add('active');
+                    pauseBtn.title = '点击恢复显示日志';
+                } else {
+                    pauseBtn.innerHTML = '⏸️ 暂停显示';
+                    pauseBtn.classList.remove('active');
+                    pauseBtn.title = '点击暂停显示新日志';
+                }
+            }
+
+            // 处理暂停期间缓存的日志（批量追加）
+            function flushPendingLogs() {
+                if (!isPaused && pendingLogs.length > 0) {
+                    // 批量追加所有缓存的日志
+                    pendingLogs.forEach(logData => {
+                        appendLogEntryDirect(logData);
+                    });
+                    pendingLogs = [];
+
+                    // 显示恢复提示
+                    showToast('✅ 已恢复显示，新增 ' + pendingLogs.length + ' 条日志', false);
+                }
+            }
+
+            // 直接追加日志到表格（不经过暂停检查）
+            function appendLogEntryDirect({ severity, timestamp, system, content }) {
+                // 移除占位符
+                const placeholder = logContainer.querySelector('.empty-placeholder');
+                if (placeholder) {
+                    placeholder.remove();
+                }
+
+                // 确保表格存在
+                let tbody = logContainer.querySelector('.log-table tbody');
+                if (!tbody) {
+                    const { tbody: newTbody } = initTable();
+                    tbody = newTbody;
+                }
+
+                // 创建行
+                const row = document.createElement('tr');
+                row.className = `log-row severity-${severity}`;
+
+                // 时间戳列（左对齐，紧凑宽度）
+                const tdTimestamp = document.createElement('td');
+                tdTimestamp.className = 'col-timestamp';
+                tdTimestamp.textContent = timestamp;
+                tdTimestamp.style.whiteSpace = 'nowrap';
+
+                // 系统列（左对齐）
+                const tdSystem = document.createElement('td');
+                tdSystem.className = 'col-system';
+                tdSystem.textContent = system || 'unknown';
+
+                // 严重级别列（左对齐，带徽章）
+                const tdSeverity = document.createElement('td');
+                tdSeverity.className = 'col-severity';
+                const badge = document.createElement('span');
+                badge.className = 'severity-badge';
+                badge.textContent = (severity || 'info').toUpperCase();
+                tdSeverity.appendChild(badge);
+
+                // 内容列（左对齐，支持换行）
+                const tdContent = document.createElement('td');
+                tdContent.className = 'col-content';
+                const contentSpan = document.createElement('span');
+                contentSpan.className = 'log-content';
+                contentSpan.textContent = content || '';
+                tdContent.appendChild(contentSpan);
+
+                row.appendChild(tdTimestamp);
+                row.appendChild(tdSystem);
+                row.appendChild(tdSeverity);
+                row.appendChild(tdContent);
+
+                tbody.appendChild(row);
+
+                // 自动滚动到底部
+                logContainer.scrollTop = logContainer.scrollHeight;
+
+                // 更新计数器
+                eventCount++;
+                counterSpan.textContent = `${eventCount} 条事件`;
+            }
+
+            // 处理单个日志项（内部使用，支持数组批量处理）
+            function processSingleLog(logItem) {
+                // 使用 const 声明不会重新赋值的变量
+                const severity = logItem.severity || 'info';
+                const timestamp = logItem.timestamp || new Date().toISOString();
+                const system = logItem.system || 'unknown';
+                const content = logItem.content || '';
+
+                // 转义内容防止XSS
+                const escapedContent = escapeHtml(content);
+                const escapedSystem = escapeHtml(system);
+
+                // 存储所有日志数据用于导出
+                allLogsData.push({
+                    timestamp: timestamp,
+                    system: escapedSystem,
+                    severity: severity,
+                    content: escapedContent
+                });
+
+                const logData = {
+                    severity: severity,
+                    timestamp: timestamp,
+                    system: escapedSystem,
+                    content: escapedContent
+                };
+
+                if (isPaused) {
+                    // 暂停状态：缓存日志，不显示
+                    pendingLogs.push(logData);
+                    if (pendingLogs.length % 10 === 0) {
+                        console.log(`[暂停模式] 已缓存 ${pendingLogs.length} 条日志`);
+                    }
+                } else {
+                    // 正常状态：直接显示
+                    appendLogEntryDirect(logData);
+                }
+            }
+
+
+            // 添加日志的入口函数（支持单个对象或数组）
+            function appendLogEntry(logData) {
+                if (Array.isArray(logData)) {
+                    // 如果是数组，逐条处理
+                    for (var i = 0; i < logData.length; i++) {
+                        processSingleLog(logData[i]);
+                    }
+                } else {
+                    // 如果是单个对象，直接处理
+                    processSingleLog(logData);
+                }
+            }
+
+            // CSV转义函数
+            function escapeCSV(field) {
+                if (field === undefined || field === null) {
+                    return '';
+                }
+                var stringField = String(field);
+                // 使用字符编码替代转义字符
+                if (stringField.indexOf(',') !== -1 || 
+                    stringField.indexOf(String.fromCharCode(10)) !== -1 || 
+                    stringField.indexOf(String.fromCharCode(13)) !== -1 || 
+                    stringField.indexOf('"') !== -1) {
+                    return '"' + stringField.replace(/"/g, '""') + '"';
+                }
+                return stringField;
+            }
+
+            // 导出日志为CSV文件
+            function exportLogs() {
+                if (allLogsData.length === 0) {
+                    showToast('⚠️ 没有可导出的日志数据', false);
+                    return;
+                }
+
+                try {
+                    // CSV 表头
+                    const headers = ['时间戳', '系统', '级别', '日志内容'];
+
+                    // 构建CSV行
+                    const csvRows = [];
+                    csvRows.push(headers.join(','));
+
+                    for (let i = 0; i < allLogsData.length; i++) {
+                        const log = allLogsData[i];
+                        const row = [
+                            escapeCSV(log.timestamp),
+                            escapeCSV(log.system),
+                            escapeCSV(log.severity),
+                            escapeCSV(log.content)
+                        ];
+                        csvRows.push(row.join(','));
+                    }
+
+                    // 组合CSV内容
+                    var csvContent = csvRows.join(String.fromCharCode(10));
+                    // 添加BOM（UTF-8 with BOM）以支持中文
+                    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+
+                    // 创建下载链接
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.href = url;
+
+                    // 生成文件名（包含时间戳和日志数量）
+                    const now = new Date();
+                    const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+                    const filename = `logs_${timestamp}_n_${allLogsData.length}.csv`;
+
+                    link.setAttribute('download', filename);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    // 释放URL对象
+                    URL.revokeObjectURL(url);
+
+                    // 显示成功提示
+                    showToast(`✅ 成功导出 ${allLogsData.length} 条日志数据`, true);
+                    console.log(`[导出] 已导出 ${allLogsData.length} 条日志到文件: ${filename}`);
+
+                } catch (error) {
+                    console.error('导出CSV失败:', error);
+                    showToast('❌ 导出失败: ' + error.message, false);
+                }
+            }
+
+            // 创建表格结构
+            function createTable() {
+                const tableWrapper = document.createElement('div');
+                tableWrapper.className = 'table-wrapper';
+
+                const table = document.createElement('table');
+                table.className = 'log-table';
+
+                // 创建表头
+                const thead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+
+                const thTimestamp = document.createElement('th');
+                thTimestamp.textContent = '时间戳';
+                thTimestamp.className = 'col-timestamp';
+
+                const thSystem = document.createElement('th');
+                thSystem.textContent = '系统';
+                thSystem.className = 'col-system';
+
+                const thSeverity = document.createElement('th');
+                thSeverity.textContent = '级别';
+                thSeverity.className = 'col-severity';
+
+                const thContent = document.createElement('th');
+                thContent.textContent = '日志内容';
+                thContent.className = 'col-content';
+
+                headerRow.appendChild(thTimestamp);
+                headerRow.appendChild(thSystem);
+                headerRow.appendChild(thSeverity);
+                headerRow.appendChild(thContent);
+                thead.appendChild(headerRow);
+
+                // 创建表体
+                const tbody = document.createElement('tbody');
+
+                table.appendChild(thead);
+                table.appendChild(tbody);
+                tableWrapper.appendChild(table);
+
+                return { tableWrapper, table, tbody };
+            }
+
+            // 初始化表格
+            function initTable() {
+                const existingTable = logContainer.querySelector('.table-wrapper');
+                if (existingTable) {
+                    existingTable.remove();
+                }
+
+                const { tableWrapper, table, tbody } = createTable();
+                logContainer.appendChild(tableWrapper);
+                return { tableWrapper, table, tbody };
+            }
+
+            // 清空显示
+            function clearLog() {
+                // 清空表格内容
+                const tbody = logContainer.querySelector('.log-table tbody');
+                if (tbody) {
+                    tbody.innerHTML = '';
+                }
+                eventCount = 0;
+                counterSpan.textContent = '0 条事件';
+
+                // 清空缓存队列
+                pendingLogs = [];
+
+                // 清空存储的所有日志数据
+                allLogsData = [];
+
+                // 如果没有表格或表格为空，显示占位符
+                const rows = logContainer.querySelectorAll('.log-table tbody tr');
+                if (!rows || rows.length === 0) {
+                    const existingPlaceholder = logContainer.querySelector('.empty-placeholder');
+                    if (!existingPlaceholder) {
+                        const placeholderDiv = document.createElement('div');
+                        placeholderDiv.className = 'empty-placeholder';
+                        placeholderDiv.textContent = '暂无事件，等待推送…';
+                        logContainer.appendChild(placeholderDiv);
+                    }
+                }
+
+                showToast('🗑️ 已清空所有日志', false);
+            }
+
+            // HTML转义
+            function escapeHtml(unsafe) {
+                if (unsafe === undefined || unsafe === null) return '';
+                return String(unsafe)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+
+            // 解析并添加日志（支持单个对象或数组）
+            function processLogData(rawData) {
+                try {
+                    // 直接处理 rawData，因为已经是解析后的对象
+                    // rawData 可能是单个对象，也可能是数组
+                    appendLogEntry(rawData);
+                } catch (err) {
+                    console.error('解析日志事件失败:', err);
+                    appendLogEntry({
+                        severity: 'error',
+                        timestamp: new Date().toISOString(),
+                        system: 'parser',
+                        content: '无法解析事件数据: ' + escapeHtml(String(err))
+                    });
+                }
+            }
+
+            // 初始化 SSE 连接
+            function connectSSE() {
+                // SSE 端点 - 请根据实际情况修改
+                const url = 'ENDPOINT?interval=0.5';
+
+                if (eventSource) {
+                    eventSource.close();
+                }
+
+                // 重置表格
+                clearLog();
+
+                eventSource = new EventSource(url);
+
+                // 连接打开
+                eventSource.onopen = () => {
+                    console.log('SSE 连接已打开');
+                    connectionLed.className = 'led connected';
+                    connectionText.textContent = '已连接';
+                };
+
+                // 监听默认 message 事件
+                eventSource.onmessage = (e) => {
+                    console.log('收到默认消息:', e.data);
+                    // 尝试解析默认消息，如果包含 log 相关数据也处理
+                    try {
+                        const data = JSON.parse(e.data);
+                        // 判断数据结构：如果是数组或包含日志字段的对象
+                        if (Array.isArray(data) || data.severity || data.system || data.content) {
+                            processLogData(data);
+                        }
+                    } catch (err) {
+                        // 忽略非JSON消息
+                    }
+                };
+
+                // 错误处理
+                eventSource.onerror = (err) => {
+                    console.error('SSE 错误:', err);
+                    connectionLed.className = 'led error';
+                    connectionText.textContent = '连接出错';
+
+                    if (eventSource.readyState === EventSource.CLOSED) {
+                        connectionLed.className = 'led';
+                        connectionText.textContent = '已断开';
+                        // 可选：自动重连逻辑
+                        setTimeout(() => {
+                            if (eventSource.readyState === EventSource.CLOSED) {
+                                console.log('尝试重新连接...');
+                                connectSSE();
+                            }
+                        }, 3000);
+                    }
+                };
+            }
+
+            // 暂停/继续按钮点击处理
+            function togglePause() {
+                isPaused = !isPaused;
+                updatePauseButton();
+
+                if (isPaused) {
+                    showToast('⏸️ 已暂停显示新日志', false);
+                    console.log('[暂停模式] 新日志将缓存，当前缓存数量: 0');
+                } else {
+                    // 恢复显示时，批量处理缓存的日志
+                    const cachedCount = pendingLogs.length;
+                    if (cachedCount > 0) {
+                        showToast(`▶️ 恢复显示，正在追加 ${cachedCount} 条缓存的日志...`, false);
+                        // 使用 setTimeout 避免阻塞UI，批量追加
+                        setTimeout(() => {
+                            flushPendingLogs();
+                        }, 100);
+                    } else {
+                        showToast('▶️ 已恢复显示', false);
+                    }
+                    console.log('[正常模式] 已恢复显示');
+                }
+            }
+
+            // 页面关闭前关闭连接
+            window.addEventListener('beforeunload', () => {
+                if (eventSource) {
+                    eventSource.close();
+                }
+            });
+
+            // 清空按钮事件
+            clearBtn.addEventListener('click', () => {
+                clearLog();
+            });
+
+            // 暂停按钮事件
+            pauseBtn.addEventListener('click', () => {
+                togglePause();
+            });
+
+            // 导出按钮事件
+            exportBtn.addEventListener('click', () => {
+                exportLogs();
+            });
+
+            // 启动连接
+            connectSSE();
+
+            // 心跳检测（保持连接活跃的提示）
+            setInterval(() => {
+                if (eventSource && eventSource.readyState === EventSource.OPEN) {
+                    // 可选：记录连接状态
+                    console.debug('SSE连接保持活跃');
+                }
+            }, 30000);
+        })();
+    </script>
+</body>
+</html>

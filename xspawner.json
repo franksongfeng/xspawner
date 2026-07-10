@@ -1,0 +1,14 @@
+{
+  "name": "xspawner",
+  "app": "supervisor",
+  "host": "xspawner.com",
+  "port": 8668,
+  "access": "0.0.0.0",
+  "ancestry": "",
+  "reportup": false,
+  "log": true,
+  "severity": "debug",
+  "ssl": true,
+  "certfile": "/etc/ssl/certs/xspawner.com.crt",
+  "keyfile": "/etc/ssl/private/xspawner.com.key"
+}
