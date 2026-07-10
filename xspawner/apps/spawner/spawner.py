@@ -3,10 +3,9 @@
 
 from xspawner.utilities.misc import * # NOQA
 from xspawner.utilities.msg import * # NOQA
-from xspawner import XSpawner # NOQA
 from xspawner.constants import * # NOQA
 from xspawner.service import * # NOQA
-from xspawner.xspawner import ApiHandler, FlowHandler # NOQA
+from xspawner.xspawner import * # NOQA
 import tornado.gen
 import tornado.queues
 import tornado.httpclient
