@@ -3,7 +3,6 @@
 # Copyright © 2025 Song Feng.
 
 mkdir -p \
-    /var/www/html \
     /var/log/xspawner
 
 # open xspawner service
