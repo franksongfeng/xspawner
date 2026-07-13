@@ -6,7 +6,7 @@ from pywebio.output import *
 from pywebio.session import *
 from pywebio.pin import *
 from xspawner.xspawner import *  # NOQA
-from xspawner.apps.spawner import *  # NOQA
+from xspawner.plugins.spawner import *  # NOQA
 from xspawner.utilities.log import *  # NOQA
 from xspawner.utilities.misc import *  # NOQA
 from xspawner import *  # NOQA

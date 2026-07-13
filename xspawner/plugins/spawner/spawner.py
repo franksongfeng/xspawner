@@ -86,12 +86,12 @@ class Spawner(XSpawner): # NOQA
         self.iLog("{}::_start_child BEG {}".format(self.__class__.__name__, data))
         if "port" not in data \
         or "name" not in data \
-        or "app" not in data:
-            self.eLog(f"Failed to start child, miss port or name or app in data {data}")
+        or "plugin" not in data:
+            self.eLog(f"Failed to start child, miss port or name or plugin in data {data}")
             return False
 
         srvancestry = "{}:{}".format(self.getConfig().name, self.getConfig().port)
-        child_config = self.getConfig()._replace(port=data["port"], name=data["name"], app=data["app"], ancestry=srvancestry)
+        child_config = self.getConfig()._replace(port=data["port"], name=data["name"], plugin=data["plugin"], ancestry=srvancestry)
         rt = open_service(child_config)
         self.iLog(f"open_service: {rt}")
         if "success" in rt and not rt["success"]:
@@ -104,9 +104,9 @@ class Spawner(XSpawner): # NOQA
         pid = sts["pid"]
         self.iLog(f"service status: {sts}")
 
-        pkgdir = "{}/{}".format(APP_DIR, data["app"])
+        pkgdir = "{}/{}".format(PLUGIN_DIR, data["plugin"])
         if os.path.exists(pkgdir):
-            pkgfname = "{}/{}.py".format(pkgdir, data["app"])
+            pkgfname = "{}/{}.py".format(pkgdir, data["plugin"])
         else:
             pkgfname = "{}.py".format(pkgdir)
         srvcls = search_for_class_in_file(pkgfname, "Spawner")
@@ -114,7 +114,7 @@ class Spawner(XSpawner): # NOQA
         srvaddr = "{}:{}".format(
             self.getHostAddr(),
             data["port"])
-        new_srv = {"name": data["name"], "app": data["app"], "cls": srvcls.__name__, "pid": int(pid), "addr": srvaddr}
+        new_srv = {"name": data["name"], "plugin": data["plugin"], "cls": srvcls.__name__, "pid": int(pid), "addr": srvaddr}
         self.iLog("{}::_start_child END {}".format(self.__class__.__name__, new_srv))
         return new_srv
 
@@ -166,15 +166,15 @@ class Spawner(XSpawner): # NOQA
         self.iLog("{}::_stop_child END".format(self.__class__.__name__))
         return True
 
-    @ApiHandler.route("/clean_app")
-    async def _clean_app(self, headers: dict, data: dict):
-        self.iLog("{}::_clean_app BEG {}".format(self.__class__.__name__, data))
-        if "app" not in data or not data["app"]:
-            self.wLog(f"Miss app in data {data}")
+    @ApiHandler.route("/clean_plugin")
+    async def _clean_plugin(self, headers: dict, data: dict):
+        self.iLog("{}::_clean_plugin BEG {}".format(self.__class__.__name__, data))
+        if "plugin" not in data or not data["plugin"]:
+            self.wLog(f"Miss plugin in data {data}")
             return False
 
-        srvapp = data["app"]
-        pkgdir = f"{APP_PKG}.{srvapp}".replace('.', '/')
+        srvapp = data["plugin"]
+        pkgdir = f"{PLUGIN_PKG}.{srvapp}".replace('.', '/')
         if os.path.exists(pkgdir) and srvapp != "spawner":
             shutil.rmtree(pkgdir)
             self.iLog(f"directory {pkgdir} is deleted")
@@ -186,28 +186,28 @@ class Spawner(XSpawner): # NOQA
             else:
                 self.iLog(f"file {modfile} doesnt exist")
 
-        mod = "{}.{}".format(APP_PKG, data["app"])
+        mod = "{}.{}".format(PLUGIN_PKG, data["plugin"])
         if mod in sys.modules:
             del sys.modules[mod]
-        mod = "{}.{}.{}".format(APP_PKG, data["app"], data["app"])
+        mod = "{}.{}.{}".format(PLUGIN_PKG, data["plugin"], data["plugin"])
         if mod in sys.modules:
             del sys.modules[mod]
         mod = "test"
         if mod in sys.modules:
             del sys.modules[mod]
 
-        self.iLog("{}::_clean_app END".format(self.__class__.__name__))
+        self.iLog("{}::_clean_plugin END".format(self.__class__.__name__))
         return True
 
 
-    @ApiHandler.route("/download_app")
-    async def _download_app(self, headers: dict, data: dict):
-        self.iLog("{}::_download_app BEG {}".format(self.__class__.__name__, data))
-        if "app" not in data or not data["app"]:
-            self.wLog(f"Miss app in data {data}")
+    @ApiHandler.route("/download_plugin")
+    async def _download_plugin(self, headers: dict, data: dict):
+        self.iLog("{}::_download_plugin BEG {}".format(self.__class__.__name__, data))
+        if "plugin" not in data or not data["plugin"]:
+            self.wLog(f"Miss plugin in data {data}")
             return False
-        srvapp = data["app"]
-        pkgdir = f"{APP_PKG}.{srvapp}".replace('.', '/')
+        srvapp = data["plugin"]
+        pkgdir = f"{PLUGIN_PKG}.{srvapp}".replace('.', '/')
         if os.path.exists(pkgdir):
             fname = srvapp + ".zip"
             try:
@@ -215,7 +215,7 @@ class Spawner(XSpawner): # NOQA
                 self.iLog(f"directory {pkgdir} is zipped to {fname}")
                 with open(fname, 'rb') as f:
                     fdata = f.read()
-                self.dLog("{}::_download_app END {}".format(self.__class__.__name__, fname))
+                self.dLog("{}::_download_plugin END {}".format(self.__class__.__name__, fname))
                 return (fdata, fname)
             finally:
                 if os.path.exists(fname):
@@ -226,45 +226,45 @@ class Spawner(XSpawner): # NOQA
                 self.iLog(f"file {fname} is found")
                 with open(fname, 'rb') as f:
                     fdata = f.read()
-                self.dLog("{}::_download_app END {}".format(self.__class__.__name__, fname))
+                self.dLog("{}::_download_plugin END {}".format(self.__class__.__name__, fname))
                 return (fdata, fname)
             else:
                 self.wLog(f"file {fname} doesnt exist")
-        self.iLog("{}::_download_app END".format(self.__class__.__name__))
+        self.iLog("{}::_download_plugin END".format(self.__class__.__name__))
         return False
 
 
-    @ApiHandler.route("/upload_app")
-    async def _upload_app(self, headers: dict, fdata: bytes, fname: str, fargs: dict):
-        self.iLog("{}::_upload_app BEG {} {} {}".format(self.__class__.__name__, len(fdata), fname, fargs))
-        if "app" in fargs:
-            srvapp = data["app"]
+    @ApiHandler.route("/upload_plugin")
+    async def _upload_plugin(self, headers: dict, fdata: bytes, fname: str, fargs: dict):
+        self.iLog("{}::_upload_plugin BEG {} {} {}".format(self.__class__.__name__, len(fdata), fname, fargs))
+        if "plugin" in fargs:
+            srvapp = data["plugin"]
         else:
             srvapp = os.path.splitext(os.path.basename(fname))[0]
         if get_file_type(fname) == "application/zip":
             zip_buffer = io.BytesIO(fdata)
             with zipfile.ZipFile(zip_buffer, 'r') as zipf:
-                zipf.extractall(APP_DIR)
-                self.iLog(f'exact {fname} to {APP_DIR}')
+                zipf.extractall(PLUGIN_DIR)
+                self.iLog(f'exact {fname} to {PLUGIN_DIR}')
         else:
-            modfile = f"{APP_DIR}/{fname}"
+            modfile = f"{PLUGIN_DIR}/{fname}"
             with open(modfile, "wb") as f:
                 f.write(fdata)
                 self.iLog(f'write to {modfile}')
-        self.iLog("{}::_upload_app END".format(self.__class__.__name__))
+        self.iLog("{}::_upload_plugin END".format(self.__class__.__name__))
         return True
 
 
     @ApiHandler.route("/test_child")
     async def _test_child(self, headers: dict, data: dict):
         self.iLog("{}::_test_child BEG {}".format(self.__class__.__name__, data))
-        if "app" not in data \
+        if "plugin" not in data \
         or "port" not in data \
         or "name" not in data:
-            self.wLog(f"Miss app or port or name in data: {data}")
+            self.wLog(f"Miss plugin or port or name in data: {data}")
             return True
         
-        test_dir = "{}/{}/tests".format(APP_DIR, data["app"])
+        test_dir = "{}/{}/tests".format(PLUGIN_DIR, data["plugin"])
         self.iLog("test_dir: {}".format(test_dir))
         if os.path.isdir(test_dir):
             await tornado.gen.sleep(1)
@@ -276,7 +276,7 @@ class Spawner(XSpawner): # NOQA
                 result = runner.run(suite)
                 self.iLog("unittest result {}".format(result))
                 if result.errors or result.failures:
-                    self.eLog("unittest upon server {}={} failed.".format(data["app"], data["name"]))
+                    self.eLog("unittest upon server {}={} failed.".format(data["plugin"], data["name"]))
                     return False
                 else:
                     self.iLog("unittest passed.")

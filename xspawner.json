@@ -1,6 +1,6 @@
 {
   "name": "xspawner",
-  "app": "supervisor",
+  "plugin": "supervisor",
   "host": "xspawner.com",
   "port": 8668,
   "access": "0.0.0.0",

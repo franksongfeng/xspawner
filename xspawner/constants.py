@@ -3,9 +3,9 @@
 # Copyright © 2025 Song Feng.
 
 SYSTEM_ID = "xspawner"
-APP_PKG = f"{SYSTEM_ID}.apps"
-APP_DIR = f"{SYSTEM_ID}/apps"
-RES_DIR_TEMP = APP_DIR + "/{}/static"
+PLUGIN_PKG = f"{SYSTEM_ID}.plugins"
+PLUGIN_DIR = f"{SYSTEM_ID}/plugins"
+RES_DIR_TEMP = PLUGIN_DIR + "/{}/static"
 LOG_DIR = f"/var/log/{SYSTEM_ID}"
 LOG_FILE_TEMP = LOG_DIR + "/{}.log"
 PYTHON_MIME_TYPE = "text/x-python"

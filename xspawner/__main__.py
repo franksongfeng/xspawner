@@ -21,7 +21,7 @@ if __name__ == '__main__':
         # parse arguments
         parser = argparse.ArgumentParser(description="Commandline arguments")
         parser.add_argument("--name", type=str, required=True, help="Instance name")
-        parser.add_argument("--app", type=str, default="supervisor", help="Application module")
+        parser.add_argument("--plugin", type=str, default="supervisor", help="Application module")
         parser.add_argument("--host", type=str, required=True, help="Host access address")
         parser.add_argument("--port", type=int, required=True, help="Listening port")
         parser.add_argument("--access", type=str, default="0.0.0.0", help="Allowable access source")
@@ -36,11 +36,11 @@ if __name__ == '__main__':
         
         globals()["__version__"] = __version__
 
-        srv_cls = get_similar_cls("{}.{}".format(APP_PKG, args.app), 'Spawner', 1)
+        srv_cls = get_similar_cls("{}.{}".format(PLUGIN_PKG, args.plugin), 'Spawner', 1)
         if srv_cls:
             cmd_args = vars(args)
             srv_cls.getServer(config=Config(**cmd_args),state=State(),children=[]).start()
         else:
-            print("Err: app {} is not found!".format(args.app))
+            print("Err: the plugin {} is not found!".format(args.plugin))
     except Exception as e:
         print(traceback.format_exc()) # NOQA

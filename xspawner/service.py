@@ -158,8 +158,8 @@ def disable_service(service_name: str) -> bool:
         return False
 
 def get_exec_cmd(config: Config) -> str:
-    BASIC_CMD = "/usr/bin/python3 -u -m xspawner --name {} --app {} --host {} --port {}"
-    cmd = BASIC_CMD.format(config.name, config.app, config.host, config.port)
+    BASIC_CMD = "/usr/bin/python3 -u -m xspawner --name {} --plugin {} --host {} --port {}"
+    cmd = BASIC_CMD.format(config.name, config.plugin, config.host, config.port)
 
 
     # add ancestry option

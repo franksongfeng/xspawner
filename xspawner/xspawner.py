@@ -38,7 +38,7 @@ from .utilities.misc import * # NOQA
 from .constants import * # NOQA
 
 
-Config = namedtuple('Config', ['name', 'app', 'host', 'port', 'access', 'ancestry', 'reportup', 'log', 'severity', 'ssl', 'certfile', 'keyfile'])
+Config = namedtuple('Config', ['name', 'plugin', 'host', 'port', 'access', 'ancestry', 'reportup', 'log', 'severity', 'ssl', 'certfile', 'keyfile'])
 
 
 INTERNAL_HANDLERS = ["PingPongHandler", "HomePageHandler", "ResourceHandler"]
@@ -403,7 +403,7 @@ class XSpawner(Spawnable):
         # fixed handlers are at the bottom
         handlers.extend([
             (r"/", HomePageHandler),
-            (r"/static/(.*)", ResourceHandler, {"path": RES_DIR_TEMP.format(config.app)}),
+            (r"/static/(.*)", ResourceHandler, {"path": RES_DIR_TEMP.format(config.plugin)}),
             (r"/ping", PingPongHandler)
         ])
         # start http server
@@ -651,9 +651,9 @@ class XSpawner(Spawnable):
         return self.__class__.__name__
 
     def getVersion(self):
-        app_vsn_path = "{}.{}.__version__".format(APP_PKG, self.getConfig().app)
-        if is_module_available(app_vsn_path):
-            vsn_mod = importlib.import_module(app_vsn_path)
+        plugin_vsn_path = "{}.{}.__version__".format(PLUGIN_PKG, self.getConfig().plugin)
+        if is_module_available(plugin_vsn_path):
+            vsn_mod = importlib.import_module(plugin_vsn_path)
             if hasattr(vsn_mod, "__version__"):
                 return vsn_mod.__version__
         return "undefined"
@@ -696,10 +696,10 @@ def search_for_class_in_package(fpath, class_name):
                 print("entry {}".format(entry))
                 if len(entry.split("/")) == 2 and os.path.basename(entry) == "__init__.py":
                     print("zip contains {}".format(entry))
-                    zip_ref.extractall(APP_DIR)
+                    zip_ref.extractall(PLUGIN_DIR)
                     print("{} is unzipped .".format(fpath))
                     pkg_name, _ = entry.split("/")
-                    srv_cls = get_similar_cls(f"{APP_PKG}.{pkg_name}", class_name, 1)
+                    srv_cls = get_similar_cls(f"{PLUGIN_PKG}.{pkg_name}", class_name, 1)
                     if srv_cls:
                         print("search_for_class_in_package END {}".format(srv_cls))
                         return srv_cls

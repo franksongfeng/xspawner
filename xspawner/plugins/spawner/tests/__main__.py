@@ -10,7 +10,7 @@ if __name__ == "__main__":
         os.environ["SERVER"] = sys.argv[1]
 
         loader = unittest.TestLoader()
-        suite = loader.discover(start_dir=f"{APP_DIR}/spawner/tests")
+        suite = loader.discover(start_dir=f"{PLUGIN_DIR}/spawner/tests")
         runner = unittest.TextTestRunner(failfast=True)
         result = runner.run(suite)
         print("Result: ", result)

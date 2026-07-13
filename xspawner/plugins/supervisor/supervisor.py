@@ -8,7 +8,7 @@ from pywebio.pin import *
 from pywebio.session import *
 from pywebio.utils import *
 from xspawner.xspawner import * #NOQA
-from xspawner.apps.spawner import * # NOQA
+from xspawner.plugins.spawner import * # NOQA
 from xspawner.utilities.misc import * # NOQA
 from xspawner.constants import * # NOQA
 from xspawner.xspawner import ApiHandler, UiHandler # NOQA
@@ -39,7 +39,7 @@ from .fmt_dict import get_first_level_json
 ##############################################################################
 # Constants and Variables and Classes
 ##############################################################################
-CSS = read_text_file("xspawner/apps/supervisor/static/common.css")
+CSS = read_text_file("xspawner/plugins/supervisor/static/common.css")
 
 
 class Supervisor(Spawner): # NOQA
@@ -194,7 +194,7 @@ class Supervisor(Spawner): # NOQA
                 return
 
         elif get_file_type(fname) == "text/x-python":
-            pkgfname = f"{APP_DIR}/{fname}"
+            pkgfname = f"{PLUGIN_DIR}/{fname}"
             if not check_mod_file(pkgfname):
                 put_error('Invalid file name {}!'.format(pkgfname))
                 return
@@ -224,7 +224,7 @@ class Supervisor(Spawner): # NOQA
         self.iLog(f"srvapp: {srvapp}")
 
         # start child and get its pid
-        res = await self._start_child(None, {"name": srvname, "app": srvapp, "port": srvport, "severity": srvseverity})
+        res = await self._start_child(None, {"name": srvname, "plugin": srvapp, "port": srvport, "severity": srvseverity})
         if not res: # res is False
             put_error("Failed to start server {}.".format(srvname))
             return
@@ -234,14 +234,14 @@ class Supervisor(Spawner): # NOQA
             os.environ["SERVER"] = res["addr"]
 
             # check unittest
-            if not await self._test_child(None, {"name": srvname, "app": srvapp, "port": srvport}):
+            if not await self._test_child(None, {"name": srvname, "plugin": srvapp, "port": srvport}):
                 put_error("Unittest failed!")
                 if is_port_used(srvport):
                     if await self._stop_child(None, {"name": srvname}):
                         put_warning("server {} was stopped.".format(srvname))
                         if srvapp not in ["spawner", "supervisor"]:
-                            if await self._clean_app(None, {"app": srvapp}):
-                                put_info("app {} was cleaned.".format(srvapp))
+                            if await self._clean_plugin(None, {"plugin": srvapp}):
+                                put_info("the plugin {} was cleaned.".format(srvapp))
                 return
 
         put_success("server <{} :{}> is loaded to port {} successfully.".format(srvname, res["pid"], srvport))
@@ -294,14 +294,14 @@ class Supervisor(Spawner): # NOQA
             return
 
         srvpid = res["pid"]
-        srvapp = res["app"]
+        srvapp = res["plugin"]
         put_info("server <{} :{}> will be deleted.".format(srvname, srvpid))
         if await self._stop_child(None, {"name": srvname}):
-            put_success("server <{} :{}> is deleted.".format(srvname, srvpid))
+            put_success("The server <{} :{}> is deleted.".format(srvname, srvpid))
             if srvapp not in ["spawner", "supervisor"]:
-                if await self._clean_app(None, {"app": srvapp}):
-                    put_success("app {} is cleaned.".format(srvapp))
-                    self.iLog("app {} is cleaned.".format(srvapp))
+                if await self._clean_plugin(None, {"plugin": srvapp}):
+                    put_success("The plugin {} is cleaned.".format(srvapp))
+                    self.iLog("the plugin {} is cleaned.".format(srvapp))
 
         self.iLog("{}::_delete END".format(self.__class__.__name__))
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 from xspawner.constants import * # NOQA
-from xspawner.apps.spawner import * # NOQA
+from xspawner.plugins.spawner import * # NOQA
 from xspawner.xspawner import * # NOQA
 import tornado.queues
 import os.path
@@ -30,7 +30,7 @@ class Logmon(Spawner):
     # display logs windows
     @ApiHandler.route("/")
     def _(self, headers: dict, data: dict):
-        with open('{}/{}/static/index.html'.format(APP_DIR, self.getConfig().app), 'r', encoding='utf-8') as file:
+        with open('{}/{}/static/index.html'.format(PLUGIN_DIR, self.getConfig().plugin), 'r', encoding='utf-8') as file:
             page = file.read()
         end_point = '{}/flow'.format(self.getAddr())
         return page.replace('ENDPOINT', end_point)

@@ -27,7 +27,7 @@ Home = "https://github.com/franksongfeng/xspawner"
 # packages = {find = {where = ["xspawner"]}}
 packages = [
     "xspawner",
-    "xspawner.apps",
+    "xspawner.plugins",
     "xspawner.utilities"
 ]
 
