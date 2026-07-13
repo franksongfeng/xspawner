@@ -137,7 +137,7 @@ class Supervisor(Spawner): # NOQA
                     required=False
                 ),
                 file_upload(
-                    label="应用源码",
+                    label="插件源码",
                     name="source",
                     accept=[".py", ".zip"],
                     multiple=False,
