@@ -11,7 +11,7 @@
 - 📦 **Class as a Service(CaaS)**: Each service is packaged as an independant class
 - 🌐 **Simple Life Manangement**: Manage service lifecycles on spawning dependencies
 - ⚡ **Asynchronous Programming**: Powered by Tornado's battle-tested coroutines
-- 🔒 **Security Enhancement**: Native SSL/TLS certification and Authentication/Authorization
+- 🔒 **Security Enhancement**: Native SSL/TLS certification
 
 ### License
 
