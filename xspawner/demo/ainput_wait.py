@@ -9,8 +9,7 @@ from pywebio.session import *
 from pywebio.utils import *
 from xspawner.xspawner import UiHandler # NOQA
 from xspawner.plugins.spawner import Spawner # NOQA
-import tornado.gen
-import psutil
+import traceback
 
 
 class AInputWait(Spawner):
@@ -20,16 +19,20 @@ class AInputWait(Spawner):
 
     @UiHandler.route("/")
     async def _(self):
-        put_input('search', label='搜索框', placeholder='输入关键词...')
-        
-        while True:
-            # ✅ 等待 pin 值发生变化
-            changed = await pin_wait_change('search')
-            
-            # 获取变化后的值
-            search_text = await pin.search
-            put_text(f"搜索: {search_text}")
-            
-            # 模拟搜索
-            if search_text:
-                put_text(f"正在搜索: {search_text}...")
+        try:
+            put_input('search', label='搜索框', placeholder='输入关键词...')
+
+            while True:
+                # 等待 pin 值发生变化
+                changed = await pin_wait_change('search')
+
+                # 获取变化后的值
+                search_text = await pin.search
+                put_text(f"搜索: {search_text}")
+
+                # 模拟搜索
+                if search_text:
+                    put_text(f"正在搜索: {search_text}...")
+        except Exception as e:
+            put_error(f"发生未知错误: {e}")
+            put_error(traceback.format_exc())
