@@ -241,10 +241,10 @@ class Supervisor(Spawner): # NOQA
                         put_warning("server {} was stopped.".format(srvname))
                         if srvapp not in ["spawner", "supervisor"]:
                             if await self._clean_plugin(None, {"plugin": srvapp}):
-                                put_info("the plugin {} was cleaned.".format(srvapp))
+                                put_info("Plugin {} was cleaned.".format(srvapp))
                 return
 
-        put_success("server <{} :{}> is loaded to port {} successfully.".format(srvname, res["pid"], srvport))
+        put_success("Server <{} :{}> is loaded to port {} successfully.".format(srvname, res["pid"], srvport))
         self.iLog("{}::_create END".format(self.__class__.__name__))
 
 
@@ -295,13 +295,13 @@ class Supervisor(Spawner): # NOQA
 
         srvpid = res["pid"]
         srvapp = res["plugin"]
-        put_info("server <{} :{}> will be deleted.".format(srvname, srvpid))
+        put_info("Server <{} :{}> will be deleted.".format(srvname, srvpid))
         if await self._stop_child(None, {"name": srvname}):
-            put_success("The server <{} :{}> is deleted.".format(srvname, srvpid))
+            put_success("Server <{} :{}> is deleted.".format(srvname, srvpid))
             if srvapp not in ["spawner", "supervisor"]:
                 if await self._clean_plugin(None, {"plugin": srvapp}):
-                    put_success("The plugin {} is cleaned.".format(srvapp))
-                    self.iLog("the plugin {} is cleaned.".format(srvapp))
+                    put_success("Plugin {} is cleaned.".format(srvapp))
+                    self.iLog("Plugin {} is cleaned.".format(srvapp))
 
         self.iLog("{}::_delete END".format(self.__class__.__name__))
 
@@ -312,7 +312,7 @@ class Supervisor(Spawner): # NOQA
         set_env(title="服务日志", output_animation=False)
         logfile = self.getLogFile();
         if os.path.isfile(logfile):
-            filter_logs(1, logfile)
+            filter_logs(logfile, 1) # preserve 1 hour
             with open(logfile, 'r') as f:
                 text = f.read()
                 text = "```log\n" + text + "\n```"

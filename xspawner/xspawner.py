@@ -458,12 +458,12 @@ class XSpawner(Spawnable):
         def make_cbf_params(fun, ct, body):
             # fun.__code__.co_argcount = 1(self) + N({}|args|fdata, fname, farg)
             if fun.__code__.co_argcount == 1: # for UiHandler
-                self.iLog("{} BEG".format(fun.__code__.co_name))
+                self.iLog("{} without params".format(fun.__code__.co_name))
                 return ()
             elif fun.__code__.co_argcount == 3: # for ApiHandler I (normal) or FlowHandler
                 # transport JSON
                 jdata = body.decode()
-                self.iLog("{} BEG {}".format(fun.__code__.co_name, jdata))
+                self.iLog("{} with params {}".format(fun.__code__.co_name, jdata))
                 return (json.loads(jdata),)
             elif fun.__code__.co_argcount == 5: # for ApiHandler II (upload)
                 # transport File
@@ -484,7 +484,7 @@ class XSpawner(Spawnable):
                     fdata = args.pop("file")[0]
                     fname = ""
                 fargs = {k: args[k][0].decode() for k in args}
-                self.iLog("{} BEG [{}] {} {}".format(fun.__code__.co_name, len(fdata), fname, fargs))
+                self.iLog("{} with params [{}] {} {}".format(fun.__code__.co_name, len(fdata), fname, fargs))
                 return (fdata, fname, fargs)
             else:
                 self.eLog('{}: invalid argument count {}'.format(fun.__code__.co_name, fun.__code__.co_argcount))
@@ -632,7 +632,7 @@ class XSpawner(Spawnable):
         return await postAsync(url, headers, body)
 
     def getLogFile(self):
-        return LOG_FILE_TEMP.format(self.getConfig().name)
+        return LOG_FILE
 
     def getPidTime(self, pid=None):
         if not pid:

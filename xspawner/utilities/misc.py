@@ -581,7 +581,18 @@ def search_list_of_dict(l, k, v):
         if k in e and e[k] == v:
             return e
 
-def filter_logs(days, log_file):
+def tail_file(file_path, n):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return ''.join(deque(f, maxlen=n))
+    except FileNotFoundError:
+        print(f"文件 {file_path} 不存在")
+        return ""
+    except Exception as e:
+        print(f"读取文件出错: {e}")
+        return ""
+
+def filter_logs(log_file, hours):
     def get_first_timestamp(lines, pattern):
         for line in lines:
             match = pattern.match(line)
@@ -597,7 +608,7 @@ def filter_logs(days, log_file):
         return "No Timestamp"
 
     now = datetime.datetime.utcnow()
-    three_days_ago = now - datetime.timedelta(days=days)
+    sometime_ago = now - datetime.timedelta(hours=hours)
 
     with open(log_file, 'r', encoding='utf-8') as f:
         lines = f.readlines()
@@ -616,7 +627,7 @@ def filter_logs(days, log_file):
             continue
         try:
             timestamp = datetime.datetime.strptime(match.group(1), '%Y-%m-%d %H:%M:%S')
-            if timestamp >= three_days_ago:
+            if timestamp >= sometime_ago:
                 filtered_lines.append(line)
             else:
                 removed_count += 1
