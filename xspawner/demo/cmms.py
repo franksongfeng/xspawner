@@ -150,12 +150,10 @@ class CMMS(Spawner):  # NOQA
             # 进入模态循环（阻塞，直到会话结束）
             await self._modal_loop()
 
-            return True   # 确保路由返回
-
         except Exception:
             put_text("应用内部错误，详情如下：")
             put_text(traceback.format_exc())
-            return True
+
 
     # ─────────────────────────────────────────────────────────────────────
     # 导航栏
