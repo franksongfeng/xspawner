@@ -51,16 +51,6 @@ class Spawner(XSpawner): # NOQA
     def _get_config(self, headers: dict, data: dict):
         return self.getConfig()._asdict()
 
-
-    @ApiHandler.route("/get_state")
-    def _get_state(self, headers: dict, data: dict):
-        return dict(self.getState())
-
-    @ApiHandler.route("/set_state")
-    def _set_state(self, headers: dict, data: dict):
-        self.setState(data)
-        return True
-
     @ApiHandler.route("/get_children")
     def _get_children(self, headers: dict, data: dict):
         return self.getChildren()
@@ -295,7 +285,6 @@ class Spawner(XSpawner): # NOQA
     @FlowHandler.route("/report/state")
     def _report_state(self, headers: dict, data: dict):
         reports = self.getReports()
-        reports[self.getConfig().name] = self.getState().__json__()
 
         evt = {
             "event": "message",

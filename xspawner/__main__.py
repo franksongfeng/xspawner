@@ -13,7 +13,7 @@ import importlib
 
 from . import __version__
 from .constants import *
-from .xspawner import Config, State
+from .xspawner import Config
 from .utilities.misc import get_similar_cls
 
 if __name__ == '__main__':
@@ -39,7 +39,7 @@ if __name__ == '__main__':
         srv_cls = get_similar_cls("{}.{}".format(PLUGIN_PKG, args.plugin), 'Spawner', 1)
         if srv_cls:
             cmd_args = vars(args)
-            srv_cls.getServer(config=Config(**cmd_args),state=State(),children=[]).start()
+            srv_cls.getServer(config=Config(**cmd_args),children=[]).start()
         else:
             print("Err: the plugin {} is not found!".format(args.plugin))
     except Exception as e:

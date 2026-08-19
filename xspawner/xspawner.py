@@ -305,7 +305,7 @@ class SrvJSONEncoder(json.JSONEncoder):
 
 class Spawnable(object):
 
-    def __init__(self, config: Config, state: State, children: List[Config], **others):
+    def __init__(self, config: Config, children: List[Config], **others):
         raise NotImplementedError
 
     def start(self):
@@ -321,12 +321,6 @@ class Spawnable(object):
         raise NotImplementedError
 
     def getConfig(self):
-        raise NotImplementedError
-
-    def getState(self):
-        raise NotImplementedError
-
-    def setState(self, data):
         raise NotImplementedError
 
     def getChildren(self):
@@ -346,7 +340,6 @@ class XSpawner(Spawnable):
     _instance = None
     _logger = None
     _config: Config = None
-    _state: State = None
     _children: List[Config] = []
 
     # host is external access address
@@ -357,11 +350,9 @@ class XSpawner(Spawnable):
     # _logger is logging instance
     # _instance is xspawner singleton service
     # _children is the subordinate services spawned by service
-    # _state is internal state in service
-    def __init__(self, config, state, children, **kwargs):
+    def __init__(self, config, children, **kwargs):
         print("__init__ BEG {} {}".format(config, kwargs))
         self._config = config
-        self._state = state
         self._children = children
 
         # core queue
@@ -548,12 +539,6 @@ class XSpawner(Spawnable):
     def getConfig(self):
         return self._config
 
-    def getState(self):
-        return self._state
-
-    def setState(self, data):
-        return self._state.update(data)
-
     def getChildren(self):
         return self._children
 
@@ -660,7 +645,6 @@ class XSpawner(Spawnable):
 
     def getInfo(self):
         info = self.getConfig()._asdict()
-        info.update(self.getState())
         info["children"] = self.getChildren()
         info["class"] = self.getClassName()
         info["vsn"] = self.getVersion()

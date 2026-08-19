@@ -43,9 +43,3 @@ class Test(unittest.TestCase):
             raise ValueError("addr is None")
         rt = requests.get(f"{self.addr}/get_config")
         self.assertTrue(is_json(rt.text))
-
-    def test_get_state(self):
-        if self.addr is None:
-            raise ValueError("addr is None")
-        rt = requests.get(f"{self.addr}/get_state")
-        self.assertTrue(is_json(rt.text))

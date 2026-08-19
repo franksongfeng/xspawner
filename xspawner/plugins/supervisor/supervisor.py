@@ -72,11 +72,6 @@ class Supervisor(Spawner): # NOQA
         json_str = json.dumps(self.getConfig()._asdict(), indent=4, separators=(',', ':'))
         put_code(json_str, language="json")
 
-        if self.getState():
-            put_html(tab_title.format("状态"))
-            json_str = json.dumps(self.getState(), cls=SrvJSONEncoder, ensure_ascii=False, indent=4)
-            put_code(json_str, language="json")
-
         if self.getChildren():
             put_html(tab_title.format("服务"))
             content = []
