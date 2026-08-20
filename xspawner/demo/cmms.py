@@ -386,10 +386,7 @@ class CMMS(Spawner):  # NOQA
         if inspect.isawaitable(res):
             return await res
         else:
-            loop = asyncio.get_running_loop()
-            future = loop.create_future()
-            future.set_result(res)
-            return await future
+            return res
 
     async def _poll_loop(self):
         while True:
