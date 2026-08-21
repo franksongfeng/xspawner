@@ -4,10 +4,9 @@ from tortoise import fields, models
 from urllib.parse import quote_plus
 
 
-def get_caller_module():
+def caller_module():
     caller_frame = inspect.stack()[1]  # 索引0是当前函数，索引1是调用者
-    caller_module = inspect.getmodule(caller_frame[0])
-    return caller_module
+    return inspect.getmodule(caller_frame[0])
 
 
 async def init_database(category, **setting):
@@ -41,7 +40,7 @@ async def init_database(category, **setting):
     await Tortoise.init(
         db_url=conn_str,
         modules={
-            'models': [get_caller_module().__name__]
+            'models': [caller_module().__name__]
         }
     )
 
@@ -59,7 +58,8 @@ class Concept(models.ModelMeta):
     def __new__(cls, name, bases, attrs):
         if "id" not in attrs:
             attrs['id'] = fields.IntField(pk=True, generated=True)
-
+        if "data" not in attrs:
+            attrs['data'] = fields.JSONField()   # 可存 dict, list, str, int, bool, None
         if '__str__' not in attrs:
             def auto_str(self):
                 return f"{name}({self.id})"
@@ -71,6 +71,10 @@ class Relation(models.ModelMeta):
     def __new__(cls, name, bases, attrs):
         if "id" not in attrs:
             attrs['id'] = fields.IntField(pk=True, generated=True)
+        if '__str__' not in attrs:
+            def auto_str(self):
+                return f"{name}({self.id})"
+            attrs['__str__'] = auto_str
 
         meta_class = attrs.get("Meta")
         if meta_class:
