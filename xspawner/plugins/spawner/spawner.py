@@ -80,8 +80,8 @@ class Spawner(XSpawner): # NOQA
             self.eLog(f"Failed to start child, miss port or name or plugin in data {data}")
             return False
 
-        srvancestry = "{}:{}".format(self.getConfig().name, self.getConfig().port)
-        child_config = self.getConfig()._replace(port=data["port"], name=data["name"], plugin=data["plugin"], ancestry=srvancestry)
+        srvparent = "{}:{}".format(self.getConfig().name, self.getConfig().port)
+        child_config = self.getConfig()._replace(port=data["port"], name=data["name"], plugin=data["plugin"], parent=srvparent)
         rt = open_service(child_config)
         self.iLog(f"open_service: {rt}")
         if "success" in rt and not rt["success"]:

@@ -5,7 +5,7 @@ import psutil
 import json
 
 from typing import Optional, Dict, Any
-from xspawner.xspawner import Config, parse_ancestry
+from xspawner.xspawner import Config, parse_parent
 
 WORKING_DIR = "/opt/xspawner"
 SERVICE_DIR = "/etc/systemd/system"
@@ -162,9 +162,9 @@ def get_exec_cmd(config: Config) -> str:
     cmd = BASIC_CMD.format(config.name, config.plugin, config.host, config.port)
 
 
-    # add ancestry option
-    if config.ancestry:
-        cmd += " --ancestry {}".format(config.ancestry)
+    # add parent option
+    if config.parent:
+        cmd += " --parent {}".format(config.parent)
 
     # add access option
     cmd += " --access {}".format(config.access)
@@ -188,9 +188,9 @@ def generate_service_file(config: Config) -> str:
     cmd = get_exec_cmd(config)
 
     # python app executable
-    if config.ancestry:
-        ancestry_service, _ = parse_ancestry(config.ancestry)
-        prior_service = f"{ancestry_service}.service"
+    if config.parent:
+        parent_service, _ = parse_parent(config.parent)
+        prior_service = f"{parent_service}.service"
     else:
         prior_service = 'network.target'
     service_content = SERVICE_TMPL.format(config.name, prior_service, prior_service, prior_service, WORKING_DIR, cmd)

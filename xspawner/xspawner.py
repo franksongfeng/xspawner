@@ -38,7 +38,7 @@ from .utilities.misc import * # NOQA
 from .constants import * # NOQA
 
 
-Config = namedtuple('Config', ['name', 'plugin', 'host', 'port', 'access', 'ancestry', 'reportup', 'log', 'severity', 'ssl', 'certfile', 'keyfile'])
+Config = namedtuple('Config', ['name', 'plugin', 'host', 'port', 'access', 'parent', 'reportup', 'log', 'severity', 'ssl', 'certfile', 'keyfile'])
 
 
 INTERNAL_HANDLERS = ["PingPongHandler", "HomePageHandler", "ResourceHandler"]
@@ -373,12 +373,12 @@ class XSpawner(Spawnable):
             config.severity
         )
 
-        # inform ancestry to add child
-        if config.ancestry:
+        # inform parent to add child
+        if config.parent:
             try:
-                ancestry_service, ancestry_port = parse_ancestry(config.ancestry)
-                ancestry_addr = "{}:{}".format(self.getHostAddr(), ancestry_port)
-                response_json = requests.post(ancestry_addr + "/add_child", json={"name": config.name, "addr": self.getAddr()})
+                parent_service, parent_port = parse_parent(config.parent)
+                parent_addr = "{}:{}".format(self.getHostAddr(), parent_port)
+                response_json = requests.post(parent_addr + "/add_child", json={"name": config.name, "addr": self.getAddr()})
                 self.iLog(f"add child response {response_json}")
             except Exception as e:
                 self.eLog('Exception on adding child request {}:{}'.format(e.__class__.__name__, e))
@@ -689,7 +689,7 @@ def search_for_class_in_package(fpath, class_name):
                         return srv_cls
     print("search_for_class_in_package END {}".format(None))
 
-def parse_ancestry(s: str):
+def parse_parent(s: str):
     if ':' in s:
         a, b = s.split(':', 1)
         return a.strip(), b.strip()

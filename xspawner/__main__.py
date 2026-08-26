@@ -25,7 +25,7 @@ if __name__ == '__main__':
         parser.add_argument("--host", type=str, required=True, help="Host access address")
         parser.add_argument("--port", type=int, required=True, help="Listening port")
         parser.add_argument("--access", type=str, default="0.0.0.0", help="Allowable access source")
-        parser.add_argument("--ancestry", type=str, default="", help="Ancestry")
+        parser.add_argument("--parent", type=str, default="", help="Parent")
         parser.add_argument("--reportup", action="store_true", help="Report Up")
         parser.add_argument("--log", action="store_true", help="Log Support")
         parser.add_argument("--severity", type=str, default="debug", help="Log level")

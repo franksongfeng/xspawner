@@ -4,7 +4,7 @@
   "host": "localhost",
   "port": 8668,
   "access": "0.0.0.0",
-  "ancestry": "",
+  "parent": "",
   "reportup": false,
   "log": true,
   "severity": "debug",
