@@ -9,4 +9,5 @@ mkdir -p \
 python3 -m xspawner.service open ./xspawner.json
 
 # execute test
+# sleep 3
 # python3 -m xspawner.plugins.spawner.tests https://xspawner.com:8668
