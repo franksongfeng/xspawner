@@ -19,7 +19,7 @@ async def init_database(category, **setting):
             category,
             setting["file"]
             )
-    if category in ("mysql", "postgres"):
+    elif category in ("mysql", "postgres"):
         required = ["usr", "psw", "host", "port", "name"]
         missing = [k for k in required if k not in setting]
         if missing:
@@ -33,6 +33,8 @@ async def init_database(category, **setting):
                 setting["port"],
                 quote_plus(setting["name"])
                 )
+    else:
+        raise ValueError(f"非法类型: {category}")
     '''
     初始化连接并建表
     (去 orm 模块中查找模型类)
@@ -40,7 +42,7 @@ async def init_database(category, **setting):
     await Tortoise.init(
         db_url=conn_str,
         modules={
-            'models': [caller_module().__name__]
+            'models': [caller_module().name]
         }
     )
 
@@ -53,13 +55,13 @@ async def close_database():
     '''
     await Tortoise.close_connections()
 
-
-class Concept(models.ModelMeta):
+# 半结构化数据
+class UnnamedObject(models.ModelMeta):
     def __new__(cls, name, bases, attrs):
         if "id" not in attrs:
             attrs['id'] = fields.IntField(pk=True, generated=True)
         if "data" not in attrs:
-            attrs['data'] = fields.JSONField()   # 可存 dict, list, str, int, bool, None
+            attrs['data'] = fields.JSONField(null=True)   # 可存 dict, list, str, int, bool, None
         if '__str__' not in attrs:
             def auto_str(self):
                 return f"{name}({self.id})"
@@ -67,13 +69,14 @@ class Concept(models.ModelMeta):
         return super().__new__(cls, name, bases, attrs)
 
 
-class Relation(models.ModelMeta):
+# 层级数据
+class NamedObject(models.ModelMeta):
     def __new__(cls, name, bases, attrs):
-        if "id" not in attrs:
-            attrs['id'] = fields.IntField(pk=True, generated=True)
+        if "name" not in attrs:
+            attrs['name'] = fields.CharField(max_length=255, pk=True)
         if '__str__' not in attrs:
             def auto_str(self):
-                return f"{name}({self.id})"
+                return f"{name}({self.name})"
             attrs['__str__'] = auto_str
 
         meta_class = attrs.get("Meta")
@@ -82,44 +85,25 @@ class Relation(models.ModelMeta):
             if fk_mapping:
                 for field_name, related_model in fk_mapping.items():
                     if field_name not in attrs:
-                        attrs[field_name] = fields.ForeignKeyField(related_model, null=False)
-                indexes = getattr(meta_class, "indexes", [])
-                unique_together = getattr(meta_class, "unique_together", ())
-                setattr(meta_class, "indexes", indexes + [tuple(fk_mapping.keys())])
-                setattr(meta_class, "unique_together", unique_together + (tuple(fk_mapping.keys())))
+                        attrs[field_name] = fields.ForeignKeyField(related_model, null=True, on_delete=fields.SET_NULL)
+
         return super().__new__(cls, name, bases, attrs)
 
 
-# class Province(models.Model, metaclass = Concept):
-#     class Meta:
-#         table = "Province"
+class Configurations(models.Model, metaclass = NamedObject):
+    class Meta:
+        table = "configurations"
+        fk_mapping = {
+            "parent": "Configurations"
+        }
+    plugin = fields.CharField(max_length=32)
+    host = fields.CharField(max_length=32)
+    port = fields.IntField()
+    access = fields.CharField(max_length=32)
 
-
-# class City(models.Model, metaclass = Concept):
-#     class Meta:
-#         table = "City"
-
-
-# class Year(models.Model, metaclass = Concept):
-#     class Meta:
-#         table = "Year"
-
-
-# class ProvinceCity(models.Model, metaclass = Relation):
-#     class Meta:
-#         table = "ProvinceCity"
-#         fk_mapping = {
-#             "province": Province,
-#             "city": City
-#         }
-
-
-# class CityStatistics(models.Model, metaclass = Relation):
-#     class Meta:
-#         table = "CityStatistics"
-#         fk_mapping = {
-#             "city": City,
-#             "year": Year
-#         }
-#     gdp = fields.FloatField()
-#     population = fields.FloatField()
+    reportup = fields.BooleanField()
+    log = fields.BooleanField()
+    severity = fields.CharField(max_length=16)
+    ssl = fields.BooleanField()
+    certfile = fields.CharField(max_length=255)
+    keyfile = fields.CharField(max_length=255)
