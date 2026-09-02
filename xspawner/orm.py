@@ -4,9 +4,12 @@ from tortoise import fields, models
 from urllib.parse import quote_plus
 
 
-def caller_module():
-    caller_frame = inspect.stack()[1]  # 索引0是当前函数，索引1是调用者
-    return inspect.getmodule(caller_frame[0])
+def model_module_name(this=True):
+    if this:
+        return __name__
+    else:
+        caller_frame = inspect.stack()[1]  # 索引0是当前函数，索引1是调用者
+        return inspect.getmodule(caller_frame[0]).name
 
 
 async def init_database(category, **setting):
@@ -42,7 +45,7 @@ async def init_database(category, **setting):
     await Tortoise.init(
         db_url=conn_str,
         modules={
-            'models': [caller_module().name]
+            'models': [model_module_name(True)]
         }
     )
 
@@ -56,7 +59,7 @@ async def close_database():
     await Tortoise.close_connections()
 
 # 半结构化数据
-class UnnamedObject(models.ModelMeta):
+class DynamicObject(models.ModelMeta):
     def __new__(cls, name, bases, attrs):
         if "id" not in attrs:
             attrs['id'] = fields.IntField(pk=True, generated=True)
@@ -70,7 +73,7 @@ class UnnamedObject(models.ModelMeta):
 
 
 # 层级数据
-class NamedObject(models.ModelMeta):
+class StaticObject(models.ModelMeta):
     def __new__(cls, name, bases, attrs):
         if "name" not in attrs:
             attrs['name'] = fields.CharField(max_length=255, pk=True)
@@ -90,7 +93,7 @@ class NamedObject(models.ModelMeta):
         return super().__new__(cls, name, bases, attrs)
 
 
-class Configurations(models.Model, metaclass = NamedObject):
+class Configurations(models.Model, metaclass = StaticObject):
     class Meta:
         table = "configurations"
         fk_mapping = {
