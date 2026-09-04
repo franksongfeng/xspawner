@@ -30,8 +30,8 @@ if __name__ == '__main__':
         parser.add_argument("--log", action="store_true", help="Log Support")
         parser.add_argument("--severity", type=str, default="debug", help="Log level")
         parser.add_argument("--ssl", action="store_true", help="SSL/TLS Support")
-        parser.add_argument("--certfile", type=str, help="Certification file")
-        parser.add_argument("--keyfile", type=str, help="Private key file")
+        parser.add_argument("--certfile", type=str, default="", help="Certification file")
+        parser.add_argument("--keyfile", type=str, default="", help="Private key file")
         args = parser.parse_args()
         
         globals()["__version__"] = __version__
@@ -39,7 +39,7 @@ if __name__ == '__main__':
         srv_cls = get_similar_cls("{}.{}".format(PLUGIN_PKG, args.plugin), 'Spawner', 1)
         if srv_cls:
             cmd_args = vars(args)
-            srv_cls.getServer(config=Config(**cmd_args),children=[]).start()
+            srv_cls.getServer(config=Config(**cmd_args)).start()
         else:
             print("Err: the plugin {} is not found!".format(args.plugin))
     except Exception as e:

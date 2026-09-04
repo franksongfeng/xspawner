@@ -12,7 +12,7 @@ def model_module_name(this=True):
         return inspect.getmodule(caller_frame[0]).name
 
 
-async def init_database(category, **setting):
+async def open_database(category, **setting):
     '''
     根据 category（sqlite / mysql / postgres）构建连接字符串
     '''
@@ -93,12 +93,13 @@ class StaticObject(models.ModelMeta):
         return super().__new__(cls, name, bases, attrs)
 
 
-class Configurations(models.Model, metaclass = StaticObject):
+class Configuration(models.Model, metaclass = StaticObject):
     class Meta:
-        table = "configurations"
+        table = "configuration"
         fk_mapping = {
-            "parent": "Configurations"
+            "parent": "models.Configuration"
         }
+    name = fields.CharField(max_length=255, pk=True)
     plugin = fields.CharField(max_length=32)
     host = fields.CharField(max_length=32)
     port = fields.IntField()
@@ -108,5 +109,25 @@ class Configurations(models.Model, metaclass = StaticObject):
     log = fields.BooleanField()
     severity = fields.CharField(max_length=16)
     ssl = fields.BooleanField()
-    certfile = fields.CharField(max_length=255)
-    keyfile = fields.CharField(max_length=255)
+    certfile = fields.CharField(max_length=255, default="")
+    keyfile = fields.CharField(max_length=255, default="")
+
+
+def config_model_to_dict(model: Configuration) -> dict:
+    if not isinstance(model, Configuration):
+        raise TypeError(f"Expected Configuration instance, got {type(model)}")
+    return {
+        'name': model.name,
+        'plugin': model.plugin,
+        'host': model.host,
+        'port': model.port,
+        'access': model.access,
+        'reportup': model.reportup,
+        'log': model.log,
+        'severity': model.severity,
+        'ssl': model.ssl,
+        'certfile': model.certfile,
+        'keyfile': model.keyfile,
+        'parent': model.parent_id if model.parent else ""
+    }
+

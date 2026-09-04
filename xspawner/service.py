@@ -3,9 +3,11 @@ import sys
 import subprocess
 import psutil
 import json
+import time
 
 from typing import Optional, Dict, Any
-from xspawner.xspawner import Config, parse_parent
+from xspawner.xspawner import Config
+from xspawner.constants import LOCAL_DB
 
 WORKING_DIR = "/opt/xspawner"
 SERVICE_DIR = "/etc/systemd/system"
@@ -189,8 +191,7 @@ def generate_service_file(config: Config) -> str:
 
     # python app executable
     if config.parent:
-        parent_service, _ = parse_parent(config.parent)
-        prior_service = f"{parent_service}.service"
+        prior_service = f"{config.parent}.service"
     else:
         prior_service = 'network.target'
     service_content = SERVICE_TMPL.format(config.name, prior_service, prior_service, prior_service, WORKING_DIR, cmd)
@@ -244,6 +245,10 @@ def open_service(config: Config) -> dict:
         return rt
 
 
+def open_services():
+    # TODO: open all services on local db
+    pass
+
 def close_service(service_name) -> dict:
     """移除 systemd service 文件"""
     rt = {"success": True, "info": ""}
@@ -274,6 +279,9 @@ def close_service(service_name) -> dict:
         rt["success"] = False
         return rt
 
+def close_services():
+    # TODO: close all services on local db
+    pass
 
 # 辅助函数：重置服务
 def reset_service(service_name: str) -> dict:
@@ -330,22 +338,45 @@ def is_running_by_psutil(proc_name: str):
             return True
 
 
+def delete_localdb():
+    dbf = LOCAL_DB
+    files_to_delete = [dbf, f"{dbf}-shm", f"{dbf}-wal"]
+    for fname in files_to_delete:
+        if os.path.exists(fname):
+            try:
+                os.remove(fname)
+                print(f"succesfully removed: {fname}")
+            except OSError as e:
+                print(f"failed to remove {fname}: {e}")
+        else:
+            print(f"not existed: {fname}")
+
 
 if __name__ == "__main__":
-    if len(sys.argv) == 3:
-        json_path = sys.argv[2]
-        with open(json_path, 'r') as f:
-            data = json.load(f)
-            config = Config(**data)
+    if len(sys.argv) >= 2:
         op = sys.argv[1]
+        config = None
+        if len(sys.argv) == 3:
+            json_path = sys.argv[2]
+            with open(json_path, 'r') as f:
+                data = json.load(f)
+                config = Config(**data)
         if op == 'open':
-            rt = open_service(config)
-            print(rt)
-            get_service_logs(config.name)
+            if config:
+                delete_localdb()
+                time.sleep(1)
+                rt = open_service(config)
+                print(rt)
+                get_service_logs(config.name)
+            else:
+                open_services()
         elif op == 'close':
-            rt = close_service(config.name)
-            print(rt)
+            if config:
+                rt = close_service(config.name)
+                print(rt)
+            else:
+                close_services()
         else:
             print(f"ERR: invalid command {op}")
     else:
-        print("WARN: miss json_path argument")
+        print(f"ERR: miss command")

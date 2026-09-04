@@ -72,11 +72,12 @@ class Supervisor(Spawner): # NOQA
         json_str = json.dumps(self.getConfig()._asdict(), indent=4, separators=(',', ':'))
         put_code(json_str, language="json")
 
-        if self.getChildren():
+        children = await self.getChildren()
+        if children:
             put_html(tab_title.format("服务"))
             content = []
-            for elm in self.getChildren():
-                content.append(put_link(elm["name"], url="{}/".format(elm["addr"])))
+            for elm in children:
+                content.append(put_link(elm["name"], url="{}/".format(self.getAddr(elm["port"]))))
             put_row(content)
 
         put_html(tab_title.format("操作"))
@@ -164,7 +165,7 @@ class Supervisor(Spawner): # NOQA
         srvseverity = data["severity"]
 
         if srvname:
-            elm = self.getChild(srvname)
+            elm = await self.getChild(srvname)
             if elm:
                 put_error('Repeated server name {}!'.format(srvname))
                 return
@@ -219,7 +220,23 @@ class Supervisor(Spawner): # NOQA
         self.iLog(f"srvapp: {srvapp}")
 
         # start child and get its pid
-        res = await self._start_child(None, {"name": srvname, "plugin": srvapp, "port": srvport, "severity": srvseverity})
+        res = await self._start_child(
+            None, 
+            {
+                "name": srvname,
+                "plugin": srvapp,
+                "host": self.getConfig().host,
+                "port": srvport,
+                "access": self.getConfig().access,
+                "parent": self.getConfig().name,
+                "reportup": self.getConfig().reportup,
+                "log": True,
+                "severity": srvseverity,
+                "ssl": self.getConfig().ssl,
+                "certfile": self.getConfig().certfile,
+                "keyfile": self.getConfig().keyfile
+            }
+        )
         if not res: # res is False
             put_error("Failed to start server {}.".format(srvname))
             return
@@ -252,12 +269,12 @@ class Supervisor(Spawner): # NOQA
         #     if elm:
         #         input_update("pid", value=elm["pid"])
 
+        children = await self.getChildren()
         def select_server(set_value):
             def set_value_and_close_popup(v):
                 set_value(v)
                 close_popup()
-
-            srv_names = [server["name"] for server in self.getChildren()]
+            srv_names = [server["name"] for server in children]
             with popup('选择已运行的服务'):
                 put_buttons(srv_names, onclick=set_value_and_close_popup, outline=True)
 
@@ -278,9 +295,9 @@ class Supervisor(Spawner): # NOQA
             ]
         )
 
-        elm = self.getChild(data["name"])
+        elm = await self.getChild(data["name"])
         srvname = elm["name"]
-        srvaddr = elm["addr"]
+        srvaddr = self.getAddr(elm["port"])
 
         res = await self.postJson(f"{srvaddr}/get_info", {})
         if res is None:

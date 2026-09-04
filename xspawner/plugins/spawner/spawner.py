@@ -52,20 +52,16 @@ class Spawner(XSpawner): # NOQA
         return self.getConfig()._asdict()
 
     @ApiHandler.route("/get_children")
-    def _get_children(self, headers: dict, data: dict):
-        return self.getChildren()
+    async def _get_children(self, headers: dict, data: dict):
+        return await self.getChildren()
 
     @ApiHandler.route("/add_child")
     async def _add_child(self, headers: dict, data: dict):
         self.iLog("{}::_add_child BEG {}".format(self.__class__.__name__, data))
-        if "name" not in data \
-        or "addr" not in data:
-            self.eLog(f"Failed to add child, miss name or addr in data {data}")
-            return False
-        srvaddr = data["addr"]
-        self.iLog(f"{srvaddr} is connectable")
-        self.addChild({"name": data["name"], "addr": data["addr"]})
+        await self.addChild(Config(**data))
+
         # add reportup flow
+        srvaddr = self.getAddr(data["port"])
         if self.getConfig().reportup:
             self.addFlow(f"{srvaddr}/report/state?interval=1", self.on_state)
         self.iLog("{}::_add_child END".format(self.__class__.__name__))
@@ -80,7 +76,7 @@ class Spawner(XSpawner): # NOQA
             self.eLog(f"Failed to start child, miss port or name or plugin in data {data}")
             return False
 
-        srvparent = "{}:{}".format(self.getConfig().name, self.getConfig().port)
+        srvparent = self.getConfig().name
         child_config = self.getConfig()._replace(port=data["port"], name=data["name"], plugin=data["plugin"], parent=srvparent)
         rt = open_service(child_config)
         self.iLog(f"open_service: {rt}")
@@ -101,9 +97,7 @@ class Spawner(XSpawner): # NOQA
             pkgfname = "{}.py".format(pkgdir)
         srvcls = search_for_class_in_file(pkgfname, "Spawner")
 
-        srvaddr = "{}:{}".format(
-            self.getHostAddr(),
-            data["port"])
+        srvaddr = self.getAddr(data["port"])
         new_srv = {"name": data["name"], "plugin": data["plugin"], "cls": srvcls.__name__, "pid": int(pid), "addr": srvaddr}
         self.iLog("{}::_start_child END {}".format(self.__class__.__name__, new_srv))
         return new_srv
@@ -117,11 +111,6 @@ class Spawner(XSpawner): # NOQA
             return False
 
         child_name = data["name"]
-
-        elm = self.getChild(child_name)
-        if not elm:
-            self.wLog("cannot find child server on {}".format(data))
-            return False
 
         self.delChild(child_name)
 
