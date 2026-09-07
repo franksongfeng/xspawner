@@ -110,15 +110,9 @@ class Spawner(XSpawner): # NOQA
             self.eLog(f"Miss name in data {data}")
             return False
 
-        child_name = data["name"]
+        child = await self.getChild(child["name"])
 
-        await self.delChild(child_name)
-
-        if "addr" not in elm:
-            self.eLog("cannot find addr in elm {}".format(elm))
-            return False
-
-        child_addr = elm["addr"]
+        child_addr = self.getAddr(child["port"])
 
         res = await self.postJson(f"{child_addr}/get_info", {})
         if res is None:
@@ -139,7 +133,8 @@ class Spawner(XSpawner): # NOQA
 
         await tornado.gen.sleep(0.5)
 
-        rt = close_service(child_name)
+        await self.delOne(child["name"])
+        rt = close_service(child["name"])
         self.iLog(f"delete service: {rt}")
 
         self.iLog("{}::_stop_child END".format(self.__class__.__name__))

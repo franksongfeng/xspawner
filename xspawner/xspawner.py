@@ -585,17 +585,16 @@ class XSpawner(Spawnable):
         self.iLog(f"delOne BEG {name}")
         try:
             model = await Configuration.get(name=name)
+            await model.delete()
+            self.iLog("delOne END")
+            return True
         except DoesNotExist:
             self.iLog(f"delOne END No")
-            return False
         except Exception as e:
             self.eLog(f'delOne EXP {e}')
-            return False
-        await model.delete()
-        self.iLog("delOne END")
-        return True
+        return False
 
-    async def addOne(self, config: Config):
+    async def addOne(self, config: Config) -> Optional[Dict]:
         self.iLog(f"addOne BEG {config}")
         data = config._asdict()
         if data.get('parent'):
@@ -605,7 +604,7 @@ class XSpawner(Spawnable):
                 data['parent'] = parent_obj
             except DoesNotExist:
                 self.eLog(f"Parent '{parent_name}' not found, setting parent to None")
-                data['parent'] = None 
+                data['parent'] = None
         else:
             data['parent'] = None
 
@@ -614,8 +613,9 @@ class XSpawner(Spawnable):
         if data.get('keyfile') is None:
             data['keyfile'] = ""
         try:
-            await Configuration.create(**data)
-            self.iLog("addOne END")
+            model = await Configuration.create(**data)
+            rt = config_model_to_dict(model)
+            self.iLog(f"addOne END {rt}")
         except Exception as e:
             self.eLog(f'addOne EXP {e}')
 
@@ -645,15 +645,15 @@ class XSpawner(Spawnable):
 
     async def delChild(self, name: str) -> bool:
         self.iLog(f"delChild BEG {name}")
-        if await self.getChild(name):
+        one = await self.getChild(name)
+        if one:
             rt = await self.delOne(name)
-            self.iLog("delChild END {rt}")
-            return rt
         else:
-            self.iLog("delChild END No")
-            return False
+            rt = False
+        self.iLog(f"delChild END {rt}")
+        return rt
 
-    async def addChild(self, config: Config):
+    async def addChild(self, config: Config) -> Optional[Dict]:
         self.iLog(f"addChild BEG {config}")
         data = config._asdict()
         parent_name = self.getConfig().name
@@ -669,8 +669,10 @@ class XSpawner(Spawnable):
         if data.get('keyfile') is None:
             data['keyfile'] = ""
         try:
-            await Configuration.create(**data)
-            self.iLog("addChild END")
+            model = await Configuration.create(**data)
+            rt = config_model_to_dict(model)
+            self.iLog(f"addChild END {rt}")
+            return rt
         except Exception as e:
             self.eLog(f'addChild EXP {e}')
 
