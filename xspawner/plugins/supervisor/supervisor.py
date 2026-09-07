@@ -242,7 +242,6 @@ class Supervisor(Spawner): # NOQA
             os.environ["SERVER"] = self.getAddr(srvport)
 
             # check unittest
-            await tornado.gen.sleep(0.5)
             if not await self._test_child(None, child_config):
                 put_error("Unittest failed!")
                 if is_port_used(srvport):
