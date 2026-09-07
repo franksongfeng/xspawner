@@ -104,36 +104,25 @@ class Spawner(XSpawner): # NOQA
 
     @ApiHandler.route("/stop_child")
     async def _stop_child(self, headers: dict, data: dict):
-
         self.iLog("{}::_stop_child BEG {}".format(self.__class__.__name__, data))
         if "name" not in data:
             self.eLog(f"Miss name in data {data}")
             return False
 
-        child = await self.getChild(child["name"])
-
+        child = await self.getChild(data["name"])
         child_addr = self.getAddr(child["port"])
 
-        res = await self.postJson(f"{child_addr}/get_info", {})
-        if res is None:
-            self.eLog("Exception request to {}/get_info".format(child_addr))
-            return False
-
         grand_children = await self.postJson(f"{child_addr}/get_children", {})
-        if grand_children is None:
-            self.eLog("Exception request to {}/get_children".format(child_addr))
-            return False
+        if grand_children:
+            for grand_child in grand_children:
+                res = await self.postJson(f"{child_addr}/stop_child", {"name":grand_child["name"]})
+                if res is None:
+                    self.eLog("Exception request to {}/stop_child".format(child_addr))
+                    return False
+                await tornado.gen.sleep(0.2)
+            await tornado.gen.sleep(0.5)
 
-        for grand_child in grand_children:
-            await tornado.gen.sleep(0.2)
-            res = await self.postJson(f"{child_addr}/stop_child", {"name":grand_child["name"]})
-            if res is None:
-                self.eLog("Exception request to {}/stop_child".format(child_addr))
-                return False
-
-        await tornado.gen.sleep(0.5)
-
-        await self.delOne(child["name"])
+        await self.delOne(data["name"])
         rt = close_service(child["name"])
         self.iLog(f"delete service: {rt}")
 
