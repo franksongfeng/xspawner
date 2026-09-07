@@ -71,22 +71,22 @@ class Spawner(XSpawner): # NOQA
     async def _start_child(self, headers: dict, data: dict):
         self.iLog("{}::_start_child BEG {}".format(self.__class__.__name__, data))
         if "port" not in data \
-        or "name" not in data \
+        or "id" not in data \
         or "plugin" not in data:
-            self.eLog(f"Failed to start child, miss port or name or plugin in data {data}")
+            self.eLog(f"Failed to start child, miss port or id or plugin in data {data}")
             return False
 
-        srvparent = self.getConfig().name
-        child_config = self.getConfig()._replace(port=data["port"], name=data["name"], plugin=data["plugin"], parent=srvparent)
+        srvparent = self.getConfig().id
+        child_config = self.getConfig()._replace(port=data["port"], id=data["id"], plugin=data["plugin"], parent=srvparent)
         rt = open_service(child_config)
         self.iLog(f"open_service: {rt}")
         if "success" in rt and not rt["success"]:
-            self.eLog(f"failed to start child {child_config.name}!")
+            self.eLog(f"failed to start child {child_config.id}!")
             return False
 
         await tornado.gen.sleep(1)
 
-        sts = get_service_status(data["name"])
+        sts = get_service_status(data["id"])
         pid = sts["pid"]
         self.iLog(f"service status: {sts}")
 
@@ -104,25 +104,25 @@ class Spawner(XSpawner): # NOQA
     @ApiHandler.route("/stop_child")
     async def _stop_child(self, headers: dict, data: dict):
         self.iLog("{}::_stop_child BEG {}".format(self.__class__.__name__, data))
-        if "name" not in data:
-            self.eLog(f"Miss name in data {data}")
+        if "id" not in data:
+            self.eLog(f"Miss id in data {data}")
             return False
 
-        child = await self.getChild(data["name"])
+        child = await self.getChild(data["id"])
         child_addr = self.getAddr(child["port"])
 
         grand_children = await self.postJson(f"{child_addr}/get_children", {})
         if grand_children:
             for grand_child in grand_children:
-                res = await self.postJson(f"{child_addr}/stop_child", {"name":grand_child["name"]})
+                res = await self.postJson(f"{child_addr}/stop_child", {"id":grand_child["id"]})
                 if res is None:
                     self.eLog("Exception request to {}/stop_child".format(child_addr))
                     return False
                 await tornado.gen.sleep(0.2)
             await tornado.gen.sleep(0.5)
 
-        await self.delOne(data["name"])
-        rt = close_service(child["name"])
+        await self.delOne(data["id"])
+        rt = close_service(child["id"])
         self.iLog(f"delete service: {rt}")
 
         self.iLog("{}::_stop_child END".format(self.__class__.__name__))
@@ -222,8 +222,8 @@ class Spawner(XSpawner): # NOQA
         self.iLog("{}::_test_child BEG {}".format(self.__class__.__name__, data))
         if "plugin" not in data \
         or "port" not in data \
-        or "name" not in data:
-            self.wLog(f"Miss plugin or port or name in data: {data}")
+        or "id" not in data:
+            self.wLog(f"Miss plugin or port or id in data: {data}")
             return True
         
         test_dir = "{}/{}/tests".format(PLUGIN_DIR, data["plugin"])
@@ -238,7 +238,7 @@ class Spawner(XSpawner): # NOQA
                 result = runner.run(suite)
                 self.iLog("unittest result {}".format(result))
                 if result.errors or result.failures:
-                    self.eLog("unittest upon server {}={} failed.".format(data["plugin"], data["name"]))
+                    self.eLog("unittest upon server {}={} failed.".format(data["plugin"], data["id"]))
                     return False
                 else:
                     self.iLog("unittest passed.")

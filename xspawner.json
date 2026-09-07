@@ -1,5 +1,5 @@
 {
-  "name": "xspawner",
+  "id": "xspawner",
   "plugin": "supervisor",
   "host": "localhost",
   "port": 8668,

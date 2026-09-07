@@ -40,7 +40,7 @@ from .utilities.misc import * # NOQA
 from .constants import * # NOQA
 from .orm import * #NOQA
 
-Config = namedtuple('Config', ['name', 'plugin', 'host', 'port', 'access', 'parent', 'reportup', 'log', 'severity', 'ssl', 'certfile', 'keyfile'])
+Config = namedtuple('Config', ['id', 'plugin', 'host', 'port', 'access', 'parent', 'reportup', 'log', 'severity', 'ssl', 'certfile', 'keyfile'])
 
 
 INTERNAL_HANDLERS = ["PingPongHandler", "HomePageHandler", "ResourceHandler"]
@@ -331,10 +331,10 @@ class Spawnable(object):
     async def getAll(self):
         raise NotImplementedError
 
-    async def getOne(self, name):
+    async def getOne(self, id):
         raise NotImplementedError
 
-    async def delOne(self, name):
+    async def delOne(self, id):
         raise NotImplementedError
 
     async def addOne(self, config):
@@ -343,10 +343,10 @@ class Spawnable(object):
     async def getChildren(self):
         raise NotImplementedError
 
-    async def getChild(self, name):
+    async def getChild(self, id):
         raise NotImplementedError
 
-    async def delChild(self, name):
+    async def delChild(self, id):
         raise NotImplementedError
 
     async def addChild(self, config):
@@ -387,7 +387,7 @@ class XSpawner(Spawnable):
 
         # start logger
         self._logger = Log(
-            config.name,
+            config.id,
             "file",
             self.getLogFile(),
             config.severity
@@ -567,10 +567,10 @@ class XSpawner(Spawnable):
             self.eLog(f'getAll EXP {e}')
             return None
 
-    async def getOne(self, name: str) -> Optional[Dict]:
-        self.iLog(f"getOne BEG {name}")
+    async def getOne(self, id: str) -> Optional[Dict]:
+        self.iLog(f"getOne BEG {id}")
         try:
-            model = await Configuration.get(name=name)
+            model = await Configuration.get(id=id)
         except DoesNotExist:
             self.iLog(f"getOne END No")
             return None
@@ -581,10 +581,10 @@ class XSpawner(Spawnable):
         self.iLog(f"getOne END {one}")
         return one
 
-    async def delOne(self, name: str) -> bool:
-        self.iLog(f"delOne BEG {name}")
+    async def delOne(self, id: str) -> bool:
+        self.iLog(f"delOne BEG {id}")
         try:
-            model = await Configuration.get(name=name)
+            model = await Configuration.get(id=id)
             await model.delete()
             self.iLog("delOne END")
             return True
@@ -598,12 +598,12 @@ class XSpawner(Spawnable):
         self.iLog(f"addOne BEG {config}")
         data = config._asdict()
         if data.get('parent'):
-            parent_name = data['parent']
+            parent_id = data['parent']
             try:
-                parent_obj = await Configuration.get(name=parent_name)
+                parent_obj = await Configuration.get(id=parent_id)
                 data['parent'] = parent_obj
             except DoesNotExist:
-                self.eLog(f"Parent '{parent_name}' not found, setting parent to None")
+                self.eLog(f"Parent '{parent_id}' not found, setting parent to None")
                 data['parent'] = None
         else:
             data['parent'] = None
@@ -620,9 +620,9 @@ class XSpawner(Spawnable):
             self.eLog(f'addOne EXP {e}')
 
     async def getChildren(self) -> List[Dict]:
-        self.iLog(f"getChildren BEG {self.getConfig().name}")
+        self.iLog(f"getChildren BEG {self.getConfig().id}")
         try:
-            models = await Configuration.filter(parent=self.getConfig().name).all()
+            models = await Configuration.filter(parent=self.getConfig().id).all()
             self.iLog(f"Type: {type(models)} Len: {len(models)} Models: {models}")
             for idx, m in enumerate(models):
                 self.iLog(f"Element {idx}: type={type(m)}, class={m.__class__}, is Configuration? {isinstance(m, Configuration)}")
@@ -633,21 +633,21 @@ class XSpawner(Spawnable):
             self.eLog(f'getChildren EXP {e}')
             return []
 
-    async def getChild(self, name: str) -> Optional[Dict]:
-        self.iLog(f"getChild BEG {name}")
+    async def getChild(self, id: str) -> Optional[Dict]:
+        self.iLog(f"getChild BEG {id}")
         ones = await self.getChildren()
         for one in ones:
-            if one["name"] == name:
+            if one["id"] == id:
                 self.iLog(f"getChild END {one}")
                 return one
         self.iLog("getChild END No")
         return None
 
-    async def delChild(self, name: str) -> bool:
-        self.iLog(f"delChild BEG {name}")
-        one = await self.getChild(name)
+    async def delChild(self, id: str) -> bool:
+        self.iLog(f"delChild BEG {id}")
+        one = await self.getChild(id)
         if one:
-            rt = await self.delOne(name)
+            rt = await self.delOne(id)
         else:
             rt = False
         self.iLog(f"delChild END {rt}")
@@ -656,12 +656,12 @@ class XSpawner(Spawnable):
     async def addChild(self, config: Config) -> Optional[Dict]:
         self.iLog(f"addChild BEG {config}")
         data = config._asdict()
-        parent_name = self.getConfig().name
+        parent_id = self.getConfig().id
         try:
-            parent_obj = await Configuration.get(name=parent_name)
+            parent_obj = await Configuration.get(id=parent_id)
             data['parent'] = parent_obj
         except DoesNotExist:
-            self.eLog(f"Parent '{parent_name}' not found, setting parent to None")
+            self.eLog(f"Parent '{parent_id}' not found, setting parent to None")
             data['parent'] = None 
 
         if data.get('certfile') is None:

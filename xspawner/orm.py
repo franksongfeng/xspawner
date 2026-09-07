@@ -75,8 +75,8 @@ class DynamicObject(models.ModelMeta):
 # 层级数据
 class StaticObject(models.ModelMeta):
     def __new__(cls, name, bases, attrs):
-        if "name" not in attrs:
-            attrs['name'] = fields.CharField(max_length=255, pk=True)
+        if "id" not in attrs:
+            attrs['id'] = fields.CharField(max_length=255, pk=True)
         if '__str__' not in attrs:
             def auto_str(self):
                 return f"{name}({self.name})"
@@ -99,7 +99,6 @@ class Configuration(models.Model, metaclass = StaticObject):
         fk_mapping = {
             "parent": "models.Configuration"
         }
-    name = fields.CharField(max_length=255, pk=True)
     plugin = fields.CharField(max_length=32)
     host = fields.CharField(max_length=32)
     port = fields.IntField()
@@ -117,7 +116,7 @@ def config_model_to_dict(model: Configuration) -> dict:
     if not isinstance(model, Configuration):
         raise TypeError(f"Expected Configuration instance, got {type(model)}")
     return {
-        'name': model.name,
+        'id': model.id,
         'plugin': model.plugin,
         'host': model.host,
         'port': model.port,

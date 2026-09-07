@@ -160,8 +160,8 @@ def disable_service(service_name: str) -> bool:
         return False
 
 def get_exec_cmd(config: Config) -> str:
-    BASIC_CMD = "/usr/bin/python3 -u -m xspawner --name {} --plugin {} --host {} --port {}"
-    cmd = BASIC_CMD.format(config.name, config.plugin, config.host, config.port)
+    BASIC_CMD = "/usr/bin/python3 -u -m xspawner --id {} --plugin {} --host {} --port {}"
+    cmd = BASIC_CMD.format(config.id, config.plugin, config.host, config.port)
 
 
     # add parent option
@@ -194,7 +194,7 @@ def generate_service_file(config: Config) -> str:
         prior_service = f"{config.parent}.service"
     else:
         prior_service = 'network.target'
-    service_content = SERVICE_TMPL.format(config.name, prior_service, prior_service, prior_service, WORKING_DIR, cmd)
+    service_content = SERVICE_TMPL.format(config.id, prior_service, prior_service, prior_service, WORKING_DIR, cmd)
 
     return service_content
 
@@ -202,6 +202,7 @@ def generate_service_file(config: Config) -> str:
 def open_service(config: Config) -> dict:
     """写入 systemd service 文件"""
     rt = {"success": True, "info": ""}
+    service_name = config.id
     try:
         # 1. 创建服务目录（如果不存在）
         os.makedirs(SERVICE_DIR, exist_ok=True)
@@ -211,7 +212,7 @@ def open_service(config: Config) -> dict:
         print(service_content)
 
         # 3. 写入服务文件
-        service_path = f"{SERVICE_DIR}/{config.name}.service"
+        service_path = f"{SERVICE_DIR}/{service_name}.service"
         with open(service_path, 'w') as f:
             f.write(service_content)
         rt["info"] += f"Wrote service file {service_path}; "
@@ -225,18 +226,18 @@ def open_service(config: Config) -> dict:
         rt["info"] += "Reloaded systemd! "
 
         # 6. 启用服务开机自启
-        if not enable_service(config.name): 
-            rt["info"] += f"Failed to enable {config.name} service!"
+        if not enable_service(service_name): 
+            rt["info"] += f"Failed to enable {service_name} service!"
             rt["success"] = False
             return rt
 
         # 7. 启动服务
-        if not start_service(config.name):
-            rt["info"] += f"Failed to start {config.name} service!"
+        if not start_service(service_name):
+            rt["info"] += f"Failed to start {service_name} service!"
             rt["success"] = False
             return rt
 
-        rt["info"] += f"Started {config.name} service successfully"
+        rt["info"] += f"Started {service_name} service successfully"
         rt["success"] = True
         return rt
         
@@ -367,12 +368,12 @@ if __name__ == "__main__":
                 time.sleep(1)
                 rt = open_service(config)
                 print(rt)
-                get_service_logs(config.name)
+                get_service_logs(config.id)
             else:
                 open_services()
         elif op == 'close':
             if config:
-                rt = close_service(config.name)
+                rt = close_service(config.id)
                 print(rt)
             else:
                 close_services()

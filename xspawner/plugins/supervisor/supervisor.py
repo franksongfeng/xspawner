@@ -77,7 +77,7 @@ class Supervisor(Spawner): # NOQA
             put_html(tab_title.format("服务"))
             content = []
             for elm in children:
-                content.append(put_link(elm["name"], url="{}/".format(self.getAddr(elm["port"]))))
+                content.append(put_link(elm["id"], url="{}/".format(self.getAddr(elm["port"]))))
             put_row(content)
 
         put_html(tab_title.format("操作"))
@@ -113,7 +113,7 @@ class Supervisor(Spawner): # NOQA
             [
                 input(
                     label="名称",
-                    name="name",
+                    name="id",
                     type=TEXT,
                     placeholder="输入一个新的服务名称(以英文字母开头，由英文字母和数字组成，不允许包含空格或奇异字符)",
                     required=True
@@ -145,8 +145,8 @@ class Supervisor(Spawner): # NOQA
             ]
         )
 
-        if " " in data["name"]:
-            put_error('Blank space is not allowed in name')
+        if " " in data["id"]:
+            put_error('Blank space is not allowed in id')
             return
 
         if data["port"] < 1000 and data["port"] > 65535:
@@ -160,14 +160,14 @@ class Supervisor(Spawner): # NOQA
         fname = data["source"]["filename"]
         fdata = data["source"]["content"]
         ftype = data["source"]["mime_type"]
-        srvname = data["name"]
+        srvname = data["id"]
         srvport = data["port"]
         srvseverity = data["severity"]
 
         if srvname:
             elm = await self.getChild(srvname)
             if elm:
-                put_error('Repeated server name {}!'.format(srvname))
+                put_error('Repeated server id {}!'.format(srvname))
                 return
 
         if srvport:
@@ -192,7 +192,7 @@ class Supervisor(Spawner): # NOQA
         elif get_file_type(fname) == "text/x-python":
             pkgfname = f"{PLUGIN_DIR}/{fname}"
             if not check_mod_file(pkgfname):
-                put_error('Invalid file name {}!'.format(pkgfname))
+                put_error('Invalid filename {}!'.format(pkgfname))
                 return
             with open(pkgfname, "wb") as f:
                 f.write(fdata)
@@ -221,12 +221,12 @@ class Supervisor(Spawner): # NOQA
 
         # start child and get its pid
         child_config = {
-            "name": srvname,
+            "id": srvname,
             "plugin": srvapp,
             "host": self.getConfig().host,
             "port": srvport,
             "access": self.getConfig().access,
-            "parent": self.getConfig().name,
+            "parent": self.getConfig().id,
             "reportup": self.getConfig().reportup,
             "log": True,
             "severity": srvseverity,
@@ -245,7 +245,7 @@ class Supervisor(Spawner): # NOQA
             if not await self._test_child(None, child_config):
                 put_error("Unittest failed!")
                 if is_port_used(srvport):
-                    if await self._stop_child(None, {"name": srvname}):
+                    if await self._stop_child(None, {"id": srvname}):
                         put_warning("server {} was stopped.".format(srvname))
                         if srvapp not in ["spawner", "supervisor"]:
                             if await self._clean_plugin(None, {"plugin": srvapp}):
@@ -260,18 +260,13 @@ class Supervisor(Spawner): # NOQA
     @UiHandler.route("/delete")
     @config(theme="yeti")
     async def _delete(self):
-        # # discarded onchange in the name input
-        # def update_pid(name):
-        #     elm = self.getChild(name)
-        #     if elm:
-        #         input_update("pid", value=elm["pid"])
 
         children = await self.getChildren()
         def select_server(set_value):
             def set_value_and_close_popup(v):
                 set_value(v)
                 close_popup()
-            srv_names = [server["name"] for server in children]
+            srv_names = [server["id"] for server in children]
             with popup('选择已运行的服务'):
                 put_buttons(srv_names, onclick=set_value_and_close_popup, outline=True)
 
@@ -283,7 +278,7 @@ class Supervisor(Spawner): # NOQA
             [
                 input(
                     label="名称",
-                    name="name",
+                    name="id",
                     type=TEXT,
                     placeholder="输入已运行的服务名称",
                     action=("现有服务", select_server),
@@ -292,8 +287,8 @@ class Supervisor(Spawner): # NOQA
             ]
         )
 
-        elm = await self.getChild(data["name"])
-        srvname = elm["name"]
+        elm = await self.getChild(data["id"])
+        srvname = elm["id"]
         srvaddr = self.getAddr(elm["port"])
 
         res = await self.postJson(f"{srvaddr}/get_info", {})
@@ -305,7 +300,7 @@ class Supervisor(Spawner): # NOQA
         srvpid = res["pid"]
         srvapp = res["plugin"]
         put_info("Server <{} :{}> will be deleted.".format(srvname, srvpid))
-        if await self._stop_child(None, {"name": srvname}):
+        if await self._stop_child(None, {"id": srvname}):
             put_success("Server <{} :{}> is deleted.".format(srvname, srvpid))
             if srvapp not in ["spawner", "supervisor"]:
                 if await self._clean_plugin(None, {"plugin": srvapp}):
