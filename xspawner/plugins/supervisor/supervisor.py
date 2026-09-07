@@ -220,33 +220,30 @@ class Supervisor(Spawner): # NOQA
         self.iLog(f"srvapp: {srvapp}")
 
         # start child and get its pid
-        res = await self._start_child(
-            None, 
-            {
-                "name": srvname,
-                "plugin": srvapp,
-                "host": self.getConfig().host,
-                "port": srvport,
-                "access": self.getConfig().access,
-                "parent": self.getConfig().name,
-                "reportup": self.getConfig().reportup,
-                "log": True,
-                "severity": srvseverity,
-                "ssl": self.getConfig().ssl,
-                "certfile": self.getConfig().certfile,
-                "keyfile": self.getConfig().keyfile
-            }
-        )
-        if not res: # res is False
-            put_error("Failed to start server {}.".format(srvname))
-            return
+        child_config = {
+            "name": srvname,
+            "plugin": srvapp,
+            "host": self.getConfig().host,
+            "port": srvport,
+            "access": self.getConfig().access,
+            "parent": self.getConfig().name,
+            "reportup": self.getConfig().reportup,
+            "log": True,
+            "severity": srvseverity,
+            "ssl": self.getConfig().ssl,
+            "certfile": self.getConfig().certfile,
+            "keyfile": self.getConfig().keyfile
+        }
 
-        if "addr" in res:
+        res = await self._start_child(None, child_config)
+
+        if res:
             # set environment variables for unittest
-            os.environ["SERVER"] = res["addr"]
+            os.environ["SERVER"] = self.getAddr(srvport)
 
             # check unittest
-            if not await self._test_child(None, {"name": srvname, "plugin": srvapp, "port": srvport}):
+            await tornado.gen.sleep(0.5)
+            if not await self._test_child(None, child_config):
                 put_error("Unittest failed!")
                 if is_port_used(srvport):
                     if await self._stop_child(None, {"name": srvname}):
@@ -255,9 +252,10 @@ class Supervisor(Spawner): # NOQA
                             if await self._clean_plugin(None, {"plugin": srvapp}):
                                 put_info("Plugin {} was cleaned.".format(srvapp))
                 return
-
-        put_success("Server <{} :{}> is loaded to port {} successfully.".format(srvname, res["pid"], srvport))
-        self.iLog("{}::_create END".format(self.__class__.__name__))
+            put_success("Server {}:{} is loaded to port {} successfully.".format(srvname, res, srvport))
+            self.iLog("{}::_create END".format(self.__class__.__name__))
+        else:
+            put_error("Failed to start server {}.".format(srvname))
 
 
     @UiHandler.route("/delete")

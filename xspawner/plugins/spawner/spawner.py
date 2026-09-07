@@ -97,8 +97,7 @@ class Spawner(XSpawner): # NOQA
             pkgfname = "{}.py".format(pkgdir)
         srvcls = search_for_class_in_file(pkgfname, "Spawner")
 
-        srvaddr = self.getAddr(data["port"])
-        new_srv = {"name": data["name"], "plugin": data["plugin"], "cls": srvcls.__name__, "pid": int(pid), "addr": srvaddr}
+        new_srv = {"cls": srvcls.__name__, "pid": int(pid)}
         self.iLog("{}::_start_child END {}".format(self.__class__.__name__, new_srv))
         return new_srv
 
