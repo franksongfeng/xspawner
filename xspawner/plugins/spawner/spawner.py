@@ -112,7 +112,7 @@ class Spawner(XSpawner): # NOQA
 
         child_name = data["name"]
 
-        self.delChild(child_name)
+        await self.delChild(child_name)
 
         if "addr" not in elm:
             self.eLog("cannot find addr in elm {}".format(elm))

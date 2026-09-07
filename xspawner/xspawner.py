@@ -645,8 +645,8 @@ class XSpawner(Spawnable):
 
     async def delChild(self, name: str) -> bool:
         self.iLog(f"delChild BEG {name}")
-        if self.getChild(name):
-            rt = self.delOne(name)
+        if await self.getChild(name):
+            rt = await self.delOne(name)
             self.iLog("delChild END {rt}")
             return rt
         else:
