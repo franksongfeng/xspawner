@@ -7,7 +7,8 @@ import time
 
 from typing import Optional, Dict, Any
 from xspawner.xspawner import Config
-from xspawner.constants import LOCAL_DB
+from xspawner.constants import LOCAL_DB, LOG_FILE
+from xspawner.utilities.log import Log
 
 WORKING_DIR = "/opt/xspawner"
 SERVICE_DIR = "/etc/systemd/system"
@@ -39,6 +40,9 @@ StandardError=journal
 WantedBy=multi-user.target
 """
 
+logger = Log("service", "file", LOG_FILE, "info")
+
+
 def get_service_status(service_name: str) -> Dict[str, Any]:
     try:
         result = subprocess.run(
@@ -65,7 +69,7 @@ def get_service_status(service_name: str) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        print(f"Failed to get service status: {e}")
+        logger.error(f"Failed to get service status: {e}")
         return {'name': service_name, 'error': str(e)}
 
 
@@ -78,10 +82,10 @@ def reload_systemd() -> bool:
             capture_output=True,
             text=True
         )
-        print("systemd reload successful")
+        logger.info("systemd reload successful")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"systemd reload failed: {e.stderr}")
+        logger.error(f"systemd reload failed: {e.stderr}")
         return False
 
 def reload_service(service_name: str) -> bool:
@@ -93,10 +97,10 @@ def reload_service(service_name: str) -> bool:
             capture_output=True,
             text=True
         )
-        print(f"Service {service_name} reloaded successfully")
+        logger.info(f"Service {service_name} reloaded successfully")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"Service {service_name} reload failed: {e.stderr}")
+        logger.error(f"Service {service_name} reload failed: {e.stderr}")
         return False
 
 def start_service(service_name: str) -> bool:
@@ -108,10 +112,10 @@ def start_service(service_name: str) -> bool:
             capture_output=True,
             text=True
         )
-        print(f"Service {service_name} started successfully")
+        logger.info(f"Service {service_name} started successfully")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"Service {service_name} failed to start: {e.stderr}")
+        logger.error(f"Service {service_name} failed to start: {e.stderr}")
         return False
 
 def stop_service(service_name: str) -> bool:
@@ -123,10 +127,10 @@ def stop_service(service_name: str) -> bool:
             capture_output=True,
             text=True
         )
-        print(f"Service {service_name} stopped successfully")
+        logger.info(f"Service {service_name} stopped successfully")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"Failed to stop service: {e.stderr}")
+        logger.error(f"Failed to stop service: {e.stderr}")
         return False
 
 def enable_service(service_name: str) -> bool:
@@ -138,10 +142,10 @@ def enable_service(service_name: str) -> bool:
             capture_output=True,
             text=True
         )
-        print(f"Service {service_name} was set to start automatically on boot")
+        logger.info(f"Service {service_name} was set to start automatically on boot")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"Failed to enable service: {e.stderr}")
+        logger.error(f"Failed to enable service: {e.stderr}")
         return False
 
 def disable_service(service_name: str) -> bool:
@@ -153,10 +157,10 @@ def disable_service(service_name: str) -> bool:
             capture_output=True,
             text=True
         )
-        print(f"Service {service_name} was disabled from starting automatically at boot")
+        logger.info(f"Service {service_name} was disabled from starting automatically at boot")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"Failed to disable service: {e.stderr}")
+        logger.error(f"Failed to disable service: {e.stderr}")
         return False
 
 def get_exec_cmd(config: Config) -> str:
@@ -199,9 +203,9 @@ def generate_service_file(config: Config) -> str:
     return service_content
 
 
-def open_service(config: Config) -> dict:
+def open_service(config: Config) -> bool:
     """写入 systemd service 文件"""
-    rt = {"success": True, "info": ""}
+    logger.info(f"open_service BEG {config}")
     service_name = config.id
     try:
         # 1. 创建服务目录（如果不存在）
@@ -209,100 +213,92 @@ def open_service(config: Config) -> dict:
 
         # 2. 生成服务文件内容
         service_content = generate_service_file(config)
-        print(service_content)
+        logger.info(service_content)
 
         # 3. 写入服务文件
         service_path = f"{SERVICE_DIR}/{service_name}.service"
         with open(service_path, 'w') as f:
             f.write(service_content)
-        rt["info"] += f"Wrote service file {service_path}; "
+        logger.info(f"Wrote service file {service_path};")
 
 
         # 5. 重新加载 systemd
         if not reload_systemd():
-            rt["info"] += "Failed to reload systemd!"
-            rt["success"] = False
-            return rt
-        rt["info"] += "Reloaded systemd! "
+            logger.error("Failed to reload systemd!")
+            return False
 
         # 6. 启用服务开机自启
         if not enable_service(service_name): 
-            rt["info"] += f"Failed to enable {service_name} service!"
-            rt["success"] = False
-            return rt
+            logger.error(f"Failed to enable {service_name} service!")
+            return False
 
         # 7. 启动服务
         if not start_service(service_name):
-            rt["info"] += f"Failed to start {service_name} service!"
-            rt["success"] = False
-            return rt
+            logger.error(f"Failed to start {service_name} service!")
+            return False
 
-        rt["info"] += f"Started {service_name} service successfully"
-        rt["success"] = True
-        return rt
+        logger.info(f"Started {service_name} service successfully.")
+        logger.info(f"open_service END True")
+        return True
         
     except Exception as e:
-        rt["info"] += f"Exception occurred when starting service: {e}"
-        return rt
+        logger.error(f"Exception occurred when starting service: {e}")
+        return False
 
 
 def open_services():
     # TODO: open all services on local db
     pass
 
-def close_service(service_name) -> dict:
+def close_service(service_name) -> bool:
     """移除 systemd service 文件"""
-    rt = {"success": True, "info": ""}
+    logger.info(f"close_service BEG {service_name}")
     try:
         service_path = f"{SERVICE_DIR}/{service_name}.service"
 
         # 1. 停止服务
         stop_service(service_name)
-        rt["info"] += f"Stopped service {service_name}; "
+        logger.info(f"Stopped service {service_name}")
 
         # 2. 禁用开机自启
         disable_service(service_name)
-        rt["info"] += f"Disabled service {service_name}; "
+        logger.info(f"Disabled service {service_name}")
 
         # 3. 删除服务文件
         if os.path.exists(service_path):
             os.unlink(service_path)
-            rt["info"] += f"Deleted service file {service_name}; "
+            logger.info(f"Deleted service file {service_name}")
 
 
         # 5. 重新加载 systemd
-        reload_systemd()
-        rt["info"] += f"Reloaded service {service_name}; "
-        rt["success"] = True
+        rt = reload_systemd()
+        logger.info(f"close_service END {rt}")
         return rt
     except Exception as e:
-        rt["info"] += f"Exception occurred when removing service: {e}"
-        rt["success"] = False
-        return rt
+        logger.error(f"Exception occurred when removing service: {e}")
+        return False
 
 def close_services():
     # TODO: close all services on local db
     pass
 
 # 辅助函数：重置服务
-def reset_service(service_name: str) -> dict:
+def reset_service(service_name: str) -> bool:
     """重置服务（停止、禁用、重新加载）"""
-    rt = {"success": True, "info": ""}
     try:
         stop_service(service_name)
         disable_service(service_name)
         reload_systemd()
-        rt = {"success": True, "info": f"Reseted service {service_name}"}
-        return rt
+        logger.info(f"Reset service {service_name}")
+        return True
     except Exception as e:
-        rt = {"success": False, "info": f"Failed to reset service {service_name}: {e}"}
-        return rt
+        logger.info(f"Failed to reset service {service_name}: {e}")
+        return False
 
 
 # 辅助函数：重启服务
-def restart_service(service_name: str) -> dict:
+def restart_service(service_name: str) -> bool:
     """重启服务"""
-    rt = {"success": True, "info": ""}
     try:
         subprocess.run(
             ["systemctl", "restart", service_name],
@@ -310,11 +306,11 @@ def restart_service(service_name: str) -> dict:
             capture_output=True,
             text=True
         )
-        rt = {"success": True, "info": f"Restarted service {service_name}"}
-        return rt
+        logger.info(f"Restarted service {service_name}")
+        return True
     except subprocess.CalledProcessError as e:
-        rt = {"success": False, "info": f"Failed to reset service {service_name}: {e}"}
-        return rt
+        logger.info( f"Failed to restart service {service_name}: {e}")
+        return False
 
 
 # 辅助函数：获取服务日志
@@ -327,9 +323,10 @@ def get_service_logs(service_name: str, lines: int = 50) -> Optional[str]:
             text=True,
             check=False
         )
+        logger.info(f"Get service logs {service_name}")
         return result.stdout
     except Exception as e:
-        print(f"Failed to get service logs: {e}")
+        logger.error(f"Failed to get service logs: {e}")
         return None
 
 
@@ -346,11 +343,11 @@ def delete_localdb():
         if os.path.exists(fname):
             try:
                 os.remove(fname)
-                print(f"succesfully removed: {fname}")
+                logger.info(f"successfully removed: {fname}")
             except OSError as e:
-                print(f"failed to remove {fname}: {e}")
+                logger.error(f"failed to remove {fname}: {e}")
         else:
-            print(f"not existed: {fname}")
+            logger.warning(f"doesnt exist: {fname}")
 
 
 if __name__ == "__main__":
@@ -366,18 +363,16 @@ if __name__ == "__main__":
             if config:
                 delete_localdb()
                 time.sleep(1)
-                rt = open_service(config)
-                print(rt)
+                open_service(config)
                 get_service_logs(config.id)
             else:
                 open_services()
         elif op == 'close':
             if config:
-                rt = close_service(config.id)
-                print(rt)
+                close_service(config.id)
             else:
                 close_services()
         else:
-            print(f"ERR: invalid command {op}")
+            logger.error(f"ERR: invalid command {op}")
     else:
-        print(f"ERR: miss command")
+        logger.error(f"ERR: miss command")

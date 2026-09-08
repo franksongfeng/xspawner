@@ -78,9 +78,7 @@ class Spawner(XSpawner): # NOQA
 
         srvparent = self.getConfig().id
         child_config = self.getConfig()._replace(port=data["port"], id=data["id"], plugin=data["plugin"], parent=srvparent)
-        rt = open_service(child_config)
-        self.iLog(f"open_service: {rt}")
-        if "success" in rt and not rt["success"]:
+        if not open_service(child_config)
             self.eLog(f"failed to start child {child_config.id}!")
             return False
 
