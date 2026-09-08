@@ -364,7 +364,9 @@ if __name__ == "__main__":
                 delete_localdb()
                 time.sleep(1)
                 open_service(config)
-                get_service_logs(config.id)
+                logs = get_service_logs(config.id)
+                if logs:
+                    print(f"Service logs:\n{logs}")
             else:
                 open_services()
         elif op == 'close':
