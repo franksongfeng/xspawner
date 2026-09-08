@@ -26,7 +26,7 @@ async def open_database(category, **setting):
         required = ["usr", "psw", "host", "port", "name"]
         missing = [k for k in required if k not in setting]
         if missing:
-            raise ValueError(f"缺少参数: {missing}")
+            raise ValueError(f"Miss parameter: {missing}")
         else:
             conn_str = '{}://{}:{}@{}:{}/{}'.format(
                 category,
@@ -37,7 +37,7 @@ async def open_database(category, **setting):
                 quote_plus(setting["name"])
                 )
     else:
-        raise ValueError(f"非法类型: {category}")
+        raise ValueError(f"Invalid category: {category}")
     '''
     初始化连接并建表
     (去 orm 模块中查找模型类)
