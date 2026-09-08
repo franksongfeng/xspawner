@@ -377,6 +377,6 @@ if __name__ == "__main__":
             else:
                 close_services()
         else:
-            logger.error(f"ERR: invalid command {op}")
+            print(f"ERR: invalid command {op}")
     else:
-        logger.error(f"ERR: miss command")
+        print(f"ERR: miss command")
