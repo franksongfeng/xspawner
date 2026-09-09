@@ -2,10 +2,12 @@ import os
 import sys
 import subprocess
 import psutil
+import shutil
 import json
 import time
+import shlex
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, List, Any
 from xspawner.xspawner import Config
 from xspawner.constants import LOCAL_DB, LOG_FILE
 from xspawner.utilities.log import Log
@@ -73,120 +75,75 @@ def get_service_status(service_name: str) -> Dict[str, Any]:
         return {'name': service_name, 'error': str(e)}
 
 
-def reload_systemd() -> bool:
-    """重新加载 systemd"""
+def _run_systemctl(command: List[str]) -> bool:
+    """执行 systemctl 命令的通用函数"""
     try:
         subprocess.run(
-            ["systemctl", "daemon-reload"],
+            ["systemctl"] + command,
             check=True,
             capture_output=True,
             text=True
         )
-        logger.info("systemd reload successful")
+        logger.info(f"systemctl {' '.join(command)} successful")
         return True
     except subprocess.CalledProcessError as e:
-        logger.error(f"systemd reload failed: {e.stderr}")
+        logger.error(f"systemctl {' '.join(command)} failed: {e.stderr}")
         return False
+
+
+def reload_systemd() -> bool:
+    """重新加载 systemd"""
+    return _run_systemctl(["daemon-reload"])
 
 def reload_service(service_name: str) -> bool:
     """重新加载 systemd"""
-    try:
-        subprocess.run(
-            ["systemctl", "reload", service_name],
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        logger.info(f"Service {service_name} reloaded successfully")
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Service {service_name} reload failed: {e.stderr}")
-        return False
+    return _run_systemctl(["reload", service_name])
 
 def start_service(service_name: str) -> bool:
     """启动服务"""
-    try:
-        subprocess.run(
-            ["systemctl", "start", service_name],
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        logger.info(f"Service {service_name} started successfully")
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Service {service_name} failed to start: {e.stderr}")
-        return False
+    return _run_systemctl(["start", service_name])
 
 def stop_service(service_name: str) -> bool:
     """停止服务"""
-    try:
-        subprocess.run(
-            ["systemctl", "stop", service_name],
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        logger.info(f"Service {service_name} stopped successfully")
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to stop service: {e.stderr}")
-        return False
+    return _run_systemctl(["stop", service_name])
 
 def enable_service(service_name: str) -> bool:
     """启用服务开机自启"""
-    try:
-        subprocess.run(
-            ["systemctl", "enable", service_name],
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        logger.info(f"Service {service_name} was set to start automatically on boot")
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to enable service: {e.stderr}")
-        return False
+    return _run_systemctl(["enable", service_name])
 
 def disable_service(service_name: str) -> bool:
     """禁用服务开机自启"""
-    try:
-        subprocess.run(
-            ["systemctl", "disable", service_name],
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        logger.info(f"Service {service_name} was disabled from starting automatically at boot")
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to disable service: {e.stderr}")
-        return False
+    return _run_systemctl(["disable", service_name])
 
 def get_exec_cmd(config: Config) -> str:
-    BASIC_CMD = "/usr/bin/python3 -u -m xspawner --id {} --plugin {} --host {} --port {}"
-    cmd = BASIC_CMD.format(config.id, config.plugin, config.host, config.port)
+    cmd_parts = [
+        "/usr/bin/python3", "-u", "-m", "xspawner",
+        "--id", shlex.quote(config.id),
+        "--plugin", shlex.quote(config.plugin),
+        "--host", shlex.quote(config.host),
+        "--port", str(config.port)
+    ]
 
 
     # add parent option
     if config.parent:
-        cmd += " --parent {}".format(config.parent)
+        cmd_parts.extend(["--parent", shlex.quote(config.parent)])
 
     # add access option
-    cmd += " --access {}".format(config.access)
+    cmd_parts.extend(["--access", shlex.quote(config.access)])
 
     # add reportup option
     if config.reportup:
-        cmd += " --reportup"
+        cmd_parts.extend(["--reportup"])
 
     # add log options
-    cmd += " --log --severity {}".format(config.severity)
+    cmd_parts.extend(["--log", "--severity", shlex.quote(config.severity)])
 
     # add ssl options
     if config.ssl and config.certfile and config.keyfile:
-        cmd += " --ssl --certfile {} --keyfile {}".format(config.certfile, config.keyfile)
+        cmd_parts.extend(["--ssl", "--certfile", shlex.quote(config.certfile), "--keyfile", shlex.quote(config.keyfile)])
 
-    return cmd
+    return " ".join(cmd_parts)
 
 
 def generate_service_file(config: Config) -> str:
@@ -299,18 +256,7 @@ def reset_service(service_name: str) -> bool:
 # 辅助函数：重启服务
 def restart_service(service_name: str) -> bool:
     """重启服务"""
-    try:
-        subprocess.run(
-            ["systemctl", "restart", service_name],
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        logger.info(f"Restarted service {service_name}")
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.info( f"Failed to restart service {service_name}: {e}")
-        return False
+    return _run_systemctl(["restart", service_name])
 
 
 # 辅助函数：获取服务日志
@@ -330,14 +276,20 @@ def get_service_logs(service_name: str, lines: int = 50) -> Optional[str]:
         return None
 
 
-def is_running_by_psutil(proc_name: str):
+def is_running_by_psutil(proc_name: str) -> bool:
     for proc in psutil.process_iter(['name', 'pid']):
         if proc.info['name'] == proc_name:
             return True
+    return False
 
-
-def delete_localdb():
+def delete_localdb(backup: bool = True):
     dbf = LOCAL_DB
+
+    # backup db to be removed
+    if backup and os.path.exists(dbf):
+        shutil.copy2(dbf, f"{dbf}.bak")
+        logger.info(f"Backup created at {dbf}.bak")
+
     files_to_delete = [dbf, f"{dbf}-shm", f"{dbf}-wal"]
     for fname in files_to_delete:
         if os.path.exists(fname):
