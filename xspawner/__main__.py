@@ -13,7 +13,6 @@ import importlib
 
 from . import __version__
 from .constants import *
-from .xspawner import Config
 from .utilities.misc import get_similar_cls
 
 if __name__ == '__main__':

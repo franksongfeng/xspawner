@@ -8,8 +8,7 @@ import time
 import shlex
 
 from typing import Optional, Dict, List, Any
-from xspawner.xspawner import Config
-from xspawner.constants import LOCAL_DB, LOG_FILE
+from xspawner.constants import Config, LOCAL_DB, LOG_FILE
 from xspawner.utilities.log import Log
 
 WORKING_DIR = "/opt/xspawner"

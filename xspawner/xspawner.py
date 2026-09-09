@@ -31,7 +31,7 @@ import base64
 import ssl
 from urllib.parse import urlparse
 from typing import Optional, List, Dict
-from collections import namedtuple, UserDict
+from collections import UserDict
 
 from .utilities.log import * # NOQA
 from .utilities.client import * # NOQA
@@ -39,8 +39,6 @@ from .utilities.msg import * # NOQA
 from .utilities.misc import * # NOQA
 from .constants import * # NOQA
 from .orm import * #NOQA
-
-Config = namedtuple('Config', ['id', 'plugin', 'host', 'port', 'access', 'parent', 'reportup', 'log', 'severity', 'ssl', 'certfile', 'keyfile'])
 
 
 INTERNAL_HANDLERS = ["PingPongHandler", "HomePageHandler", "ResourceHandler"]
