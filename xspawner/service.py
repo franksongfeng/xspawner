@@ -204,7 +204,7 @@ def open_service(config: Config) -> bool:
 
 
 def open_services():
-    # TODO: open all services on local db
+    # TODO: open all services on local db with cascade style
     pass
 
 def close_service(service_name) -> bool:
@@ -236,7 +236,7 @@ def close_service(service_name) -> bool:
         return False
 
 def close_services():
-    # TODO: close all services on local db
+    # TODO: close all services on local db with cascade style
     pass
 
 # 辅助函数：重置服务
