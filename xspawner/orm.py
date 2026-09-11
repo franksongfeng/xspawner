@@ -127,6 +127,6 @@ def config_model_to_dict(model: Configuration) -> dict:
         'ssl': model.ssl,
         'certfile': model.certfile,
         'keyfile': model.keyfile,
-        'parent': model.parent_id if model.parent else ""
+        'parent': model.parent_id or ""
     }
 

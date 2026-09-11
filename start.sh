@@ -6,7 +6,7 @@ mkdir -p \
     /var/log/xspawner
 
 # open xspawner service
-python3 -m xspawner.service open ./xspawner.json
+python3 -m xspawner.service start ./xspawner.json
 
 # execute test
 # sleep 1

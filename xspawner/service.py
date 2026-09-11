@@ -6,6 +6,7 @@ import shutil
 import json
 import time
 import shlex
+import requests
 
 from typing import Optional, Dict, List, Any
 from xspawner.constants import Config, LOCAL_DB, LOG_FILE
@@ -177,6 +178,8 @@ def open_service(config: Config) -> bool:
             f.write(service_content)
         logger.info(f"Wrote service file {service_path};")
 
+        # 4. 停止（幂等），确保旧进程别停
+        stop_service(service_name)
 
         # 5. 重新加载 systemd
         if not reload_systemd():
@@ -202,11 +205,7 @@ def open_service(config: Config) -> bool:
         return False
 
 
-def open_services():
-    # TODO: open all services on local db with cascade style
-    pass
-
-def close_service(service_name) -> bool:
+def close_service(service_name: str) -> bool:
     """移除 systemd service 文件"""
     logger.info(f"close_service BEG {service_name}")
     try:
@@ -234,9 +233,6 @@ def close_service(service_name) -> bool:
         logger.error(f"Exception occurred when removing service: {e}")
         return False
 
-def close_services():
-    # TODO: close all services on local db with cascade style
-    pass
 
 # 辅助函数：重置服务
 def reset_service(service_name: str) -> bool:
@@ -301,33 +297,79 @@ def delete_localdb(backup: bool = True):
             logger.warning(f"doesnt exist: {fname}")
 
 
+def wait_for_service_ready(host: str, port: int, timeout: int = 60, interval: float = 0.5) -> bool:
+    """轮询 /ping 直到服务就绪或超时"""
+    url = "http://127.0.0.1:{}/ping".format(port)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            resp = requests.get(url, timeout=2)
+            if resp.status_code == 200:
+                logger.info(f"Service at {host}:{port} is ready")
+                return True
+        except Exception:
+            pass
+        time.sleep(interval)
+    logger.error(f"Service at {host}:{port} not ready after {timeout}s")
+    return False
+
+def wait_for_service_stopped(service_name: str, timeout: int = 30, interval: float = 0.5) -> bool:
+    """轮询 systemctl is-active，直到服务不再 active 或超时"""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        result = subprocess.run(
+            ["systemctl", "is-active", service_name],
+            capture_output=True, text=True, check=False
+        )
+        state = result.stdout.strip()
+        if state not in ("active", "activating", "deactivating"):
+            logger.info(f"Service {service_name} is stopped (state={state})")
+            return True
+        time.sleep(interval)
+    logger.error(f"Service {service_name} still active after {timeout}s")
+    return False
+
 if __name__ == "__main__":
-    if len(sys.argv) >= 2:
+    if len(sys.argv) == 3:
         op = sys.argv[1]
-        config = None
-        if len(sys.argv) == 3:
-            json_path = sys.argv[2]
-            with open(json_path, 'r') as f:
+        file = sys.argv[2]
+        if os.path.isfile(file):
+            with open(file, 'r') as f:
                 data = json.load(f)
-                config = Config(**data)
-        if op == 'open':
-            if config:
-                delete_localdb()
-                time.sleep(1)
-                if open_service(config):
-                    logs = get_service_logs(config.id)
-                    if logs:
-                        print(f"Service logs:\n{logs}")
-                    print(f"Service {config} is open.")
+                cfg = Config(**data)
+                srv_id = cfg.id
+            if op == 'start':
+                if open_service(cfg):
+                    # wait service ready really
+                    if not wait_for_service_ready(cfg.host, cfg.port, timeout=60):
+                        print(f"Error: service {srv_id} did not become ready in time")
+                        sys.exit(1)
+                    logs = get_service_logs(srv_id)
+                    print(f"Service logs:\n{logs}")
+                    child_ids = requests.post("http://{}:{}/get_children".format(cfg.host, cfg.port), json={}).json()
+                    for child_id in child_ids:
+                        time.sleep(1)
+                        res = requests.post("http://{}:{}/start_child".format(cfg.host, cfg.port), json={"id": child_id}).json()
+                        print(f"Child {child_id} started: {res}")
+                    print(f"Service {srv_id} is started. Its descendants should be started in turn.")
+                else:
+                    print(f"Error: failed to start service {srv_id}")
+            elif op == 'stop':
+                close_service(srv_id)
+                print(f"Service {srv_id} and its descendants are stopped.")
+            elif op == 'drop':
+                child_ids = requests.post("http://{}:{}/get_children".format(cfg.host, cfg.port), json={}).json()
+                for child_id in child_ids:
+                    requests.post("http://{}:{}/stop_child".format(cfg.host, cfg.port), json={"id":child_id})
+                if close_service(srv_id):
+                    if not wait_for_service_stopped(srv_id, timeout=30):
+                        print(f"Warning: service {srv_id} still not fully stopped, "
+                              f"database may be locked")
+                    delete_localdb()
+                    print(f"The whole service {srv_id} including its descendants are dropped.")
+                else:
+                    print(f"Error: failed to stop service {srv_id}!")
             else:
-                open_services()
-        elif op == 'close':
-            if config:
-                if close_service(config.id):
-                    print(f"Service {config} is close.")
-            else:
-                close_services()
-        else:
-            print(f"ERR: invalid command {op}")
+                print(f"Error: invalid command {op}")
     else:
-        print(f"ERR: miss command")
+        print(f"Error: miss command")

@@ -94,7 +94,7 @@ class ApiHandler(tornado.web.RequestHandler):
         if path in self.path_map:
             elem = (future, condition, path, headers, body)
             await q.put(elem)
-            cond_res = await condition.wait(timeout=datetime.timedelta(seconds=5))
+            cond_res = await condition.wait(timeout=datetime.timedelta(seconds=60))
             if cond_res and future._state == 'FINISHED':
                 if isinstance(future.result(), tuple):
                     # download file
@@ -132,7 +132,7 @@ class ApiHandler(tornado.web.RequestHandler):
         if path in self.path_map:
             elem = (future, condition, path, headers, body)
             await q.put(elem)
-            cond_res = await condition.wait(timeout=datetime.timedelta(seconds=5))
+            cond_res = await condition.wait(timeout=datetime.timedelta(seconds=60))
             if cond_res and future._state == 'FINISHED':
                 if isinstance(future.result(), tuple):
                     # download file
@@ -323,37 +323,29 @@ class Spawnable(object):
     def getConfig(self):
         raise NotImplementedError
 
-    async def persist(self):
+    async def provision(self):
         raise NotImplementedError
 
-    async def getAll(self):
+    async def getModels(self):
         raise NotImplementedError
 
-    async def getOne(self, id):
+    async def getModel(self, id):
         raise NotImplementedError
 
-    async def delOne(self, id):
+    async def delModel(self, id):
         raise NotImplementedError
 
-    async def addOne(self, config):
+    async def addModel(self, config):
         raise NotImplementedError
 
     async def getChildren(self):
-        raise NotImplementedError
-
-    async def getChild(self, id):
-        raise NotImplementedError
-
-    async def delChild(self, id):
-        raise NotImplementedError
-
-    async def addChild(self, config):
         raise NotImplementedError
 
 
 class XSpawner(Spawnable):
     _instance = None
     _logger = None
+    _loop = None
     _config: Config = None
 
     # host is external access address
@@ -372,16 +364,16 @@ class XSpawner(Spawnable):
         self._ioloop = tornado.ioloop.IOLoop.current()
 
         # save config in local db
-        self._ioloop.add_callback(self.persist)
+        self._ioloop.add_callback(self.provision)
 
         # create request queue
         self._req_queue = tornado.queues.Queue(256)
         self._ioloop.add_callback(self.loop)
 
         # use CurlHTTPClient for more stable Connection
-        tornado.httpclient.AsyncHTTPClient.configure(
-            "tornado.curl_httpclient.CurlAsyncHTTPClient"
-        )
+        # tornado.httpclient.AsyncHTTPClient.configure(
+        #     "tornado.curl_httpclient.CurlAsyncHTTPClient"
+        # )
 
         # start logger
         self._logger = Log(
@@ -525,7 +517,7 @@ class XSpawner(Spawnable):
         self._server.listen(self.getConfig().port, address=self.getConfig().access)
         self.iLog("listening to port {}...".format(self.getConfig().port))
         self._ioloop.start()
-        self.iLog("ioloop is started")
+        self.iLog("ioloop is running ...")
         self._ioloop.close()
         self.iLog("start END")
 
@@ -547,53 +539,55 @@ class XSpawner(Spawnable):
     def getConfig(self) -> Config:
         return self._config
 
-    async def persist(self):
-        self.iLog(f"persist BEG")
+    async def provision(self):
+        self.iLog(f"provision BEG")
         await open_database("sqlite", file=LOCAL_DB)
-        await tornado.gen.sleep(1.0)
-        await self.addOne(self.getConfig())
-        self.iLog(f"persist END")
+        if not await self.getModel(self.getConfig().id):
+            await tornado.gen.sleep(1.0)
+            await self.addModel(self.getConfig())
+            self.iLog(f"new a model {self.getConfig()}")
+        self.iLog(f"provision END")
 
-    async def getAll(self) -> Optional[List[Dict]]:
-        self.iLog(f"getAll BEG")
+    async def getModels(self) -> Optional[List[Dict]]:
+        self.iLog(f"getModels BEG")
         try:
             models = await Configuration.all()
             ones = [config_model_to_dict(m) for m in models]
-            self.iLog(f"getAll END {len(ones)}")
+            self.iLog(f"getModels END {len(ones)}")
             return ones
         except Exception as e:
-            self.eLog(f'getAll EXP {e}')
+            self.eLog(f'getModels EXP {e}')
             return None
 
-    async def getOne(self, id: str) -> Optional[Dict]:
-        self.iLog(f"getOne BEG {id}")
+    async def getModel(self, id: str) -> Optional[Dict]:
+        self.iLog(f"getModel BEG {id}")
         try:
             model = await Configuration.get(id=id)
         except DoesNotExist:
-            self.iLog(f"getOne END No")
+            self.iLog(f"getModel END No")
             return None
         except Exception as e:
-            self.eLog(f'getOne EXP {e}')
+            self.eLog(f'getModel EXP {e}')
             return None
         one = config_model_to_dict(model)
-        self.iLog(f"getOne END {one}")
+        self.iLog(f"getModel END {one}")
         return one
 
-    async def delOne(self, id: str) -> bool:
-        self.iLog(f"delOne BEG {id}")
+    async def delModel(self, id: str) -> bool:
+        self.iLog(f"delModel BEG {id}")
         try:
             model = await Configuration.get(id=id)
             await model.delete()
-            self.iLog("delOne END")
+            self.iLog("delModel END")
             return True
         except DoesNotExist:
-            self.iLog(f"delOne END No")
+            self.iLog(f"delModel END No")
         except Exception as e:
-            self.eLog(f'delOne EXP {e}')
+            self.eLog(f'delModel EXP {e}')
         return False
 
-    async def addOne(self, config: Config) -> Optional[Dict]:
-        self.iLog(f"addOne BEG {config}")
+    async def addModel(self, config: Config) -> Optional[Dict]:
+        self.iLog(f"addModel BEG {config}")
         data = config._asdict()
         if data.get('parent'):
             parent_id = data['parent']
@@ -613,66 +607,22 @@ class XSpawner(Spawnable):
         try:
             model = await Configuration.create(**data)
             rt = config_model_to_dict(model)
-            self.iLog(f"addOne END {rt}")
+            self.iLog(f"addModel END {rt}")
         except Exception as e:
-            self.eLog(f'addOne EXP {e}')
+            self.eLog(f'addModel EXP {e}')
 
-    async def getChildren(self) -> List[Dict]:
-        self.iLog(f"getChildren BEG {self.getConfig().id}")
+    async def getChildren(self) -> List[str]:
+        self.iLog(f"getChildren BEG")
         try:
             models = await Configuration.filter(parent=self.getConfig().id).all()
-            self.iLog(f"Type: {type(models)} Len: {len(models)} Models: {models}")
-            for idx, m in enumerate(models):
-                self.iLog(f"Element {idx}: type={type(m)}, class={m.__class__}, is Configuration? {isinstance(m, Configuration)}")
-            ones = [config_model_to_dict(m) for m in models]
-            self.iLog(f"getChildren END {len(ones)}")
-            return ones
+            self.iLog(f"Type: {type(models)} Len: {len(models)} Models: {models}") # Models: [Configuration]
+            ids = [m.id for m in models]
+            self.iLog(f"getChildren END {ids}")
+            return ids
         except Exception as e:
             self.eLog(f'getChildren EXP {e}')
             return []
 
-    async def getChild(self, id: str) -> Optional[Dict]:
-        self.iLog(f"getChild BEG {id}")
-        ones = await self.getChildren()
-        for one in ones:
-            if one["id"] == id:
-                self.iLog(f"getChild END {one}")
-                return one
-        self.iLog("getChild END No")
-        return None
-
-    async def delChild(self, id: str) -> bool:
-        self.iLog(f"delChild BEG {id}")
-        one = await self.getChild(id)
-        if one:
-            rt = await self.delOne(id)
-        else:
-            rt = False
-        self.iLog(f"delChild END {rt}")
-        return rt
-
-    async def addChild(self, config: Config) -> Optional[Dict]:
-        self.iLog(f"addChild BEG {config}")
-        data = config._asdict()
-        parent_id = self.getConfig().id
-        try:
-            parent_obj = await Configuration.get(id=parent_id)
-            data['parent'] = parent_obj
-        except DoesNotExist:
-            self.eLog(f"Parent '{parent_id}' not found, setting parent to None")
-            data['parent'] = None 
-
-        if data.get('certfile') is None:
-            data['certfile'] = ""
-        if data.get('keyfile') is None:
-            data['keyfile'] = ""
-        try:
-            model = await Configuration.create(**data)
-            rt = config_model_to_dict(model)
-            self.iLog(f"addChild END {rt}")
-            return rt
-        except Exception as e:
-            self.eLog(f'addChild EXP {e}')
 
     # implement singleton
     @classmethod
@@ -730,6 +680,24 @@ class XSpawner(Spawnable):
         } if fdata or fname else {}
         headers, body = make_multipart_request(args, docs)
         return await postAsync(url, headers, body)
+
+    async def waitForService(self, port, host="127.0.0.1", timeout=30, interval=0.5):
+        self.iLog(f"waitForService BEG host={host} port={port} timeout={timeout}")
+        deadline = time.time() + timeout
+        tcp_client = tornado.tcpclient.TCPClient()
+        attempt = 0
+        while time.time() < deadline:
+            attempt += 1
+            try:
+                stream = await tcp_client.connect(host, port)
+                stream.close()
+                self.iLog(f"waitForService END ready {host}:{port} (attempt {attempt})")
+                return True
+            except Exception as e:
+                self.iLog(f"waitForService attempt {attempt} failed: {type(e).__name__}: {e}")
+            await tornado.gen.sleep(interval)
+        self.eLog(f"waitForService END timeout {host}:{port}")
+        return False
 
     def getLogFile(self):
         return LOG_FILE
@@ -803,8 +771,3 @@ def search_for_class_in_package(fpath, class_name):
                         return srv_cls
     print("search_for_class_in_package END {}".format(None))
 
-def config_model_to_tuple(model: Configuration) -> Config:
-    if not isinstance(model, Configuration):
-        raise TypeError(f"Expected Configuration instance, got {type(model)}")
-    data = config_model_to_dict(model)
-    return Config(**data)

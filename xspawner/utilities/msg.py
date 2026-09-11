@@ -128,6 +128,6 @@ def parse_sse_event(data: str) -> dict:
             try:
                 result['data'] = json.loads(json_str)
             except json.JSONDecodeError:
-                result['data'] = json_str
+                result['data'] = None
 
     return result

@@ -76,8 +76,9 @@ class Supervisor(Spawner): # NOQA
         if children:
             put_html(tab_title.format("服务"))
             content = []
-            for elm in children:
-                content.append(put_link(elm["id"], url="{}/".format(self.getAddr(elm["port"]))))
+            for child_id in children:
+                child = await self.getModel(child_id)
+                content.append(put_link(child_id, url="{}/".format(self.getAddr(child["port"]))))
             put_row(content)
 
         put_html(tab_title.format("操作"))
@@ -100,7 +101,7 @@ class Supervisor(Spawner): # NOQA
         def check_mod_file(filename):
             if get_file_type(filename) != "text/x-python":
                 return False
-            mod , _ = fname.split(".")
+            mod , _ = filename.split(".")
             if "__" in mod:
                 return False
             return True
@@ -149,7 +150,7 @@ class Supervisor(Spawner): # NOQA
             put_error('Blank space is not allowed in id')
             return
 
-        if data["port"] < 1000 and data["port"] > 65535:
+        if data["port"] < 1000 or data["port"] > 65535:
             put_error('Invalid port number <1000 or > 65535')
             return
 
@@ -165,8 +166,7 @@ class Supervisor(Spawner): # NOQA
         srvseverity = data["severity"]
 
         if srvname:
-            elm = await self.getChild(srvname)
-            if elm:
+            if srvname in await self.getChildren():
                 put_error('Repeated server id {}!'.format(srvname))
                 return
 
@@ -175,7 +175,6 @@ class Supervisor(Spawner): # NOQA
                 put_error('Port has been used {}!'.format(srvport))
                 return
 
-        os.chdir(os.getcwd())
 
         srvcls = None
         pkgfname = None
@@ -266,9 +265,8 @@ class Supervisor(Spawner): # NOQA
             def set_value_and_close_popup(v):
                 set_value(v)
                 close_popup()
-            srv_names = [server["id"] for server in children]
             with popup('选择已运行的服务'):
-                put_buttons(srv_names, onclick=set_value_and_close_popup, outline=True)
+                put_buttons(children, onclick=set_value_and_close_popup, outline=True)
 
         self.iLog("{}::_delete BEG".format(self.__class__.__name__))
         set_env(title="服务销毁", output_animation=False)
@@ -287,7 +285,11 @@ class Supervisor(Spawner): # NOQA
             ]
         )
 
-        elm = await self.getChild(data["id"])
+        if not data["id"]:
+            put_error("Please input a server id")
+            return
+
+        elm = await self.getModel(data["id"])
         srvname = elm["id"]
         srvaddr = self.getAddr(elm["port"])
 
@@ -328,6 +330,9 @@ class Supervisor(Spawner): # NOQA
     def _dbg_output(self):
         try:
             self.iLog("_debug_output BEG")
+            if not hasattr(self, "_dbg_data"):
+                put_error("没有调试数据")
+                return
             exec(self._dbg_data["code"], globals(), locals())
             if self._dbg_data["func"] == "Eval":
                 ldata = locals().copy()

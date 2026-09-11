@@ -18,6 +18,7 @@ import importlib
 import unittest
 import os
 import sys
+import io
 import json
 import traceback
 import hashlib
@@ -45,7 +46,7 @@ class Spawner(XSpawner): # NOQA
         return self._reports
 
     def setReport(self, report):
-        return self._reports.update(report)
+        self._reports.update(report)
 
     @ApiHandler.route("/get_config")
     def _get_config(self, headers: dict, data: dict):
@@ -55,76 +56,102 @@ class Spawner(XSpawner): # NOQA
     async def _get_children(self, headers: dict, data: dict):
         return await self.getChildren()
 
-    @ApiHandler.route("/add_child")
-    async def _add_child(self, headers: dict, data: dict):
-        self.iLog("{}::_add_child BEG {}".format(self.__class__.__name__, data))
-        await self.addChild(Config(**data))
-
-        # add reportup flow
-        srvaddr = self.getAddr(data["port"])
-        if self.getConfig().reportup:
-            self.addFlow(f"{srvaddr}/report/state?interval=1", self.on_state)
-        self.iLog("{}::_add_child END".format(self.__class__.__name__))
-        return True
 
     @ApiHandler.route("/start_child")
     async def _start_child(self, headers: dict, data: dict):
         self.iLog("{}::_start_child BEG {}".format(self.__class__.__name__, data))
-        if "port" not in data \
-        or "id" not in data \
-        or "plugin" not in data:
-            self.eLog(f"Failed to start child, miss port or id or plugin in data {data}")
+        if "id" not in data:
+            self.eLog(f"Failed to start child, No id key in data {data}") 
             return False
 
-        srvparent = self.getConfig().id
-        child_config = self.getConfig()._replace(port=data["port"], id=data["id"], plugin=data["plugin"], parent=srvparent)
-        if not open_service(child_config)
-            self.eLog(f"failed to start child {child_config.id}!")
+        model = await self.getModel(data["id"])
+        if model:
+            child_config = Config(**model)
+        else:
+            child_config = self.getConfig()._replace(**data)._replace(parent=self.getConfig().id)
+
+        # open systemed service
+        if open_service(child_config):
+            self.iLog(f"successfully start child {child_config}!")
+        else:
+            self.eLog(f"failed to start child {child_config}!")
             return False
 
-        await tornado.gen.sleep(1)
+        # wait child service ready
+        child_addr = self.getAddr(child_config.port)
+        loop = self._ioloop.asyncio_loop
+        ok = await loop.run_in_executor(None, _wait_port_sync, child_config.port)
+        if not ok:
+            self.eLog(f"child {child_addr} did not become ready in 30s")
+            return False
+        self.iLog(f"child {child_addr} is ready")
+
+        # add report
+        if self.getConfig().reportup:
+            srvaddr = self.getAddr(child_config.port)
+            self.addFlow(f"{srvaddr}/report/state?interval=1", self.on_state)
+
+        # open sub systemd service
+        grand_children = await self.postJson(f"{child_addr}/get_children", {})
+        if grand_children:
+            for grand_child in grand_children:
+                res = await self.postJson(f"{child_addr}/start_child", {"id":grand_child})
+                if res:
+                    self.iLog("Successful request to {}/start_child {}: {}".format(child_addr, grand_child, res))
+                else:
+                    self.eLog("Exception request to {}/start_child {}".format(child_addr, grand_child))
+                    return False
+                await tornado.gen.sleep(1)
 
         sts = get_service_status(data["id"])
         pid = sts["pid"]
         self.iLog(f"service status: {sts}")
 
-        pkgdir = "{}/{}".format(PLUGIN_DIR, data["plugin"])
-        if os.path.exists(pkgdir):
-            pkgfname = "{}/{}.py".format(pkgdir, data["plugin"])
-        else:
-            pkgfname = "{}.py".format(pkgdir)
-        srvcls = search_for_class_in_file(pkgfname, "Spawner")
-
-        new_srv = {"cls": srvcls.__name__, "pid": int(pid)}
-        self.iLog("{}::_start_child END {}".format(self.__class__.__name__, new_srv))
-        return new_srv
+        rt = {"id": data["id"], "pid": int(pid) if pid is not None else None}
+        self.iLog("{}::start_child END {}".format(self.__class__.__name__, rt))
+        return rt
 
     @ApiHandler.route("/stop_child")
     async def _stop_child(self, headers: dict, data: dict):
         self.iLog("{}::_stop_child BEG {}".format(self.__class__.__name__, data))
         if "id" not in data:
-            self.eLog(f"Miss id in data {data}")
+            self.eLog(f"Failed to stop child, No id key in data {data}")
             return False
 
-        child = await self.getChild(data["id"])
-        child_addr = self.getAddr(child["port"])
+        child_id = data["id"]
+        model = await self.getModel(child_id)
 
-        grand_children = await self.postJson(f"{child_addr}/get_children", {})
-        if grand_children:
-            for grand_child in grand_children:
-                res = await self.postJson(f"{child_addr}/stop_child", {"id":grand_child["id"]})
-                if res is None:
-                    self.eLog("Exception request to {}/stop_child".format(child_addr))
-                    return False
-                await tornado.gen.sleep(0.2)
-            await tornado.gen.sleep(0.5)
+        if model:
+            # close sub systemd service
+            child_addr = self.getAddr(model["port"])
+            grand_children = await self.postJson(f"{child_addr}/get_children", {})
+            if grand_children:
+                for grand_child in grand_children:
+                    res = await self.postJson(f"{child_addr}/stop_child", {"id":grand_child})
+                    if res:
+                        self.iLog("Successful request to {}/stop_child {}".format(child_addr, grand_child))
+                    else:
+                        self.eLog("Exception request to {}/stop_child {}".format(child_addr, grand_child))
+                        return False
+                    await tornado.gen.sleep(0.2)
+                await tornado.gen.sleep(0.5)
 
-        await self.delOne(data["id"])
-        rt = close_service(child["id"])
-        self.iLog(f"delete service: {rt}")
+        sts = get_service_status(child_id)
+        pid = sts["pid"]
+        self.iLog(f"service status: {sts}")
 
-        self.iLog("{}::_stop_child END".format(self.__class__.__name__))
-        return True
+        # close systemed service
+        if close_service(child_id):
+            if await self.delModel(child_id):
+                self.iLog(f"successfully rm model {child_id}")
+            else:
+                self.eLog(f"failed to rm model {child_id}!")
+            rt = {"id": child_id, "pid": int(pid) if pid is not None else None}
+            self.iLog("{}::_stop_child END {}".format(self.__class__.__name__, rt))
+            return rt
+        else:
+            self.eLog(f"failed to stop service {child_id}!")
+            return False
 
     @ApiHandler.route("/clean_plugin")
     async def _clean_plugin(self, headers: dict, data: dict):
@@ -134,8 +161,13 @@ class Spawner(XSpawner): # NOQA
             return False
 
         srvapp = data["plugin"]
+
+        if srvapp == "spawner" or srvapp == "supervisor":
+            self.wLog("refuse to clean spawner itself")
+            return False
+
         pkgdir = f"{PLUGIN_PKG}.{srvapp}".replace('.', '/')
-        if os.path.exists(pkgdir) and srvapp != "spawner":
+        if os.path.isdir(pkgdir):
             shutil.rmtree(pkgdir)
             self.iLog(f"directory {pkgdir} is deleted")
         else:
@@ -168,7 +200,7 @@ class Spawner(XSpawner): # NOQA
             return False
         srvapp = data["plugin"]
         pkgdir = f"{PLUGIN_PKG}.{srvapp}".replace('.', '/')
-        if os.path.exists(pkgdir):
+        if os.path.isdir(pkgdir):
             fname = srvapp + ".zip"
             try:
                 zip_folder(pkgdir, fname, ["__pycache__", ".git", "logs"])
@@ -198,7 +230,7 @@ class Spawner(XSpawner): # NOQA
     async def _upload_plugin(self, headers: dict, fdata: bytes, fname: str, fargs: dict):
         self.iLog("{}::_upload_plugin BEG {} {} {}".format(self.__class__.__name__, len(fdata), fname, fargs))
         if "plugin" in fargs:
-            srvapp = data["plugin"]
+            srvapp = fargs["plugin"]
         else:
             srvapp = os.path.splitext(os.path.basename(fname))[0]
         if get_file_type(fname) == "application/zip":
@@ -291,3 +323,17 @@ class Spawner(XSpawner): # NOQA
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+
+def _wait_port_sync(port, host="127.0.0.1", timeout=30, interval=0.5):
+
+    """同步探测 TCP 端口是否可连接，简单粗暴"""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=1):
+                return True
+        except OSError:
+            pass
+        time.sleep(interval)
+    return False
