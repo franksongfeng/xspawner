@@ -368,6 +368,8 @@ if __name__ == "__main__":
                 child_ids = requests.post("http://{}:{}/get_children".format(cfg.host, cfg.port), json={}).json()
                 for child_id in child_ids:
                     requests.post("http://{}:{}/stop_child".format(cfg.host, cfg.port), json={"id":child_id})
+                    if not wait_for_service_stopped(child_id, timeout=30):
+                        print(f"Warning: service {child_id} still not fully stopped")
                 if close_service(srv_id):
                     if not wait_for_service_stopped(srv_id, timeout=30):
                         print(f"Warning: service {srv_id} still not fully stopped, "
