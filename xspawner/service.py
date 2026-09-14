@@ -60,15 +60,16 @@ def get_service_status(service_name: str) -> Dict[str, Any]:
                 key, value = line.split('=', 1)
                 status[key] = value
 
-        return {
-            'name': service_name,
-            'active': status.get('ActiveState', 'unknown'),
-            'status': status.get('SubState', 'unknown'),
-            'loaded': status.get('LoadState', 'unknown'),
-            'pid': status.get('MainPID', '0'),
-            'memory': status.get('MemoryCurrent', '0'),
-            'cpu': status.get('CPUUsageNSec', '0')
-        }
+        # return value is like
+        # {
+        #     'ActiveState': 'active',          # active
+        #     'SubState': 'running',            # sub state
+        #     'LoadState': 'loaded',            # load status
+        #     'MainPID': '631992',              # pid（字符串）
+        #     'MemoryCurrent': '55406592',      # memory（字节，字符串）
+        #     'CPUUsageNSec': '123456789'       # cpu（纳秒，字符串）
+        # }
+        return status
 
     except Exception as e:
         logger.error(f"Failed to get service status: {e}")
@@ -77,6 +78,7 @@ def get_service_status(service_name: str) -> Dict[str, Any]:
 
 def _run_systemctl(command: List[str]) -> bool:
     """执行 systemctl 命令的通用函数"""
+    logger.info(f"_run_systemctl BEG {command}")
     try:
         subprocess.run(
             ["systemctl"] + command,
@@ -85,6 +87,7 @@ def _run_systemctl(command: List[str]) -> bool:
             text=True
         )
         logger.info(f"systemctl {' '.join(command)} successful")
+        logger.info(f"_run_systemctl END true")
         return True
     except subprocess.CalledProcessError as e:
         logger.error(f"systemctl {' '.join(command)} failed: {e.stderr}")
@@ -170,7 +173,7 @@ def open_service(config: Config) -> bool:
 
         # 2. 生成服务文件内容
         service_content = generate_service_file(config)
-        logger.info(service_content)
+        logger.info("service content: {}".format(service_content))
 
         # 3. 写入服务文件
         service_path = f"{SERVICE_DIR}/{service_name}.service"
@@ -178,8 +181,10 @@ def open_service(config: Config) -> bool:
             f.write(service_content)
         logger.info(f"Wrote service file {service_path};")
 
-        # 4. 停止（幂等），确保旧进程别停
-        stop_service(service_name)
+        # 4. 确保旧进程别停（幂等）
+        sts = get_service_status(service_name)
+        if sts["LoadState"] == "loaded":
+            stop_service(service_name)
 
         # 5. 重新加载 systemd
         if not reload_systemd():
@@ -197,7 +202,7 @@ def open_service(config: Config) -> bool:
             return False
 
         logger.info(f"Started {service_name} service successfully.")
-        logger.info(f"open_service END True")
+        logger.info(f"open_service END true")
         return True
         
     except Exception as e:
@@ -237,11 +242,12 @@ def close_service(service_name: str) -> bool:
 # 辅助函数：重置服务
 def reset_service(service_name: str) -> bool:
     """重置服务（停止、禁用、重新加载）"""
+    logger.info(f"reset_service BEG {service_name}")
     try:
         stop_service(service_name)
         disable_service(service_name)
         reload_systemd()
-        logger.info(f"Reset service {service_name}")
+        logger.info(f"reset_service END true")
         return True
     except Exception as e:
         logger.info(f"Failed to reset service {service_name}: {e}")
@@ -338,6 +344,7 @@ if __name__ == "__main__":
                 data = json.load(f)
                 cfg = Config(**data)
                 srv_id = cfg.id
+            print(f"Top service: {cfg}")
             if op == 'start':
                 if open_service(cfg):
                     # wait service ready really

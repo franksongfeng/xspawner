@@ -80,7 +80,7 @@ class Spawner(XSpawner): # NOQA
         # wait child service ready
         child_addr = self.getAddr(child_config.port)
         loop = self._ioloop.asyncio_loop
-        ok = await loop.run_in_executor(None, _wait_port_sync, child_config.port)
+        ok = await loop.run_in_executor(None, _wait_port_sync, child_config.port, child_config.host, 120)
         if not ok:
             self.eLog(f"child {child_addr} did not become ready in 30s")
             return False
@@ -104,7 +104,7 @@ class Spawner(XSpawner): # NOQA
                 await tornado.gen.sleep(1)
 
         sts = get_service_status(data["id"])
-        pid = sts["pid"]
+        pid = sts["MainPID"]
         self.iLog(f"service status: {sts}")
 
         rt = {"id": data["id"], "pid": int(pid) if pid is not None else None}
@@ -137,7 +137,7 @@ class Spawner(XSpawner): # NOQA
                 await tornado.gen.sleep(0.5)
 
         sts = get_service_status(child_id)
-        pid = sts["pid"]
+        pid = sts["MainPID"]
         self.iLog(f"service status: {sts}")
 
         # close systemed service
