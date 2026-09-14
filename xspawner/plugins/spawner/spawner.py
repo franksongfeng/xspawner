@@ -104,10 +104,10 @@ class Spawner(XSpawner): # NOQA
                 await tornado.gen.sleep(1)
 
         sts = get_service_status(data["id"])
-        pid = sts["MainPID"]
+        pid = int(sts["MainPID"]) if sts["ActiveState"] == "active" else None
         self.iLog(f"service status: {sts}")
 
-        rt = {"id": data["id"], "pid": int(pid) if pid is not None else None}
+        rt = {"id": data["id"], "pid": pid}
         self.iLog("{}::start_child END {}".format(self.__class__.__name__, rt))
         return rt
 
@@ -137,7 +137,7 @@ class Spawner(XSpawner): # NOQA
                 await tornado.gen.sleep(0.5)
 
         sts = get_service_status(child_id)
-        pid = sts["MainPID"]
+        pid = int(sts["MainPID"]) if sts["ActiveState"] == "active" else None
         self.iLog(f"service status: {sts}")
 
         # close systemed service
@@ -146,7 +146,7 @@ class Spawner(XSpawner): # NOQA
                 self.iLog(f"successfully rm model {child_id}")
             else:
                 self.eLog(f"failed to rm model {child_id}!")
-            rt = {"id": child_id, "pid": int(pid) if pid is not None else None}
+            rt = {"id": child_id, "pid": pid}
             self.iLog("{}::_stop_child END {}".format(self.__class__.__name__, rt))
             return rt
         else:
