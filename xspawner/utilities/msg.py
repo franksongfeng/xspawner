@@ -62,7 +62,6 @@ def syncTLSReq(url: str, method: str, data: str = None, cert_ctx: SSLContext = N
 # asyncReq and postMSg are non-blocking and synchronous
 async def asyncReq(url: str, method: str, data: str = None, **kwargs):
     async_client = tornado.httpclient.AsyncHTTPClient()
-    # async_client.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
     try:
         res = await async_client.fetch(url, method=method, body=data, **kwargs)
         return res.body.decode()

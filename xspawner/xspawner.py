@@ -370,10 +370,6 @@ class XSpawner(Spawnable):
         self._req_queue = tornado.queues.Queue(256)
         self._ioloop.add_callback(self.loop)
 
-        # use CurlHTTPClient for more stable Connection
-        # tornado.httpclient.AsyncHTTPClient.configure(
-        #     "tornado.curl_httpclient.CurlAsyncHTTPClient"
-        # )
 
         # start logger
         self._logger = Log(
