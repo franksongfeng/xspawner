@@ -2,4 +2,4 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 
-python3 -m xspawner.service stop ./xspawner.json
+python3 -m xspawner.service stop ./config.json
