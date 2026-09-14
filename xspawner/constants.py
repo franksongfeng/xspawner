@@ -14,4 +14,4 @@ ZIP_MIME_TYPE = "application/zip"
 LOCAL_DB = f"{SYSTEM_ID}.db"
 
 from collections import namedtuple
-Config = namedtuple('Config', ['id', 'plugin', 'host', 'port', 'access', 'parent', 'reportup', 'log', 'severity', 'ssl', 'certfile', 'keyfile'])
+Config = namedtuple('Config', ['id', 'plugin', 'host', 'port', 'access', 'parent', 'log', 'severity', 'ssl', 'certfile', 'keyfile'])

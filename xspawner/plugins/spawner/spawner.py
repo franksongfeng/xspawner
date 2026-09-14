@@ -40,13 +40,7 @@ import random
 ##############################################################################
 
 class Spawner(XSpawner): # NOQA
-    _reports = dict()
 
-    def getReports(self):
-        return self._reports
-
-    def setReport(self, report):
-        self._reports.update(report)
 
     @ApiHandler.route("/get_config")
     def _get_config(self, headers: dict, data: dict):
@@ -86,10 +80,6 @@ class Spawner(XSpawner): # NOQA
             return False
         self.iLog(f"child {child_addr} is ready")
 
-        # add report
-        if self.getConfig().reportup:
-            srvaddr = self.getAddr(child_config.port)
-            self.addFlow(f"{srvaddr}/report/state?interval=1", self.on_state)
 
         # open sub systemd service
         grand_children = await self.postJson(f"{child_addr}/get_children", {})
@@ -284,15 +274,6 @@ class Spawner(XSpawner): # NOQA
     async def _get_info(self, headers: dict, data: dict):
         return self.getInfo()
 
-    @FlowHandler.route("/report/state")
-    def _report_state(self, headers: dict, data: dict):
-        reports = self.getReports()
-
-        evt = {
-            "event": "message",
-            "data": json.dumps(reports, separators=(',', ':'), ensure_ascii=False)
-        }
-        return evt
 
     def on_state(self, chunk):
         event = parse_sse_event(chunk.decode('utf-8'))

@@ -5,7 +5,6 @@
   "port": 8668,
   "access": "0.0.0.0",
   "parent": "",
-  "reportup": false,
   "log": true,
   "severity": "debug",
   "ssl": false,

@@ -226,7 +226,6 @@ class Supervisor(Spawner): # NOQA
             "port": srvport,
             "access": self.getConfig().access,
             "parent": self.getConfig().id,
-            "reportup": self.getConfig().reportup,
             "log": True,
             "severity": srvseverity,
             "ssl": self.getConfig().ssl,

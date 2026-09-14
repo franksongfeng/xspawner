@@ -103,8 +103,6 @@ class Configuration(models.Model, metaclass = StaticObject):
     host = fields.CharField(max_length=32)
     port = fields.IntField()
     access = fields.CharField(max_length=32)
-
-    reportup = fields.BooleanField()
     log = fields.BooleanField()
     severity = fields.CharField(max_length=16)
     ssl = fields.BooleanField()
@@ -121,7 +119,6 @@ def config_model_to_dict(model: Configuration) -> dict:
         'host': model.host,
         'port': model.port,
         'access': model.access,
-        'reportup': model.reportup,
         'log': model.log,
         'severity': model.severity,
         'ssl': model.ssl,

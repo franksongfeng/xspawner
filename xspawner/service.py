@@ -378,9 +378,6 @@ def get_exec_cmd(config: Config) -> str:
     # add access option
     cmd_parts.extend(["--access", shlex.quote(config.access)])
 
-    # add reportup option
-    if config.reportup:
-        cmd_parts.extend(["--reportup"])
 
     # add log options
     cmd_parts.extend(["--log", "--severity", shlex.quote(config.severity)])
