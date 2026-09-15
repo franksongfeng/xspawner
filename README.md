@@ -2,9 +2,8 @@
 
 **XSpawner** is a lightweight Python web management platform designed to help developers rapidly build small yet fully-featured asynchronous web services. It combines [**Tornado**](https://www.tornadoweb.org/)'s high-performance asynchronous capabilities with [**PyWebIO**](https://pywebio.readthedocs.io)'s rapid UI components, significantly simplifying the development of modern web applications.
 
-------
 
-## 1. Key Features
+## Key Features
 
 XSpawner provides the following key features:
 
@@ -14,9 +13,8 @@ XSpawner provides the following key features:
 - **⚡ Asynchronous Programming**: Powered by Tornado's battle-tested coroutines for high-performance asynchronous processing.
 - **🔒 Security Enhancement**: Native support for SSL/TLS certificates to ensure secure communication.
 
-------
 
-## 2. Use Cases
+## Use Cases
 
 XSpawner is suitable for the following scenarios:
 
@@ -25,18 +23,16 @@ XSpawner is suitable for the following scenarios:
 - **Microservices / Service Orchestration**: Leverage "Class as a Service" and lifecycle management to organize multiple independent services.
 - **Asynchronous Task Processing**: Scenarios requiring high-concurrency or asynchronous task handling using Tornado coroutines.
 
-------
 
-## 3. Project Information
+## Project Information
 
 - **License**: MIT
 - **Author**: Song Feng
 - **Contact**: 43217183@qq.com
 - **Repository**: https://github.com/franksongfeng/xspawner
 
-------
 
-## 4. Summary
+## Summary
 
 XSpawner is a lightweight web management platform for Python developers. Through the combination of "Full Python Stack + Class as a Service + Asynchronous Programming", it lowers the barrier to building asynchronous web services. It is ideal for scenarios requiring rapid development, deployment, and management of small asynchronous web services, especially for developers familiar with Python who want to avoid the complexity of front-end/back-end separation.
 
