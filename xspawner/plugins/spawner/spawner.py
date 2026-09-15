@@ -74,7 +74,7 @@ class Spawner(XSpawner): # NOQA
         # wait child service ready
         child_addr = self.getAddr(child_config.port)
         loop = self._ioloop.asyncio_loop
-        ok = await loop.run_in_executor(None, _wait_port_sync, child_config.port, child_config.host, 120)
+        ok = await loop.run_in_executor(None, wait_port_sync, child_config.port, child_config.host, 120)
         if not ok:
             self.eLog(f"child {child_addr} did not become ready in 30s")
             return False
@@ -304,17 +304,3 @@ class Spawner(XSpawner): # NOQA
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-
-def _wait_port_sync(port, host="127.0.0.1", timeout=30, interval=0.5):
-
-    """同步探测 TCP 端口是否可连接，简单粗暴"""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((host, port), timeout=1):
-                return True
-        except OSError:
-            pass
-        time.sleep(interval)
-    return False

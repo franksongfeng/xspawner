@@ -732,6 +732,20 @@ def trim_code(code):
     return '\n'.join(trimmed_lines)
 
 
+def wait_port_sync(port, host="127.0.0.1", timeout=30, interval=0.5):
+
+    """同步探测 TCP 端口是否可连接，简单粗暴"""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=1):
+                return True
+        except OSError:
+            pass
+        time.sleep(interval)
+    return False
+
+
 # add serialization support on python datetime/bytes/function type
 # usage: json.dumps(s, cls=JSONEncoderWDT)
 class JSONEncoderWDT(json.JSONEncoder):

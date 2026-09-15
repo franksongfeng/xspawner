@@ -545,7 +545,7 @@ def delete_localdb(backup: bool = True):
 
 def wait_for_service_ready(host: str, port: int, timeout: int = 60, interval: float = 0.5) -> bool:
     """轮询 /ping 直到服务就绪或超时"""
-    url = "http://127.0.0.1:{}/ping".format(port)
+    url = "http://{}:{}/ping".format(host, port)
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
