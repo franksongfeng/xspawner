@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 name = "xspawner"
 authors = [{name = "Song Feng", email = "43217183@qq.com"}]
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "Apache-2.0"}
 dynamic = ["version", "description"]
 dependencies = [
     "requests>=2.22.0",

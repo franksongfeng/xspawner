@@ -26,7 +26,7 @@ XSpawner is suitable for the following scenarios:
 
 ## Project Information
 
-- **License**: MIT
+- **License**: Apache-2.0
 - **Author**: Song Feng
 - **Contact**: 43217183@qq.com
 - **Repository**: https://github.com/franksongfeng/xspawner

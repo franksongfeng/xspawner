@@ -57,7 +57,7 @@ XSpawner 的项目结构清晰，采用模块化设计：
 
 ## 四、项目信息
 
-- **许可证**：MIT
+- **许可证**：Apache-2.0
 - **作者**：Song Feng
 - **联系方式**：43217183@qq.com
 - **仓库地址**：https://github.com/franksongfeng/xspawner
