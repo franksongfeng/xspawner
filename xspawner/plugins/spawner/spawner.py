@@ -191,14 +191,14 @@ class Spawner(XSpawner): # NOQA
         srvapp = data["plugin"]
         pkgdir = f"{PLUGIN_PKG}.{srvapp}".replace('.', '/')
         if os.path.isdir(pkgdir):
-            fname = srvapp + ".zip"
+            fname = pkgdir + ".zip"
             try:
                 zip_folder(pkgdir, fname, ["__pycache__", ".git", "logs"])
                 self.iLog(f"directory {pkgdir} is zipped to {fname}")
                 with open(fname, 'rb') as f:
                     fdata = f.read()
-                self.dLog("{}::_download_plugin END {}".format(self.__class__.__name__, fname))
-                return (fdata, fname)
+                self.dLog("{}::_download_plugin END {}".format(self.__class__.__name__, os.path.basename(fname)))
+                return (fdata, os.path.basename(fname))
             finally:
                 if os.path.exists(fname):
                     os.unlink(fname)
@@ -208,8 +208,8 @@ class Spawner(XSpawner): # NOQA
                 self.iLog(f"file {fname} is found")
                 with open(fname, 'rb') as f:
                     fdata = f.read()
-                self.dLog("{}::_download_plugin END {}".format(self.__class__.__name__, fname))
-                return (fdata, fname)
+                self.dLog("{}::_download_plugin END {}".format(self.__class__.__name__, os.path.basename(fname)))
+                return (fdata, os.path.basename(fname))
             else:
                 self.wLog(f"file {fname} doesnt exist")
         self.iLog("{}::_download_plugin END".format(self.__class__.__name__))
