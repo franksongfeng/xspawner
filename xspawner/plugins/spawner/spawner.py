@@ -143,6 +143,84 @@ class Spawner(XSpawner): # NOQA
             self.eLog(f"failed to stop service {child_id}!")
             return False
 
+
+    @ApiHandler.route("/deploy_child")
+    async def _deploy_child(self, headers: dict, fdata: bytes, fname: str, fargs: dict):
+        """
+        一步部署并启动子服务。
+        近支持直接上传文件: 传 fdata / fname / fargs
+        参数:
+          - fdata/fname/fargs: 与 /upload_plugin 一致，直接提供文件内容，且fargs中包含服务的 id & port。
+        """
+        self.iLog("{}::_deploy_child BEG".format(self.__class__.__name__))
+        if fdata is None:
+            self.eLog("Error: no plugin payload {}".format(fname))
+            return False
+
+        if fname is None:
+            self.eLog("Error: no plugin name {}".format(fname))
+            return False
+
+        plugin_id = os.path.basename(fname).split('.')[0]
+
+        if fargs is None:
+            self.eLog("Error: no fargs")
+            return False
+
+        if "id" not in fargs:
+            self.eLog("deploy_child: miss 'id' in fargs {}".format(fargs))
+            return False
+
+        child_id = fargs["id"]
+
+        if "port" not in fargs:
+            self.eLog("deploy_child: miss 'port' in fargs {}".format(fargs))
+            return False
+
+        child_port = int(fargs["port"])
+
+        models = await self.getModels()
+        for m in models:
+            if m["id"] == child_id:
+                self.eLog("Error: duplicated id {}".format(child_id))
+                return False
+            if m["port"] == child_port:
+                self.eLog("Error: duplicated port {}".format(child_port))
+                return False
+
+        if not await self._upload_plugin(headers, fdata, fname, fargs):
+            self.eLog("Error: failed to upload plugin {}".format(plugin_id))
+            return False
+
+        if await self.getModel(child_id):
+            self.eLog("Error: model existed {}".format(child_id))
+            return False
+
+        if await self.getModel(child_id):
+            self.eLog("Error: model existed {}".format(child_id))
+            return False
+
+        child_config = self.getConfig()._replace(
+            parent=self.getConfig().id,
+            plugin=plugin_id,
+            id=child_id,
+            port=child_port
+        )
+        self.iLog("child: {}, all ids: {}".format(child_config, self.getModels()))
+        if not await self.addModel(child_config):
+            self.eLog("Error: failed to add model {}".format(child_id))
+            return False
+
+        rt = await self._start_child(headers, {"id": child_id})
+        if rt and isinstance(rt, dict):
+            self.iLog("{}::_deploy_child END {}".format(self.__class__.__name__, rt))
+            return True
+        else:
+            await self.delModel(child_id)
+            self.eLog("Error: cleanup model {} after failure".format(child_id))
+            return False
+
+
     @ApiHandler.route("/clean_plugin")
     async def _clean_plugin(self, headers: dict, data: dict):
         self.iLog("{}::_clean_plugin BEG {}".format(self.__class__.__name__, data))

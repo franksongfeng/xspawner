@@ -604,6 +604,7 @@ class XSpawner(Spawnable):
             model = await Configuration.create(**data)
             rt = config_model_to_dict(model)
             self.iLog(f"addModel END {rt}")
+            return rt
         except Exception as e:
             self.eLog(f'addModel EXP {e}')
 
