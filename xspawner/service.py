@@ -585,48 +585,60 @@ if __name__ == "__main__":
                 cfg = Config(**data)
                 srv_id = cfg.id
             sts = get_service_status(srv_id)
-            print(f"service status of {srv_id}: {sts}")
+            logger.info(f"service status of {srv_id}: {sts}")
             if op == 'start':
-                print(f"start {srv_id} ...")
+                logger.info(f"start {srv_id} ...")
                 if open_service(cfg):
                     # wait service ready really
                     if not wait_for_service_ready(cfg.host, cfg.port, timeout=60):
-                        print(f"Error: service {srv_id} did not become ready in time")
+                        logger.error(f"Error: service {srv_id} did not become ready in time")
                         sys.exit(1)
+                    print(f"Service {srv_id} is started, and its descendants will be started in turn.")
                     logs = get_service_logs(srv_id)
-                    print(f"Systemed service logs for {srv_id}:\n{logs}")
+                    logger.info(f"Systemed service logs for {srv_id}:\n{logs}")
                     child_ids = requests.post("http://{}:{}/get_children".format(cfg.host, cfg.port), json={}).json()
                     for child_id in child_ids:
                         time.sleep(1)
                         res = requests.post("http://{}:{}/start_child".format(cfg.host, cfg.port), json={"id": child_id}).json()
-                        print(f"Child {child_id} started: {res}")
-                    print(f"Service {srv_id} is started. Its descendants should be started in turn.")
+                        logger.info(f"Service {child_id} is started: {res}")
+                        print(f"Service {child_id} is started: {res}")
                 else:
-                    print(f"Error: failed to start service {srv_id}")
+                    logger.error(f"Error: failed to start service {srv_id}")
             elif op == 'stop':
-                print(f"stop {srv_id} ...")
+                logger.info(f"stop {srv_id} ...")
+                if sts["ActiveState"] != "active":
+                    logger.warning(f"Warning: service {srv_id} is not running!")
+                    print(f"Service {srv_id} is not running!")
+                    sys.exit(1)
                 close_service(srv_id)
                 logs = get_service_logs(srv_id)
-                print(f"Systemed service logs for {srv_id}:\n{logs}")
+                logger.info(f"Systemed service logs for {srv_id}:\n{logs}")
+                logger.info(f"Service {srv_id} and its descendants are stopped.")
                 print(f"Service {srv_id} and its descendants are stopped.")
             elif op == 'drop':
-                print(f"drop {srv_id} ...")
+                logger.info(f"drop {srv_id} ...")
+                if sts["ActiveState"] != "active":
+                    logger.warning(f"Warning: service {srv_id} is not running!")
+                    print(f"Service {srv_id} is not running!")
+                    sys.exit(1)
                 child_ids = requests.post("http://{}:{}/get_children".format(cfg.host, cfg.port), json={}).json()
                 for child_id in child_ids:
                     requests.post("http://{}:{}/stop_child".format(cfg.host, cfg.port), json={"id":child_id})
                     if not wait_for_service_stopped(child_id, timeout=30):
-                        print(f"Warning: service {child_id} still not fully stopped")
+                        logger.warning(f"Warning: service {child_id} still not fully stopped")
+                    print(f"Service {child_id} is stopped.")
                 if close_service(srv_id):
                     logs = get_service_logs(srv_id)
-                    print(f"Systemed service logs for {srv_id}:\n{logs}")
+                    logger.info(f"Systemed service logs for {srv_id}:\n{logs}")
                     if not wait_for_service_stopped(srv_id, timeout=30):
-                        print(f"Warning: service {srv_id} still not fully stopped, "
-                              f"database may be locked")
+                        logger.warning(f"Warning: service {srv_id} still not fully stopped, database may be locked")
+                    print(f"Service {srv_id} is stopped.")
                     delete_localdb()
-                    print(f"The whole service {srv_id} including its descendants are dropped.")
+                    logger.info(f"Service {srv_id} and its descendants are dropped.")
+                    print(f"Service {srv_id} and its descendants are dropped.")
                 else:
-                    print(f"Error: failed to stop service {srv_id}!")
+                    logger.error(f"Error: failed to stop service {srv_id}!")
             else:
-                print(f"Error: invalid command {op}")
+                logger.error(f"Error: invalid command {op}")
     else:
-        print(f"Error: miss command")
+        logger.error(f"Error: miss command")
