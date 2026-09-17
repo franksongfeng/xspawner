@@ -30,7 +30,7 @@ class Logmon(Spawner):
     # display logs windows
     @ApiHandler.route("/")
     def _(self, headers: dict, data: dict):
-        with open('{}/{}/static/index.html'.format(PLUGIN_DIR, self.getConfig().plugin), 'r', encoding='utf-8') as file:
+        with open('{}/{}/static/index.html'.format(PLUGIN_DIR, self._config.plugin), 'r', encoding='utf-8') as file:
             page = file.read()
         end_point = '{}/flow'.format(self.getAddr())
         return page.replace('ENDPOINT', end_point)

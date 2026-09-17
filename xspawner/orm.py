@@ -2,7 +2,7 @@ import inspect
 from tortoise import Tortoise
 from tortoise import fields, models
 from urllib.parse import quote_plus
-
+from xspawner.constants import Config
 
 def model_module_name(this=True):
     if this:
@@ -59,7 +59,7 @@ async def close_database():
     await Tortoise.close_connections()
 
 # 半结构化数据
-class DynamicObject(models.ModelMeta):
+class DynamicModel(models.ModelMeta):
     def __new__(cls, name, bases, attrs):
         if "id" not in attrs:
             attrs['id'] = fields.IntField(pk=True, generated=True)
@@ -73,7 +73,7 @@ class DynamicObject(models.ModelMeta):
 
 
 # 层级数据
-class StaticObject(models.ModelMeta):
+class StaticModel(models.ModelMeta):
     def __new__(cls, name, bases, attrs):
         if "id" not in attrs:
             attrs['id'] = fields.CharField(max_length=255, pk=True)
@@ -93,11 +93,11 @@ class StaticObject(models.ModelMeta):
         return super().__new__(cls, name, bases, attrs)
 
 
-class Configuration(models.Model, metaclass = StaticObject):
+class ConfigModel(models.Model, metaclass = StaticModel):
     class Meta:
-        table = "configuration"
+        table = "m_config"
         fk_mapping = {
-            "parent": "models.Configuration"
+            "parent": "models.ConfigModel"
         }
     plugin = fields.CharField(max_length=32)
     host = fields.CharField(max_length=32)
@@ -110,20 +110,22 @@ class Configuration(models.Model, metaclass = StaticObject):
     keyfile = fields.CharField(max_length=255, default="")
 
 
-def config_model_to_dict(model: Configuration) -> dict:
-    if not isinstance(model, Configuration):
-        raise TypeError(f"Expected Configuration instance, got {type(model)}")
-    return {
-        'id': model.id,
-        'plugin': model.plugin,
-        'host': model.host,
-        'port': model.port,
-        'access': model.access,
-        'log': model.log,
-        'severity': model.severity,
-        'ssl': model.ssl,
-        'certfile': model.certfile,
-        'keyfile': model.keyfile,
-        'parent': model.parent_id or ""
-    }
+def config_model_to_tuple(model: ConfigModel) -> Config:
+    if not isinstance(model, ConfigModel):
+        raise TypeError(f"Expected ConfigModel instance, got {type(model)}")
+    return Config(
+        id = model.id,
+        plugin = model.plugin,
+        host = model.host,
+        port = model.port,
+        access = model.access,
+        log = model.log,
+        severity = model.severity,
+        ssl = model.ssl,
+        certfile = model.certfile,
+        keyfile = model.keyfile,
+        parent = model.parent_id or ""
+    )
 
+def config_model_to_dict(model: ConfigModel) -> dict:
+    return config_model_to_tuple(model)._asdict()

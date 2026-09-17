@@ -44,7 +44,7 @@ class Spawner(XSpawner): # NOQA
 
     @ApiHandler.route("/get_config")
     def _get_config(self, headers: dict, data: dict):
-        return self.getConfig()._asdict()
+        return self._config._asdict()
 
     @ApiHandler.route("/get_children")
     async def _get_children(self, headers: dict, data: dict):
@@ -58,11 +58,11 @@ class Spawner(XSpawner): # NOQA
             self.eLog(f"Failed to start child, No id key in data {data}") 
             return False
 
-        model = await self.getModel(data["id"])
+        model = await self.getConfig(data["id"])
         if model:
-            child_config = Config(**model)
+            child_config = model
         else:
-            child_config = self.getConfig()._replace(**data)._replace(parent=self.getConfig().id)
+            child_config = self._config._replace(**data)._replace(parent=self._config.id)
 
         # open systemed service
         if open_service(child_config):
@@ -109,11 +109,11 @@ class Spawner(XSpawner): # NOQA
             return False
 
         child_id = data["id"]
-        model = await self.getModel(child_id)
+        model = await self.getConfig(child_id)
 
         if model:
             # close sub systemd service
-            child_addr = self.getAddr(model["port"])
+            child_addr = self.getAddr(model.port)
             grand_children = await self.postJson(f"{child_addr}/get_children", {})
             if grand_children:
                 for grand_child in grand_children:
@@ -132,7 +132,7 @@ class Spawner(XSpawner): # NOQA
 
         # close systemed service
         if close_service(child_id):
-            if await self.delModel(child_id):
+            if await self.delConfig(child_id):
                 self.iLog(f"successfully rm model {child_id}")
             else:
                 self.eLog(f"failed to rm model {child_id}!")
@@ -179,12 +179,12 @@ class Spawner(XSpawner): # NOQA
 
         child_port = int(fargs["port"])
 
-        models = await self.getModels()
+        models = await self.getConfigs()
         for m in models:
-            if m["id"] == child_id:
+            if m.id == child_id:
                 self.eLog("Error: duplicated id {}".format(child_id))
                 return False
-            if m["port"] == child_port:
+            if m.port == child_port:
                 self.eLog("Error: duplicated port {}".format(child_port))
                 return False
 
@@ -192,22 +192,19 @@ class Spawner(XSpawner): # NOQA
             self.eLog("Error: failed to upload plugin {}".format(plugin_id))
             return False
 
-        if await self.getModel(child_id):
+        if await self.getConfig(child_id):
             self.eLog("Error: model existed {}".format(child_id))
             return False
 
-        if await self.getModel(child_id):
-            self.eLog("Error: model existed {}".format(child_id))
-            return False
 
-        child_config = self.getConfig()._replace(
-            parent=self.getConfig().id,
+        child_config = self._config._replace(
+            parent=self._config.id,
             plugin=plugin_id,
             id=child_id,
             port=child_port
         )
-        self.iLog("child: {}, all ids: {}".format(child_config, self.getModels()))
-        if not await self.addModel(child_config):
+        self.iLog("child: {}, all ids: {}".format(child_config, self.getConfigs()))
+        if not await self.addConfig(child_config):
             self.eLog("Error: failed to add model {}".format(child_id))
             return False
 
@@ -216,7 +213,7 @@ class Spawner(XSpawner): # NOQA
             self.iLog("{}::_deploy_child END {}".format(self.__class__.__name__, rt))
             return True
         else:
-            await self.delModel(child_id)
+            await self.delConfig(child_id)
             self.eLog("Error: cleanup model {} after failure".format(child_id))
             return False
 

@@ -69,7 +69,7 @@ class Supervisor(Spawner): # NOQA
         put_markdown(tab_text, sanitize=False)
 
         put_html(tab_title.format("配置"))
-        json_str = json.dumps(self.getConfig()._asdict(), indent=4, separators=(',', ':'))
+        json_str = json.dumps(self._config._asdict(), indent=4, separators=(',', ':'))
         put_code(json_str, language="json")
 
         children = await self.getChildren()
@@ -77,8 +77,8 @@ class Supervisor(Spawner): # NOQA
             put_html(tab_title.format("服务"))
             content = []
             for child_id in children:
-                child = await self.getModel(child_id)
-                content.append(put_link(child_id, url="{}/".format(self.getAddr(child["port"]))))
+                child = await self.getConfig(child_id)
+                content.append(put_link(child_id, url="{}/".format(self.getAddr(child.port))))
             put_row(content)
 
         put_html(tab_title.format("操作"))
@@ -222,15 +222,15 @@ class Supervisor(Spawner): # NOQA
         child_config = {
             "id": srvname,
             "plugin": srvapp,
-            "host": self.getConfig().host,
+            "host": self._config.host,
             "port": srvport,
-            "access": self.getConfig().access,
-            "parent": self.getConfig().id,
+            "access": self._config.access,
+            "parent": self._config.id,
             "log": True,
             "severity": srvseverity,
-            "ssl": self.getConfig().ssl,
-            "certfile": self.getConfig().certfile,
-            "keyfile": self.getConfig().keyfile
+            "ssl": self._config.ssl,
+            "certfile": self._config.certfile,
+            "keyfile": self._config.keyfile
         }
 
         res = await self._start_child(None, child_config)
@@ -288,9 +288,9 @@ class Supervisor(Spawner): # NOQA
             put_error("Please input a server id")
             return
 
-        elm = await self.getModel(data["id"])
-        srvname = elm["id"]
-        srvaddr = self.getAddr(elm["port"])
+        elm = await self.getConfig(data["id"])
+        srvname = elm.id
+        srvaddr = self.getAddr(elm.port)
 
         res = await self.postJson(f"{srvaddr}/get_info", {})
         if res is None:

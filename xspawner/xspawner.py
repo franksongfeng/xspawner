@@ -320,22 +320,19 @@ class Spawnable(object):
     def getAddr(self, port):
         raise NotImplementedError
 
-    def getConfig(self):
-        raise NotImplementedError
-
     async def provision(self):
         raise NotImplementedError
 
-    async def getModels(self):
+    async def getConfigs(self):
         raise NotImplementedError
 
-    async def getModel(self, id):
+    async def getConfig(self, id):
         raise NotImplementedError
 
-    async def delModel(self, id):
+    async def delConfig(self, id):
         raise NotImplementedError
 
-    async def addModel(self, config):
+    async def addConfig(self, config):
         raise NotImplementedError
 
     async def getChildren(self):
@@ -510,8 +507,8 @@ class XSpawner(Spawnable):
 
     def start(self):
         self.iLog("start BEG")
-        self._server.listen(self.getConfig().port, address=self.getConfig().access)
-        self.iLog("listening to port {}...".format(self.getConfig().port))
+        self._server.listen(self._config.port, address=self._config.access)
+        self.iLog("listening to port {}...".format(self._config.port))
         self._ioloop.start()
         self.iLog("ioloop is running ...")
         self._ioloop.close()
@@ -519,7 +516,7 @@ class XSpawner(Spawnable):
 
     def stop(self):
         self.iLog("stop BEG")
-        self.cLog("This instance {}:{} is stopping ...".format(self.__class__, self.getConfig().port))
+        self.cLog("This instance {}:{} is stopping ...".format(self.__class__, self._config.port))
         self._server.stop()
         self._ioloop.stop()
         self.iLog("stop END")
@@ -527,68 +524,66 @@ class XSpawner(Spawnable):
     def getAddr(self, port=None):
         return "{}:{}".format(
             self.getHostAddr(),
-            port if port else self.getConfig().port)
+            port if port else self._config.port)
 
     def getPid(self):
         return os.getpid()
 
-    def getConfig(self) -> Config:
-        return self._config
-
     async def provision(self):
         self.iLog(f"provision BEG")
         await open_database("sqlite", file=LOCAL_DB)
-        if not await self.getModel(self.getConfig().id):
+        if not await self.getConfig(self._config.id):
             await tornado.gen.sleep(1.0)
-            await self.addModel(self.getConfig())
-            self.iLog(f"new a model {self.getConfig()}")
+            await self.addConfig(self._config)
+            self.iLog(f"new a model {self._config}")
         self.iLog(f"provision END")
 
-    async def getModels(self) -> Optional[List[Dict]]:
-        self.iLog(f"getModels BEG")
+    async def getConfigs(self) -> Optional[List[Config]]:
+        self.iLog(f"getConfigs BEG")
         try:
-            models = await Configuration.all()
-            ones = [config_model_to_dict(m) for m in models]
-            self.iLog(f"getModels END {len(ones)}")
+            models = await ConfigModel.all()
+            ones = [config_model_to_tuple(m) for m in models]
+            self.iLog(f"getConfigs END {len(ones)}")
             return ones
         except Exception as e:
-            self.eLog(f'getModels EXP {e}')
+            self.eLog(f'getConfigs EXP {e}')
             return None
 
-    async def getModel(self, id: str) -> Optional[Dict]:
-        self.iLog(f"getModel BEG {id}")
+    async def getConfig(self, id: str) -> Optional[Config]:
+        self.iLog(f"getConfig BEG {id}")
         try:
-            model = await Configuration.get(id=id)
+            model = await ConfigModel.get(id=id)
         except DoesNotExist:
-            self.iLog(f"getModel END No")
+            self.iLog(f"getConfig END No")
             return None
         except Exception as e:
-            self.eLog(f'getModel EXP {e}')
+            self.eLog(f'getConfig EXP {e}')
             return None
-        one = config_model_to_dict(model)
-        self.iLog(f"getModel END {one}")
+        one = config_model_to_tuple(model)
+        self.iLog(f"getConfig END {one}")
         return one
 
-    async def delModel(self, id: str) -> bool:
-        self.iLog(f"delModel BEG {id}")
+    async def delConfig(self, id: str) -> bool:
+        self.iLog(f"delConfig BEG {id}")
         try:
-            model = await Configuration.get(id=id)
+            model = await ConfigModel.get(id=id)
             await model.delete()
-            self.iLog("delModel END")
+            self.iLog("delConfig END")
             return True
         except DoesNotExist:
-            self.iLog(f"delModel END No")
+            self.iLog(f"delConfig END No")
         except Exception as e:
-            self.eLog(f'delModel EXP {e}')
+            self.eLog(f'delConfig EXP {e}')
         return False
 
-    async def addModel(self, config: Config) -> Optional[Dict]:
-        self.iLog(f"addModel BEG {config}")
+    async def addConfig(self, config: Config) -> bool:
+        self.iLog(f"addConfig BEG {config}")
         data = config._asdict()
         if data.get('parent'):
             parent_id = data['parent']
             try:
-                parent_obj = await Configuration.get(id=parent_id)
+                parent_obj = await ConfigModel.get(id=parent_id)
+                # set parent with object or set parent_id with value
                 data['parent'] = parent_obj
             except DoesNotExist:
                 self.eLog(f"Parent '{parent_id}' not found, setting parent to None")
@@ -601,18 +596,18 @@ class XSpawner(Spawnable):
         if data.get('keyfile') is None:
             data['keyfile'] = ""
         try:
-            model = await Configuration.create(**data)
-            rt = config_model_to_dict(model)
-            self.iLog(f"addModel END {rt}")
-            return rt
+            model = await ConfigModel.create(**data)
+            self.iLog(f"addConfig END {rt}")
+            return True
         except Exception as e:
-            self.eLog(f'addModel EXP {e}')
+            self.eLog(f'addConfig EXP {e}')
+            return False
 
     async def getChildren(self) -> List[str]:
         self.iLog(f"getChildren BEG")
         try:
-            models = await Configuration.filter(parent=self.getConfig().id).all()
-            self.iLog(f"Type: {type(models)} Len: {len(models)} Models: {models}") # Models: [Configuration]
+            models = await ConfigModel.filter(parent=self._config.id).all()
+            self.iLog(f"Type: {type(models)} Len: {len(models)} Models: {models}") # Models: [ConfigModel]
             ids = [m.id for m in models]
             self.iLog(f"getChildren END {ids}")
             return ids
@@ -716,7 +711,7 @@ class XSpawner(Spawnable):
         return self.__class__.__name__
 
     def getVersion(self):
-        plugin_vsn_path = "{}.{}.__version__".format(PLUGIN_PKG, self.getConfig().plugin)
+        plugin_vsn_path = "{}.{}.__version__".format(PLUGIN_PKG, self._config.plugin)
         if is_module_available(plugin_vsn_path):
             vsn_mod = importlib.import_module(plugin_vsn_path)
             if hasattr(vsn_mod, "__version__"):
@@ -724,7 +719,7 @@ class XSpawner(Spawnable):
         return "undefined"
 
     def getInfo(self):
-        info = self.getConfig()._asdict()
+        info = self._config._asdict()
         info["class"] = self.getClassName()
         info["vsn"] = self.getVersion()
         info["pid"] = self.getPid()
@@ -735,8 +730,8 @@ class XSpawner(Spawnable):
 
     def getHostAddr(self):
         return "{}://{}".format(
-            "https" if self.getConfig().ssl else "http",
-            self.getConfig().host
+            "https" if self._config.ssl else "http",
+            self._config.host
         )
 
 
