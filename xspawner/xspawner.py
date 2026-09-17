@@ -320,7 +320,7 @@ class Spawnable(object):
     def getAddr(self, port):
         raise NotImplementedError
 
-    async def provision(self):
+    async def configurate(self):
         raise NotImplementedError
 
     async def getConfigs(self):
@@ -361,7 +361,7 @@ class XSpawner(Spawnable):
         self._ioloop = tornado.ioloop.IOLoop.current()
 
         # save config in local db
-        self._ioloop.add_callback(self.provision)
+        self._ioloop.add_callback(self.configurate)
 
         # create request queue
         self._req_queue = tornado.queues.Queue(256)
@@ -529,14 +529,14 @@ class XSpawner(Spawnable):
     def getPid(self):
         return os.getpid()
 
-    async def provision(self):
-        self.iLog(f"provision BEG")
+    async def configurate(self):
+        self.iLog(f"configurate BEG")
         await open_database("sqlite", file=LOCAL_DB)
         if not await self.getConfig(self._config.id):
-            await tornado.gen.sleep(1.0)
+            # await tornado.gen.sleep(0.5)
             await self.addConfig(self._config)
             self.iLog(f"new a model {self._config}")
-        self.iLog(f"provision END")
+        self.iLog(f"configurate END")
 
     async def getConfigs(self) -> Optional[List[Config]]:
         self.iLog(f"getConfigs BEG")
