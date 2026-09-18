@@ -179,7 +179,7 @@ class Spawner(XSpawner): # NOQA
 
         child_port = int(fargs["port"])
 
-        models = await self.getConfigs()
+        models = await self.getConfigs() or []
         for m in models:
             if m.id == child_id:
                 self.eLog("Error: duplicated id {}".format(child_id))
