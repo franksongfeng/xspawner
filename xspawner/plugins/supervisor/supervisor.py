@@ -294,9 +294,9 @@ class Supervisor(Spawner): # NOQA
         srvaddr = self.getAddr(elm.port)
 
         res = await self.postJson(f"{srvaddr}/get_info", {})
-        if res is None:
-            self.eLog("Exception when postJson to {}/get_info".format(srvaddr))
-            put_error("Exception when postJson to {}/get_info".format(srvaddr))
+        if not res or not isinstance(res, dict):
+            self.eLog("Invalid response from {}/get_info: {}".format(srvaddr, res))
+            put_error("Failed to reach server {}".format(srvaddr))
             return
 
         srvpid = res["pid"]
