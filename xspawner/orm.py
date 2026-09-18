@@ -77,7 +77,7 @@ class TieredModel(KeyedModel):
         # reference parent
         if "parent" not in attrs and "parent" not in fk_mapping:
             attrs['parent'] = fields.ForeignKeyField(
-                f"{app_label}.{name}",  # like "models.ConfigModel"
+                f"{app_label}.{name}",  # like "models.SpawnedModel"
                 null=True,
                 on_delete=fields.SET_NULL,
                 related_name="children",
@@ -102,9 +102,9 @@ class CachedModel(models.Model, metaclass = KeyedModel):
 
 
 # 配置模型
-class ConfigModel(models.Model, metaclass = TieredModel):
+class SpawnedModel(models.Model, metaclass = TieredModel):
     class Meta:
-        table = "m_config"
+        table = "m_spawn"
 
     plugin = fields.CharField(max_length=32)
     host = fields.CharField(max_length=32)
@@ -117,9 +117,9 @@ class ConfigModel(models.Model, metaclass = TieredModel):
     keyfile = fields.CharField(max_length=255, default="")
 
 
-def config_model_to_tuple(model: ConfigModel) -> Config:
-    if not isinstance(model, ConfigModel):
-        raise TypeError(f"Expected ConfigModel instance, got {type(model)}")
+def config_model_to_tuple(model: SpawnedModel) -> Config:
+    if not isinstance(model, SpawnedModel):
+        raise TypeError(f"Expected SpawnedModel instance, got {type(model)}")
     return Config(
         id = model.id,
         plugin = model.plugin,
@@ -134,5 +134,5 @@ def config_model_to_tuple(model: ConfigModel) -> Config:
         parent = model.parent_id or ""
     )
 
-def config_model_to_dict(model: ConfigModel) -> dict:
+def config_model_to_dict(model: SpawnedModel) -> dict:
     return config_model_to_tuple(model)._asdict()
