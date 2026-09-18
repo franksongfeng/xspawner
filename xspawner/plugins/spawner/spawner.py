@@ -55,7 +55,7 @@ class Spawner(XSpawner): # NOQA
     async def _start_child(self, headers: dict, data: dict):
         self.iLog("{}::_start_child BEG {}".format(self.__class__.__name__, data))
         if "id" not in data:
-            self.eLog(f"Failed to start child, No id key in data {data}") 
+            self.eLog(f"Failed to start child, No id key in data {data}")
             return False
 
         model = await self.getConfig(data["id"])
@@ -76,7 +76,7 @@ class Spawner(XSpawner): # NOQA
         loop = self._ioloop.asyncio_loop
         ok = await loop.run_in_executor(None, wait_port_sync, child_config.port, child_config.host, 120)
         if not ok:
-            self.eLog(f"child {child_addr} did not become ready in 30s")
+            self.eLog(f"child {child_addr} did not become ready in 120s")
             return False
         self.iLog(f"child {child_addr} is ready")
 
@@ -192,10 +192,6 @@ class Spawner(XSpawner): # NOQA
             self.eLog("Error: failed to upload plugin {}".format(plugin_id))
             return False
 
-        if await self.getConfig(child_id):
-            self.eLog("Error: model existed {}".format(child_id))
-            return False
-
 
         child_config = self._config._replace(
             parent=self._config.id,
@@ -203,7 +199,7 @@ class Spawner(XSpawner): # NOQA
             id=child_id,
             port=child_port
         )
-        self.iLog("child: {}, all ids: {}".format(child_config, self.getConfigs()))
+
         if not await self.addConfig(child_config):
             self.eLog("Error: failed to add model {}".format(child_id))
             return False
