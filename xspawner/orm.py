@@ -58,11 +58,11 @@ async def close_database():
     '''
     await Tortoise.close_connections()
 
-# 半结构化数据
-class DynamicModel(models.ModelMeta):
+# 键值数据
+class KVModel(models.ModelMeta):
     def __new__(cls, name, bases, attrs):
         if "id" not in attrs:
-            attrs['id'] = fields.IntField(pk=True, generated=True)
+            attrs['id'] = fields.CharField(max_length=255, pk=True)
         if "data" not in attrs:
             attrs['data'] = fields.JSONField(null=True)   # 可存 dict, list, str, int, bool, None
         if '__str__' not in attrs:
@@ -72,8 +72,8 @@ class DynamicModel(models.ModelMeta):
         return super().__new__(cls, name, bases, attrs)
 
 
-# 层级数据
-class StaticModel(models.ModelMeta):
+# 层次数据
+class TieredModel(models.ModelMeta):
     def __new__(cls, name, bases, attrs):
         if "id" not in attrs:
             attrs['id'] = fields.CharField(max_length=255, pk=True)
@@ -83,22 +83,36 @@ class StaticModel(models.ModelMeta):
             attrs['__str__'] = auto_str
 
         meta_class = attrs.get("Meta")
-        if meta_class:
-            fk_mapping = getattr(meta_class, "fk_mapping", {})
-            if fk_mapping:
-                for field_name, related_model in fk_mapping.items():
-                    if field_name not in attrs:
-                        attrs[field_name] = fields.ForeignKeyField(related_model, null=True, on_delete=fields.SET_NULL)
+        fk_mapping = getattr(meta_class, "fk_mapping", {}) if meta_class else {}
+
+        # acquire app lablel
+        app_label = getattr(meta_class, "app", "models") if meta_class else "models"
+
+        # reference parent
+        if "parent" not in attrs and "parent" not in fk_mapping:
+            attrs['parent'] = fields.ForeignKeyField(
+                f"{app_label}.{name}",  # like "models.ConfigModel"
+                null=True,
+                on_delete=fields.SET_NULL,
+                related_name="children",
+            )
+
+        # handle fields in fk_mapping
+        for field_name, related_model in fk_mapping.items():
+            if field_name not in attrs:
+                attrs[field_name] = fields.ForeignKeyField(
+                    related_model,
+                    null=True,
+                    on_delete=fields.SET_NULL,
+                )
 
         return super().__new__(cls, name, bases, attrs)
 
-
-class ConfigModel(models.Model, metaclass = StaticModel):
+# 配置数据
+class ConfigModel(models.Model, metaclass = TieredModel):
     class Meta:
         table = "m_config"
-        fk_mapping = {
-            "parent": "models.ConfigModel"
-        }
+
     plugin = fields.CharField(max_length=32)
     host = fields.CharField(max_length=32)
     port = fields.IntField()
