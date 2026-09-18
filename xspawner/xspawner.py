@@ -73,7 +73,7 @@ class ApiHandler(tornado.web.RequestHandler):
 
     def options(self):
         self.set_status(204)
-        self.finsih()
+        self.finish()
 
     def set_default_headers(self):
         self.set_header("Access-Control-Allow-Origin", "*")
@@ -538,6 +538,50 @@ class XSpawner(Spawnable):
             self.iLog(f"new a model {self._config}")
         self.iLog(f"configurate END")
 
+    async def getData(self, id: str):
+        self.iLog(f"getData BEG {id}")
+        if not id:
+            self.wLog("getData: empty id")
+            return None
+        try:
+            model = await CachedModel.get(id=id)
+            self.iLog(f"getData END {model}")
+            return model.data
+        except DoesNotExist:
+            self.iLog(f"getData END No")
+            return None
+        except Exception as e:
+            self.eLog(f'getData EXP {e}')
+            return None
+
+
+    async def setData(self, id: str, data) -> bool:
+        self.iLog(f"setData BEG {id} {type(data).__name__}")
+        if not id:
+            self.wLog("setData: empty id")
+            return False
+        try:
+            # update_or_create：存在则更新 data，不存在则新建
+            await CachedModel.update_or_create(
+                id=id,
+                defaults={"data": data},
+            )
+            self.iLog(f"setData END {id}")
+            return True
+        except Exception as e:
+            self.eLog(f"setData EXP {id}: {e}")
+            return False
+
+    async def delData(self, id: str) -> bool:
+        self.iLog(f"delData BEG {id}")
+        try:
+            deleted = await CachedModel.filter(id=id).delete()
+            self.iLog(f"delData END {id}")
+            return True
+        except Exception as e:
+            self.eLog(f"setData EXP {id}: {e}")
+            return False
+
     async def getConfigs(self) -> Optional[List[Config]]:
         self.iLog(f"getConfigs BEG")
         try:
@@ -597,7 +641,7 @@ class XSpawner(Spawnable):
             data['keyfile'] = ""
         try:
             model = await SpawnedModel.create(**data)
-            self.iLog(f"addConfig END {rt}")
+            self.iLog(f"addConfig END {model}")
             return True
         except Exception as e:
             self.eLog(f'addConfig EXP {e}')
