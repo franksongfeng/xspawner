@@ -101,7 +101,7 @@ class Supervisor(Spawner): # NOQA
         def check_mod_file(filename):
             if get_file_type(filename) != "text/x-python":
                 return False
-            mod , _ = filename.split(".")
+            mod , _ = filename.rsplit(".", 1)
             if "__" in mod:
                 return False
             return True
@@ -163,7 +163,7 @@ class Supervisor(Spawner): # NOQA
         ftype = data["source"]["mime_type"]
         srvname = data["id"]
         srvport = data["port"]
-        srvseverity = data["severity"]
+        srvseverity = data["severity"] or "info"
 
         if srvname:
             if srvname in await self.getChildren():
@@ -205,9 +205,6 @@ class Supervisor(Spawner): # NOQA
             put_error('Invalid file type {}!'.format(fname))
             return
 
-        if not getattr(srvcls, "__module__"):
-            put_error('No required server module in {}!'.format(pkgfname))
-            return
 
         topmod = srvcls.__module__
         self.dLog(f"topmod: {topmod}")
@@ -249,7 +246,7 @@ class Supervisor(Spawner): # NOQA
                             if await self._clean_plugin(None, {"plugin": srvapp}):
                                 put_info("Plugin {} was cleaned.".format(srvapp))
                 return
-            put_success("Server {}:{} is loaded to port {} successfully.".format(srvname, res, srvport))
+            put_success("Server {} is loaded to port {} successfully.".format(srvname, srvport))
             self.iLog("{}::_create END".format(self.__class__.__name__))
         else:
             put_error("Failed to start server {}.".format(srvname))
@@ -289,6 +286,10 @@ class Supervisor(Spawner): # NOQA
             return
 
         elm = await self.getConfig(data["id"])
+        if not elm:
+            put_error("Server '{}' not found".format(data["id"]))
+            return
+
         srvname = elm.id
         srvaddr = self.getAddr(elm.port)
 
