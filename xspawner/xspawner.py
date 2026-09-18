@@ -323,6 +323,15 @@ class Spawnable(object):
     async def configurate(self):
         raise NotImplementedError
 
+    async def getData(self, id: str):
+        raise NotImplementedError
+
+    async def setData(self, id: str, data):
+        raise NotImplementedError
+
+    async def delData(self, id: str):
+        raise NotImplementedError
+
     async def getConfigs(self):
         raise NotImplementedError
 
