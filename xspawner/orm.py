@@ -4,13 +4,6 @@ from tortoise import fields, models
 from urllib.parse import quote_plus
 from xspawner.constants import Config
 
-def model_module_name(this=True):
-    if this:
-        return __name__
-    else:
-        caller_frame = inspect.stack()[1]  # 索引0是当前函数，索引1是调用者
-        return inspect.getmodule(caller_frame[0]).name
-
 
 async def open_database(category, **setting):
     '''
@@ -45,7 +38,7 @@ async def open_database(category, **setting):
     await Tortoise.init(
         db_url=conn_str,
         modules={
-            'models': [model_module_name(True)]
+            'models': [__name__]
         }
     )
 
