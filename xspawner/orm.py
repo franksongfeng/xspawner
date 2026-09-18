@@ -51,13 +51,12 @@ async def close_database():
     '''
     await Tortoise.close_connections()
 
-# 键值数据
-class KVModel(models.ModelMeta):
+
+# 有键模型
+class KeyedModel(models.ModelMeta):
     def __new__(cls, name, bases, attrs):
         if "id" not in attrs:
             attrs['id'] = fields.CharField(max_length=255, pk=True)
-        if "data" not in attrs:
-            attrs['data'] = fields.JSONField(null=True)   # 可存 dict, list, str, int, bool, None
         if '__str__' not in attrs:
             def auto_str(self):
                 return f"{name}({self.id})"
@@ -65,15 +64,9 @@ class KVModel(models.ModelMeta):
         return super().__new__(cls, name, bases, attrs)
 
 
-# 层次数据
-class TieredModel(models.ModelMeta):
+# 层次模型
+class TieredModel(KeyedModel):
     def __new__(cls, name, bases, attrs):
-        if "id" not in attrs:
-            attrs['id'] = fields.CharField(max_length=255, pk=True)
-        if '__str__' not in attrs:
-            def auto_str(self):
-                return f"{name}({self.name})"
-            attrs['__str__'] = auto_str
 
         meta_class = attrs.get("Meta")
         fk_mapping = getattr(meta_class, "fk_mapping", {}) if meta_class else {}
@@ -101,7 +94,14 @@ class TieredModel(models.ModelMeta):
 
         return super().__new__(cls, name, bases, attrs)
 
-# 配置数据
+# 缓存模型
+class CachedModel(models.Model, metaclass = KeyedModel):
+    class Meta:
+        table = "m_cache"
+    data = fields.JSONField(null=True)   # 可存 dict, list, str, int, bool, None
+
+
+# 配置模型
 class ConfigModel(models.Model, metaclass = TieredModel):
     class Meta:
         table = "m_config"
