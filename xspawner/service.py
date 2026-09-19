@@ -423,7 +423,7 @@ def open_service(config: Config) -> bool:
 
         # 4. 确保旧进程别停（幂等）
         sts = get_service_status(service_name)
-        if sts["ActiveState"] == "active" and sts["LoadState"] == "loaded":
+        if sts.get("ActiveState") == "active" and sts.get("LoadState") == "loaded":
             stop_service(service_name)
 
         # 5. 重新加载 systemd
@@ -543,20 +543,19 @@ def delete_localdb(backup: bool = True):
             logger.warning(f"doesnt exist: {fname}")
 
 
-def wait_for_service_ready(host: str, port: int, timeout: int = 60, interval: float = 0.5) -> bool:
+def wait_for_service_ready(srv_url: str, timeout: int = 60, interval: float = 0.5) -> bool:
     """轮询 /ping 直到服务就绪或超时"""
-    url = "http://{}:{}/ping".format(host, port)
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            resp = requests.get(url, timeout=2)
+            resp = requests.get(srv_url + "/ping", timeout=2)
             if resp.status_code == 200:
-                logger.info(f"Service at {host}:{port} is ready")
+                logger.info(f"Service at {srv_url} is ready")
                 return True
         except Exception:
             pass
         time.sleep(interval)
-    logger.error(f"Service at {host}:{port} not ready after {timeout}s")
+    logger.error(f"Service at {srv_url} not ready after {timeout}s")
     return False
 
 def wait_for_service_stopped(service_name: str, timeout: int = 30, interval: float = 0.5) -> bool:
@@ -583,30 +582,31 @@ if __name__ == "__main__":
             with open(file, 'r') as f:
                 data = json.load(f)
                 cfg = Config(**data)
-                srv_id = cfg.id
+            srv_url = "{}://{}:{}".format("https" if cfg.ssl else "http", cfg.host, cfg.port)
+            srv_id = cfg.id
             sts = get_service_status(srv_id)
             logger.info(f"service status of {srv_id}: {sts}")
             if op == 'start':
                 logger.info(f"start {srv_id} ...")
                 if open_service(cfg):
                     # wait service ready really
-                    if not wait_for_service_ready(cfg.host, cfg.port, timeout=60):
+                    if not wait_for_service_ready(srv_url, timeout=60):
                         logger.error(f"Error: service {srv_id} did not become ready in time")
                         sys.exit(1)
                     print(f"Service {srv_id} is started, and its descendants will be started in turn.")
                     logs = get_service_logs(srv_id)
                     logger.info(f"Systemed service logs for {srv_id}:\n{logs}")
-                    child_ids = requests.post("http://{}:{}/get_children".format(cfg.host, cfg.port), json={}).json()
+                    child_ids = requests.post(f"{srv_url}/get_children", json={}).json()
                     for child_id in child_ids:
                         time.sleep(1)
-                        res = requests.post("http://{}:{}/start_child".format(cfg.host, cfg.port), json={"id": child_id}).json()
+                        res = requests.post(f"{srv_url}/start_child", json={"id": child_id}).json()
                         logger.info(f"Service {child_id} is started: {res}")
                         print(f"Service {child_id} is started: {res}")
                 else:
                     logger.error(f"Error: failed to start service {srv_id}")
             elif op == 'stop':
                 logger.info(f"stop {srv_id} ...")
-                if sts["ActiveState"] != "active":
+                if sts.get("ActiveState") != "active":
                     logger.warning(f"Warning: service {srv_id} is not running!")
                     print(f"Service {srv_id} is not running!")
                     sys.exit(1)
@@ -617,13 +617,13 @@ if __name__ == "__main__":
                 print(f"Service {srv_id} and its descendants are stopped.")
             elif op == 'drop':
                 logger.info(f"drop {srv_id} ...")
-                if sts["ActiveState"] != "active":
+                if sts.get("ActiveState") != "active":
                     logger.warning(f"Warning: service {srv_id} is not running!")
                     print(f"Service {srv_id} is not running!")
                     sys.exit(1)
-                child_ids = requests.post("http://{}:{}/get_children".format(cfg.host, cfg.port), json={}).json()
+                child_ids = requests.post("{}://{}:{}/get_children".format("https" if cfg.ssl else "http", cfg.host, cfg.port), json={}).json()
                 for child_id in child_ids:
-                    requests.post("http://{}:{}/stop_child".format(cfg.host, cfg.port), json={"id":child_id})
+                    requests.post("{}://{}:{}/stop_child".format("https" if cfg.ssl else "http", cfg.host, cfg.port), json={"id":child_id})
                     if not wait_for_service_stopped(child_id, timeout=30):
                         logger.warning(f"Warning: service {child_id} still not fully stopped")
                     print(f"Service {child_id} is stopped.")
