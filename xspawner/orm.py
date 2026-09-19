@@ -94,12 +94,6 @@ class TieredModel(KeyedModel):
 
         return super().__new__(cls, name, bases, attrs)
 
-# 缓存模型
-class CachedModel(models.Model, metaclass = KeyedModel):
-    class Meta:
-        table = "m_cache"
-    data = fields.JSONField(null=True)   # 可存 dict, list, str, int, bool, None
-
 
 # 配置模型
 class SpawnedModel(models.Model, metaclass = TieredModel):
@@ -115,6 +109,26 @@ class SpawnedModel(models.Model, metaclass = TieredModel):
     ssl = fields.BooleanField()
     certfile = fields.CharField(max_length=255, default="")
     keyfile = fields.CharField(max_length=255, default="")
+
+
+# 缓存模型
+class CachedModel(models.Model):
+    class Meta:
+        table = "m_cache"
+        unique_together = (("key", "spawn"),)            # 联合唯一约束
+
+    _pk = fields.IntField(pk=True, generated=True)      # 代理主键
+    key = fields.CharField(max_length=255)               # 业务键
+    spawn = fields.ForeignKeyField(
+        "models.SpawnedModel",
+        null=False,
+        on_delete=fields.CASCADE,
+        related_name="caches",
+    )
+    val = fields.JSONField(null=True)
+
+    def __str__(self):
+        return f"CachedModel({self.key}@{self.spawn_id})"
 
 
 def config_model_to_tuple(model: SpawnedModel) -> Config:

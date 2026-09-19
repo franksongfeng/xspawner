@@ -323,13 +323,13 @@ class Spawnable(object):
     async def configurate(self):
         raise NotImplementedError
 
-    async def getData(self, id):
+    async def getVal(self, key):
         raise NotImplementedError
 
-    async def setData(self, id, data):
+    async def setVal(self, key, val):
         raise NotImplementedError
 
-    async def delData(self, id):
+    async def delVal(self, key):
         raise NotImplementedError
 
     async def getConfigs(self):
@@ -547,48 +547,66 @@ class XSpawner(Spawnable):
             self.iLog(f"new a model {self._config}")
         self.iLog(f"configurate END")
 
-    async def getData(self, id: str):
-        self.iLog(f"getData BEG {id}")
-        if not id:
-            self.wLog("getData: empty id")
+    async def getVal(self, key: str):
+        self.iLog(f"getVal BEG key={key} spawn={self._config.id}")
+        if not key:
+            self.wLog("getVal: empty key")
             return None
         try:
-            model = await CachedModel.get(id=id)
-            self.iLog(f"getData END {model}")
-            return model.data
-        except DoesNotExist:
-            self.iLog(f"getData END No")
-            return None
-        except Exception as e:
-            self.eLog(f'getData EXP {e}')
-            return None
-
-
-    async def setData(self, id: str, data) -> bool:
-        self.iLog(f"setData BEG {id} {type(data).__name__}")
-        if not id:
-            self.wLog("setData: empty id")
-            return False
-        try:
-            # update_or_create：存在则更新 data，不存在则新建
-            await CachedModel.update_or_create(
-                id=id,
-                defaults={"data": data},
+            model = await CachedModel.get_or_none(
+                key=key,
+                spawn_id=self._config.id,
             )
-            self.iLog(f"setData END {id}")
+            if model is None:
+                self.iLog(f"getVal END {key} no-hit")
+                return None
+            self.iLog(f"getVal END {key} type={type(model.val).__name__}")
+            return model.val
+        except Exception as e:
+            self.eLog(f"getVal EXP {key}: {e}")
+            return None
+
+
+    async def setVal(self, key: str, val) -> bool:
+        self.iLog(f"setVal BEG key={key} spawn={self._config.id} type={type(val).__name__}")
+        if not key:
+            self.wLog("setVal: empty key")
+            return False
+        try:
+            model = await CachedModel.get_or_none(
+                key=key,
+                spawn_id=self._config.id,
+            )
+            if model:
+                model.val = val
+                await model.save()
+                self.iLog(f"setVal END {key} updated")
+            else:
+                await CachedModel.create(
+                    key=key,
+                    spawn_id=self._config.id,
+                    val=val,
+                )
+                self.iLog(f"setVal END {key} created")
             return True
         except Exception as e:
-            self.eLog(f"setData EXP {id}: {e}")
+            self.eLog(f"setVal EXP {key}: {e}")
             return False
 
-    async def delData(self, id: str) -> bool:
-        self.iLog(f"delData BEG {id}")
+    async def delVal(self, key: str) -> bool:
+        self.iLog(f"delVal BEG key={key} spawn={self._config.id}")
+        if not key:
+            self.wLog("delVal: empty key")
+            return False
         try:
-            deleted = await CachedModel.filter(id=id).delete()
-            self.iLog(f"delData END {id}")
+            deleted = await CachedModel.filter(
+                key=key,
+                spawn_id=self._config.id,
+            ).delete()
+            self.iLog(f"delVal END {key} deleted={deleted}")
             return True
         except Exception as e:
-            self.eLog(f"setData EXP {id}: {e}")
+            self.eLog(f"delVal EXP {key}: {e}")
             return False
 
     async def getConfigs(self) -> Optional[List[Config]]:
@@ -685,16 +703,16 @@ class XSpawner(Spawnable):
     def isChildClass(cls, kls):
         return issubclass(kls, cls) and kls is not cls
 
-    async def testServer(self, port, host="localhost", ssl=False):
-        self.iLog("testServer BEG {} {} {}".format(port, host, ssl))
+    async def testServer(self, port, host="localhost", use_ssl=False):
+        self.iLog("testServer BEG {} {} {}".format(port, host, use_ssl))
         tcp_client = tornado.tcpclient.TCPClient()
         try:
-            stream = await tcp_client.connect(host, port, ssl_options=ssl.create_default_context() if ssl else None)
+            stream = await tcp_client.connect(host, port, ssl_options=ssl.create_default_context() if use_ssl else None)
             stream.close()  # connect succeed and clost it
             self.iLog("testServer END true")
             return True
         except Exception as e:
-            self.eLog(f'WARN: url {url} is not connected: {e}')
+            self.eLog(f'WARN: {host}:{port} is not connected: {e}')
             self.wLog("testServer END false")
             return False    # failed and stop connect try
 
