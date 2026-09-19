@@ -5,6 +5,14 @@ from urllib.parse import quote_plus
 from xspawner.constants import Config
 
 
+def caller_module(idx=1):
+    # stack[0]    caller_module() 自己
+    # stack[1]    init_database()（它调用了 caller_module()）
+    # stack[2]    调用 init_database() 的那个函数（最终用户代码）
+    caller_frame = inspect.stack()[idx]
+    return inspect.getmodule(caller_frame[0])
+
+
 async def open_database(category, **setting):
     '''
     根据 category（sqlite / mysql / postgres）构建连接字符串
@@ -80,7 +88,7 @@ class TieredModel(KeyedModel):
                 f"{app_label}.{name}",  # like "models.SpawnedModel"
                 null=True,
                 on_delete=fields.SET_NULL,
-                related_name="children",
+                related_name="+",               # No reverse access
             )
 
         # handle fields in fk_mapping
@@ -115,10 +123,10 @@ class SpawnedModel(models.Model, metaclass = TieredModel):
 class CachedModel(models.Model):
     class Meta:
         table = "m_cache"
-        unique_together = (("key", "spawn"),)            # 联合唯一约束
+        unique_together = (("key", "spawn"),)           # 联合唯一约束
 
-    _pk = fields.IntField(pk=True, generated=True)      # 代理主键
-    key = fields.CharField(max_length=255)               # 业务键
+    id = fields.IntField(pk=True, generated=True)       # 代理主键
+    key = fields.CharField(max_length=255)              # 业务键
     spawn = fields.ForeignKeyField(
         "models.SpawnedModel",
         null=False,
