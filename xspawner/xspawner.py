@@ -540,11 +540,16 @@ class XSpawner(Spawnable):
 
     async def configurate(self):
         self.iLog(f"configurate BEG")
-        await open_database("sqlite", file=LOCAL_DB)
-        if not await self.getConfig(self._config.id):
-            # await tornado.gen.sleep(0.5)
-            await self.addConfig(self._config)
-            self.iLog(f"new a model {self._config}")
+        mmod = PLUGIN_PKG + "." + self._config.plugin
+        try:
+            await open_database(mmod, "sqlite", file=LOCAL_DB)
+            if not await self.getConfig(self._config.id):
+                # await tornado.gen.sleep(0.5)
+                await self.addConfig(self._config)
+                self.iLog(f"new a model {self._config}")
+        except Exception as e:
+            self.eLog(f"configurate raise {e}")
+            return
         self.iLog(f"configurate END")
 
     async def getVal(self, key: str):
@@ -677,7 +682,7 @@ class XSpawner(Spawnable):
     async def getChildren(self) -> List[str]:
         self.iLog(f"getChildren BEG")
         try:
-            models = await SpawnedModel.filter(parent=self._config.id).all()
+            models = await SpawnedModel.filter(parent_id=self._config.id).all()
             self.iLog(f"Type: {type(models)} Len: {len(models)} Models: {models}") # Models: [SpawnedModel]
             ids = [m.id for m in models]
             self.iLog(f"getChildren END {ids}")

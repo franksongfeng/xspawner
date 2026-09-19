@@ -13,10 +13,12 @@ def caller_module(idx=1):
     return inspect.getmodule(caller_frame[0])
 
 
-async def open_database(category, **setting):
+async def open_database(mmod, category, **setting):
     '''
     根据 category（sqlite / mysql / postgres）构建连接字符串
     '''
+    if not mmod:
+        raise ValueError("No mapping mod")
     conn_str = ""
     if category == "sqlite":
         conn_str = '{}://{}'.format(
@@ -46,7 +48,7 @@ async def open_database(category, **setting):
     await Tortoise.init(
         db_url=conn_str,
         modules={
-            'models': [__name__]
+            'models': [__name__, mmod]
         }
     )
 
