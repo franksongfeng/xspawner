@@ -320,7 +320,7 @@ class Spawnable(object):
     def getAddr(self, port):
         raise NotImplementedError
 
-    async def configurate(self):
+    async def init_db(self):
         raise NotImplementedError
 
     async def getVal(self, key):
@@ -370,7 +370,7 @@ class XSpawner(Spawnable):
         self._ioloop = tornado.ioloop.IOLoop.current()
 
         # save config in local db
-        self._ioloop.add_callback(self.configurate)
+        self._ioloop.add_callback(self.init_db)
 
         # create request queue
         self._req_queue = tornado.queues.Queue(256)
@@ -538,19 +538,18 @@ class XSpawner(Spawnable):
     def getPid(self):
         return os.getpid()
 
-    async def configurate(self):
-        self.iLog(f"configurate BEG")
-        mmod = PLUGIN_PKG + "." + self._config.plugin
+    async def init_db(self):
+        self.iLog(f"init_db BEG")
         try:
-            await open_database(mmod, "sqlite", file=LOCAL_DB)
+            await open_database(f"sqlite://{LOCAL_DB}", PLUGIN_PKG + "." + self._config.plugin)
             if not await self.getConfig(self._config.id):
                 # await tornado.gen.sleep(0.5)
                 await self.addConfig(self._config)
                 self.iLog(f"new a model {self._config}")
         except Exception as e:
-            self.eLog(f"configurate raise {e}")
+            self.eLog(f"init_db raise {e}")
             return
-        self.iLog(f"configurate END")
+        self.iLog(f"init_db END")
 
     async def getVal(self, key: str):
         self.iLog(f"getVal BEG key={key} spawn={self._config.id}")

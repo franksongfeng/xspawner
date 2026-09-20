@@ -6,6 +6,7 @@ from xspawner.utilities.msg import * # NOQA
 from xspawner.constants import * # NOQA
 from xspawner.service import * # NOQA
 from xspawner.xspawner import * # NOQA
+from xspawner.orm import * # NOQA
 import tornado.gen
 import tornado.queues
 import tornado.httpclient
@@ -46,10 +47,20 @@ class Spawner(XSpawner): # NOQA
     def _get_config(self, headers: dict, data: dict):
         return self._config._asdict()
 
+    @ApiHandler.route("/drop_db")
+    async def _drop(self, headers: dict, data: dict):
+        self.iLog("{}::_drop BEG {}".format(self.__class__.__name__, data))
+        if "conn" not in data:
+            self.eLog(f"Failed to drop db, No conn in data {data}")
+            return False
+        setting = parse_connection_str(data["conn"]) if isinstance(data["conn"], str) else data["conn"]
+        await drop_database(setting)
+        self.iLog("{}::_drop END")
+        return True
+
     @ApiHandler.route("/get_children")
     async def _get_children(self, headers: dict, data: dict):
         return await self.getChildren()
-
 
     @ApiHandler.route("/start_child")
     async def _start_child(self, headers: dict, data: dict):

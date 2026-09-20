@@ -1,7 +1,10 @@
 import inspect
+import re
+import os
+import shutil
 from tortoise import Tortoise
 from tortoise import fields, models
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, unquote_plus
 from xspawner.constants import Config
 
 
@@ -13,12 +16,11 @@ def caller_module(idx=1):
     return inspect.getmodule(caller_frame[0])
 
 
-async def open_database(mmod, category, **setting):
-    '''
-    根据 category（sqlite / mysql / postgres）构建连接字符串
-    '''
-    if not mmod:
-        raise ValueError("No mapping mod")
+def make_connection_str(setting) -> str:
+    if "category" not in setting:
+        raise ValueError(f"Miss category parameter in setting {setting}")
+    category = setting["category"]
+
     conn_str = ""
     if category == "sqlite":
         conn_str = '{}://{}'.format(
@@ -41,14 +43,68 @@ async def open_database(mmod, category, **setting):
                 )
     else:
         raise ValueError(f"Invalid category: {category}")
+    return conn_str
+
+
+def parse_connection_str(conn_str: str) -> dict:
+    """
+    将 make_connection_str 生成的连接字符串反解析为 settings dict。
+
+    输入示例:
+      "sqlite://kv.db"
+      "sqlite:///opt/data/kv.db"
+      "mysql://user:pass@127.0.0.1:3306/mydb"
+      "postgres://user%40corp:p%2Fw@db.local:5432/prod"
+
+    返回:
+      {"category": "sqlite", "file": "kv.db"}
+      {"category": "mysql", "usr": "user", "psw": "pass",
+       "host": "127.0.0.1", "port": 3306, "name": "mydb"}
+    """
+    if not isinstance(conn_str, str) or "://" not in conn_str:
+        raise ValueError(f"Invalid conn_str: {conn_str!r}")
+
+    category, rest = conn_str.split("://", 1)
+    category = category.lower()
+
+    # ── sqlite: 剩余部分就是文件路径 ─────────────────────
+    if category == "sqlite":
+        if not rest:
+            raise ValueError(f"Empty sqlite file path: {conn_str!r}")
+        return {"category": "sqlite", "file": rest}
+
+    # ── mysql / postgres: usr:psw@host:port/name ─────────
+    if category in ("mysql", "postgres"):
+        # usr/psw/name 已被 quote_plus 编码, 因此不含未编码的 : @ /
+        m = re.fullmatch(
+            r"(?P<usr>[^:@/]+):(?P<psw>[^@]*)@"
+            r"(?P<host>[^:/]+):(?P<port>\d+)"
+            r"/(?P<name>.+)",
+            rest,
+        )
+        if not m:
+            raise ValueError(f"Invalid {category} conn_str: {conn_str!r}")
+        g = m.groupdict()
+        return {
+            "category": category,
+            "usr":  unquote_plus(g["usr"]),
+            "psw":  unquote_plus(g["psw"]),
+            "host": g["host"],           # host 未编码, 原样返回
+            "port": int(g["port"]),      # 转 int 便于直接用
+            "name": unquote_plus(g["name"]),
+        }
+    raise ValueError(f"Invalid category: {category}")
+
+
+async def open_database(conn, mmod=None):
     '''
     初始化连接并建表
-    (去 orm 模块中查找模型类)
+    (去 orm 和 mmod 模块中查找模型类)
     '''
     await Tortoise.init(
-        db_url=conn_str,
+        db_url=make_connection_str(conn) if isinstance(conn, dict) else conn,
         modules={
-            'models': [__name__, mmod]
+            'models': [__name__, mmod] if mmod else [__name__]
         }
     )
 
@@ -60,6 +116,120 @@ async def close_database():
     关闭所有数据库连接
     '''
     await Tortoise.close_connections()
+
+
+def _quote_mysql_ident(name: str) -> str:
+    """MySQL 标识符转义：反引号包裹，内部反引号翻倍"""
+    return "`" + name.replace("`", "``") + "`"
+
+
+def _quote_pg_ident(name: str) -> str:
+    """PostgreSQL 标识符转义：双引号包裹，内部双引号翻倍"""
+    return '"' + name.replace('"', '""') + '"'
+
+
+async def _drop_mysql_database(host, port, usr, psw, name):
+    import aiomysql
+    # 不指定 db，直接连服务器
+    conn = await aiomysql.connect(
+        host=host, port=port,
+        user=usr, password=psw,
+        autocommit=True,
+    )
+    try:
+        async with conn.cursor() as cur:
+            # 先杀掉目标库上的其他连接（需要 PROCESS 权限，权限不足就跳过）
+            try:
+                await cur.execute(
+                    "SELECT id FROM information_schema.processlist "
+                    "WHERE db = %s AND id <> CONNECTION_ID()",
+                    (name,),
+                )
+                rows = await cur.fetchall()
+                for (pid,) in rows:
+                    await cur.execute(f"KILL {int(pid)}")
+            except Exception:
+                pass
+
+            await cur.execute(
+                f"DROP DATABASE IF EXISTS {_quote_mysql_ident(name)}"
+            )
+    finally:
+        conn.close()
+
+
+async def _drop_postgres_database(host, port, usr, psw, name):
+    import asyncpg
+    # 连到默认的 postgres 管理库
+    conn = await asyncpg.connect(
+        host=host, port=port,
+        user=usr, password=psw,
+        database="postgres",
+    )
+    try:
+        # 先终止目标库上的其他连接
+        await conn.fetch(
+            "SELECT pg_terminate_backend(pid) "
+            "FROM pg_stat_activity "
+            "WHERE datname = $1 AND pid <> pg_backend_pid()",
+            name,
+        )
+        # 删除数据库
+        await conn.execute(
+            f"DROP DATABASE IF EXISTS {_quote_pg_ident(name)}"
+        )
+    finally:
+        await conn.close()
+
+
+def _drop_sqlite_database(file, backup: bool = True):
+    dbf = file
+
+    # backup db to be removed
+    if backup and os.path.exists(dbf):
+        shutil.copy2(dbf, f"{dbf}.bak")
+
+    files_to_delete = [dbf, f"{dbf}-shm", f"{dbf}-wal"]
+    for fname in files_to_delete:
+        if os.path.exists(fname):
+            os.remove(fname)
+
+
+async def drop_database(conn):
+    setting = parse_connection_str(conn) if isinstance(conn, str) else conn
+    if "category" not in setting:
+        raise ValueError(f"Miss category parameter in setting {setting}")
+    category = setting["category"]
+
+    if category == "sqlite":
+        if "file" not in setting:
+            raise ValueError(f"Miss file parameter in setting")
+        _drop_sqlite_database(setting["file"], True)
+        return
+
+    if category not in ("mysql", "postgres"):
+        raise ValueError(f"Invalid category: {category}")
+
+    required = ["usr", "psw", "host", "port", "name"]
+    missing = [k for k in required if k not in setting]
+    if missing:
+        raise ValueError(f"Miss parameter: {missing}")
+
+    host = setting["host"]
+    port = int(setting["port"])
+    usr = setting["usr"]
+    psw = setting["psw"]
+    dbname = setting["name"]
+
+    try:
+        await close_database()
+    except Exception:
+        pass
+
+    if category == "mysql":
+        await _drop_mysql_database(host, port, usr, psw, dbname)
+    elif category == "postgres":
+        await _drop_postgres_database(host, port, usr, psw, dbname)
 
 
 # 有键模型

@@ -523,25 +523,6 @@ def is_running_by_psutil(proc_name: str) -> bool:
             return True
     return False
 
-def delete_localdb(backup: bool = True):
-    dbf = LOCAL_DB
-
-    # backup db to be removed
-    if backup and os.path.exists(dbf):
-        shutil.copy2(dbf, f"{dbf}.bak")
-        logger.info(f"Backup created at {dbf}.bak")
-
-    files_to_delete = [dbf, f"{dbf}-shm", f"{dbf}-wal"]
-    for fname in files_to_delete:
-        if os.path.exists(fname):
-            try:
-                os.remove(fname)
-                logger.info(f"successfully removed: {fname}")
-            except OSError as e:
-                logger.error(f"failed to remove {fname}: {e}")
-        else:
-            logger.warning(f"doesnt exist: {fname}")
-
 
 def wait_for_service_ready(srv_url: str, timeout: int = 60, interval: float = 0.5) -> bool:
     """轮询 /ping 直到服务就绪或超时"""
@@ -651,17 +632,20 @@ if __name__ == "__main__":
                 # ---- ---- ---- ---- ----
 
                 for child_id in child_ids:
-                    requests.post("{}://{}:{}/stop_child".format("https" if cfg.ssl else "http", cfg.host, cfg.port), json={"id":child_id})
+                    requests.post(f"{srv_url}/stop_child", json={"id":child_id})
                     if not wait_for_service_stopped(child_id, timeout=30):
                         logger.warning(f"Warning: service {child_id} still not fully stopped")
                     print(f"Service {child_id} is stopped.")
+
+                # drop database
+                requests.post(f"{srv_url}/drop_db", json={"conn": f"sqlite://{LOCAL_DB}"})
+
                 if close_service(srv_id):
                     logs = get_service_logs(srv_id)
                     logger.info(f"Systemed service logs for {srv_id}:\n{logs}")
                     if not wait_for_service_stopped(srv_id, timeout=30):
                         logger.warning(f"Warning: service {srv_id} still not fully stopped, database may be locked")
                     print(f"Service {srv_id} is stopped.")
-                    delete_localdb()
                     logger.info(f"Service {srv_id} and its descendants are dropped.")
                     print(f"Service {srv_id} and its descendants are dropped.")
                 else:
