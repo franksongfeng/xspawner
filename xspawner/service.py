@@ -622,6 +622,34 @@ if __name__ == "__main__":
                     print(f"Service {srv_id} is not running!")
                     sys.exit(1)
                 child_ids = requests.post("{}://{}:{}/get_children".format("https" if cfg.ssl else "http", cfg.host, cfg.port), json={}).json()
+
+                # ---- 破坏性操作前确认 ----
+                print("")
+                print("=" * 64)
+                print("  WARNING: 'drop' is a DESTRUCTIVE operation!")
+                print("=" * 64)
+                print(f"  Service id  : {srv_id}")
+                print(f"  Children    : {child_ids if child_ids else '(none)'}")
+                print("")
+                print("This will:")
+                print("  1. Stop every child service listed above")
+                print("  2. Stop and remove this service's systemd unit")
+                print(f"  3. DELETE the shared database")
+                print("")
+                print(f"Type the service id '{srv_id}' to confirm, anything else aborts:")
+                try:
+                    answer = input(">>> ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print("\nAborted.")
+                    logger.warning(f"drop {srv_id} aborted (no confirmation)")
+                    sys.exit(1)
+
+                if answer != srv_id:
+                    print(f"Aborted: confirmation '{answer}' does not match '{srv_id}'.")
+                    logger.warning(f"drop {srv_id} aborted (confirmation mismatch)")
+                    sys.exit(1)
+                # ---- ---- ---- ---- ----
+
                 for child_id in child_ids:
                     requests.post("{}://{}:{}/stop_child".format("https" if cfg.ssl else "http", cfg.host, cfg.port), json={"id":child_id})
                     if not wait_for_service_stopped(child_id, timeout=30):
