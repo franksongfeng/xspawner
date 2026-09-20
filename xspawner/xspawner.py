@@ -546,10 +546,11 @@ class XSpawner(Spawnable):
                 # await tornado.gen.sleep(0.5)
                 await self.addConfig(self._config)
                 self.iLog(f"new a model {self._config}")
+            self.iLog(f"init_db END")
         except Exception as e:
             self.eLog(f"init_db raise {e}")
-            return
-        self.iLog(f"init_db END")
+            self.cLog("init_db failed, service will be degraded!")
+            self.stop()
 
     async def getVal(self, key: str):
         self.iLog(f"getVal BEG key={key} spawn={self._config.id}")
@@ -825,6 +826,17 @@ def search_for_class_in_package(fpath, class_name):
     if get_file_type(fpath) == "application/zip":
         with zipfile.ZipFile(fpath, 'r') as zip_ref:
             zip_ref.testzip()
+
+            # ── 校验所有条目都在 PLUGIN_DIR 内 ─────────────
+            root = os.path.realpath(PLUGIN_DIR)
+            for entry in zip_ref.namelist():
+                tgt = os.path.realpath(os.path.join(PLUGIN_DIR, entry))
+                if not tgt.startswith(root + os.sep):
+                    print("zip entry escapes: {}".format(entry))
+                    print("search_for_class_in_package END {}".format(None))
+                    return None
+
+            # ── 找到顶层包的 __init__.py 后整体解压 ────────
             for entry in zip_ref.namelist():
                 print("entry {}".format(entry))
                 if len(entry.split("/")) == 2 and os.path.basename(entry) == "__init__.py":

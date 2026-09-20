@@ -158,7 +158,7 @@ class Supervisor(Spawner): # NOQA
             put_error('No uploaded source file')
             return
         
-        fname = data["source"]["filename"]
+        fname = os.path.basename(data["source"]["filename"])    # sanitize
         fdata = data["source"]["content"]
         ftype = data["source"]["mime_type"]
         srvname = data["id"]

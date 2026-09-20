@@ -2,11 +2,11 @@ import inspect
 import re
 import os
 import shutil
+from typing import Optional
 from tortoise import Tortoise
 from tortoise import fields, models
 from urllib.parse import quote_plus, unquote_plus
 from xspawner.constants import Config
-
 
 def caller_module(idx=1):
     # stack[0]    caller_module() 自己
@@ -16,7 +16,7 @@ def caller_module(idx=1):
     return inspect.getmodule(caller_frame[0])
 
 
-def make_connection_str(setting) -> str:
+def make_connection_str(setting: dict) -> str:
     if "category" not in setting:
         raise ValueError(f"Miss category parameter in setting {setting}")
     category = setting["category"]
@@ -96,13 +96,13 @@ def parse_connection_str(conn_str: str) -> dict:
     raise ValueError(f"Invalid category: {category}")
 
 
-async def open_database(conn, mmod=None):
+async def open_database(conn: str, mmod: Optional[str] = None):
     '''
     初始化连接并建表
     (去 orm 和 mmod 模块中查找模型类)
     '''
     await Tortoise.init(
-        db_url=make_connection_str(conn) if isinstance(conn, dict) else conn,
+        db_url=conn,
         modules={
             'models': [__name__, mmod] if mmod else [__name__]
         }
@@ -195,8 +195,8 @@ def _drop_sqlite_database(file, backup: bool = True):
             os.remove(fname)
 
 
-async def drop_database(conn):
-    setting = parse_connection_str(conn) if isinstance(conn, str) else conn
+async def drop_database(conn: str):
+    setting = parse_connection_str(conn)
     if "category" not in setting:
         raise ValueError(f"Miss category parameter in setting {setting}")
     category = setting["category"]

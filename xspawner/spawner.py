@@ -48,14 +48,17 @@ class Spawner(XSpawner): # NOQA
         return self._config._asdict()
 
     @ApiHandler.route("/drop_db")
-    async def _drop(self, headers: dict, data: dict):
-        self.iLog("{}::_drop BEG {}".format(self.__class__.__name__, data))
+    async def _drop_db(self, headers: dict, data: dict):
+        self.iLog("{}::_drop_db BEG".format(self.__class__.__name__))
         if "conn" not in data:
-            self.eLog(f"Failed to drop db, No conn in data {data}")
+            self.eLog("Failed to drop db, No conn in data")
             return False
-        setting = parse_connection_str(data["conn"]) if isinstance(data["conn"], str) else data["conn"]
-        await drop_database(setting)
-        self.iLog("{}::_drop END")
+        try:
+            await drop_database(data["conn"])
+            self.iLog("{}::_drop_db END")
+        except Exception as e:
+            self.eLog(f"Exception on drop db {e}")
+            return False
         return True
 
     @ApiHandler.route("/get_children")
@@ -172,7 +175,7 @@ class Spawner(XSpawner): # NOQA
             self.eLog("Error: no plugin name {}".format(fname))
             return False
 
-        plugin_id = os.path.basename(fname).split('.')[0]
+        plugin_id = os.path.splitext(os.path.basename(fname))[0]
 
         if fargs is None:
             self.eLog("Error: no fargs")
@@ -301,20 +304,23 @@ class Spawner(XSpawner): # NOQA
     @ApiHandler.route("/upload_plugin")
     async def _upload_plugin(self, headers: dict, fdata: bytes, fname: str, fargs: dict):
         self.iLog("{}::_upload_plugin BEG {} {} {}".format(self.__class__.__name__, len(fdata), fname, fargs))
-        if "plugin" in fargs:
-            srvapp = fargs["plugin"]
-        else:
-            srvapp = os.path.splitext(os.path.basename(fname))[0]
+        fname = os.path.basename(fname)          # ← 入口统一 sanitize
         if get_file_type(fname) == "application/zip":
             zip_buffer = io.BytesIO(fdata)
             with zipfile.ZipFile(zip_buffer, 'r') as zipf:
+                root = os.path.realpath(PLUGIN_DIR)
+                for entry in zipf.namelist():
+                    tgt = os.path.realpath(os.path.join(PLUGIN_DIR, entry))
+                    if not tgt.startswith(root + os.sep):
+                        self.eLog(f"zip entry escapes: {entry}")
+                        return False
                 zipf.extractall(PLUGIN_DIR)
-                self.iLog(f'exact {fname} to {PLUGIN_DIR}')
+                self.iLog(f"exact {fname} to {PLUGIN_DIR}")
         else:
             modfile = f"{PLUGIN_DIR}/{fname}"
             with open(modfile, "wb") as f:
                 f.write(fdata)
-                self.iLog(f'write to {modfile}')
+                self.iLog(f"write to {modfile}")
         self.iLog("{}::_upload_plugin END".format(self.__class__.__name__))
         return True
 
