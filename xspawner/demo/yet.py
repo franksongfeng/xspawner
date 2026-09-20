@@ -2,7 +2,7 @@
 # Copyright © 2025 Song Feng.
 from pywebio.input import *
 from pywebio.output import *
-from xspawner.plugins.spawner import * # NOQA
+from xspawner.spawner import * # NOQA
 from xspawner.xspawner import * # NOQA
 import os.path
 import datetime

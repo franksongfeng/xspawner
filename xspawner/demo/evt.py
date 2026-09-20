@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 from xspawner.xspawner import * # NOQA
-from xspawner.plugins.spawner import *  # NOQA
+from xspawner.spawner import *  # NOQA
 import os.path
 import datetime
 import json

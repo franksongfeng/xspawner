@@ -8,10 +8,9 @@ from pywebio.pin import *
 from pywebio.session import *
 from pywebio.utils import *
 from xspawner.xspawner import * #NOQA
-from xspawner.plugins.spawner import * # NOQA
+from xspawner.spawner import * # NOQA
 from xspawner.utilities.misc import * # NOQA
 from xspawner.constants import * # NOQA
-from xspawner.xspawner import ApiHandler, UiHandler # NOQA
 import tornado.gen
 import psutil
 
@@ -243,7 +242,7 @@ class Supervisor(Spawner): # NOQA
                 if is_port_used(srvport):
                     if await self._stop_child(None, {"id": srvname}):
                         put_warning("server {} was stopped.".format(srvname))
-                        if srvapp not in ["spawner", "supervisor"]:
+                        if srvapp not in ["supervisor"]:
                             if await self._clean_plugin(None, {"plugin": srvapp}):
                                 put_info("Plugin {} was cleaned.".format(srvapp))
                 return
@@ -305,7 +304,7 @@ class Supervisor(Spawner): # NOQA
         put_info("Server <{} :{}> will be deleted.".format(srvname, srvpid))
         if await self._stop_child(None, {"id": srvname}):
             put_success("Server <{} :{}> is deleted.".format(srvname, srvpid))
-            if srvapp not in ["spawner", "supervisor"]:
+            if srvapp not in ["supervisor"]:
                 if await self._clean_plugin(None, {"plugin": srvapp}):
                     put_success("Plugin {} is cleaned.".format(srvapp))
                     self.iLog("Plugin {} is cleaned.".format(srvapp))

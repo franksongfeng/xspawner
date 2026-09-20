@@ -10,4 +10,4 @@ python3 -m xspawner.service start ./config.json
 
 # execute test
 # sleep 1
-# python3 -m xspawner.plugins.spawner.tests https://xspawner.com:8668
+# python3 -m xspawner.plugins.supervisor.tests https://xspawner.com:8668

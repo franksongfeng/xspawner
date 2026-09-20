@@ -8,7 +8,7 @@ from pywebio.pin import *
 from pywebio.session import *
 from pywebio.utils import *
 from xspawner.xspawner import * # NOQA
-from xspawner.plugins.spawner import * # NOQA
+from xspawner.spawner import * # NOQA
 from xspawner.utilities.misc import * # NOQA
 from xspawner import * # NOQA
 import tornado.gen

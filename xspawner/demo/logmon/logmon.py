@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 from xspawner.constants import * # NOQA
-from xspawner.plugins.spawner import * # NOQA
+from xspawner.spawner import * # NOQA
 from xspawner.xspawner import * # NOQA
 import tornado.queues
 import os.path
