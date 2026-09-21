@@ -1,0 +1,132 @@
+#!/bin/bash
+# -*- coding: utf-8 -*-
+# Copyright © 2025 Song Feng.
+#
+# 交互式生成 ./config.json
+#
+# 用法:
+#   ./init.sh
+
+set -euo pipefail
+
+FILE="./config.json"
+
+# ---------- 工具函数 ----------
+
+# read_default "提示" "默认值"
+# 输出: 用户输入，空则用默认值
+read_default() {
+    local prompt="$1"
+    local default="$2"
+    local ans
+    if ! read -r -p "${prompt} [${default}]: " ans; then
+        echo "Aborted." >&2
+        exit 1
+    fi
+    if [ -z "$ans" ]; then
+        printf '%s' "$default"
+    else
+        printf '%s' "$ans"
+    fi
+}
+
+# read_bool "提示" true|false
+# 输出: "true" 或 "false"
+read_bool() {
+    local prompt="$1"
+    local default="$2"
+    local ans
+    if ! read -r -p "${prompt} [${default}]: " ans; then
+        echo "Aborted." >&2
+        exit 1
+    fi
+    ans="${ans,,}"    # 转小写
+    if [ -z "$ans" ]; then
+        ans="$default"
+    fi
+    case "$ans" in
+        true|yes|y|1|t) printf 'true' ;;
+        *)              printf 'false' ;;
+    esac
+}
+
+# json_escape "字符串"
+# 转义 JSON 字符串里的 \ 和 "
+json_escape() {
+    local s="$1"
+    s="${s//\\/\\\\}"    # \  →  \\
+    s="${s//\"/\\\"}"    # "  →  \"
+    printf '%s' "$s"
+}
+
+# ---------- 覆盖确认 ----------
+
+if [ -e "$FILE" ]; then
+    read -r -p "${FILE} already exists. Overwrite? [y/N]: " ans || {
+        echo "Aborted." >&2
+        exit 1
+    }
+    case "${ans,,}" in
+        y|yes) ;;
+        *) echo "Aborted."; exit 1 ;;
+    esac
+fi
+
+# ---------- 交互收集 ----------
+
+echo "Creating ${FILE}"
+echo "Press Enter to accept the default shown in [brackets]."
+echo
+
+id=$(read_default "id" "xspawner")
+plugin=$(read_default "plugin" "supervisor")
+host=$(read_default "host" "localhost")
+port=$(read_default "port" "8668")
+access=$(read_default "access" "0.0.0.0")
+parent=$(read_default "parent" "")
+
+log=$(read_bool "log" "true")
+
+if [ "$log" = "true" ]; then
+    severity=$(read_default "severity" "debug")
+else
+    severity="info"
+fi
+
+ssl=$(read_bool "ssl" "false")
+
+if [ "$ssl" = "true" ]; then
+    certfile=$(read_default "certfile" "")
+    keyfile=$(read_default "keyfile" "")
+else
+    certfile=""
+    keyfile=""
+fi
+
+# ---------- 端口校验 ----------
+
+if ! [[ "$port" =~ ^[0-9]+$ ]] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
+    echo "Invalid port: $port" >&2
+    exit 1
+fi
+
+# ---------- 写 JSON ----------
+
+cat > "$FILE" <<EOF
+{
+  "id": "$(json_escape "$id")",
+  "plugin": "$(json_escape "$plugin")",
+  "host": "$(json_escape "$host")",
+  "port": ${port},
+  "access": "$(json_escape "$access")",
+  "parent": "$(json_escape "$parent")",
+  "log": ${log},
+  "severity": "$(json_escape "$severity")",
+  "ssl": ${ssl},
+  "certfile": "$(json_escape "$certfile")",
+  "keyfile": "$(json_escape "$keyfile")"
+}
+EOF
+
+echo
+echo "Config written to ${FILE}"
