@@ -609,7 +609,7 @@ if __name__ == "__main__":
                 # ---- 破坏性操作前确认 ----
                 print("")
                 print("=" * 64)
-                print("  WARNING: 'drop' is a DESTRUCTIVE operation!")
+                print("  WARNING: 'drop' is a DESTRUCTIVE operation! Please BACK UP your data first.")
                 print("=" * 64)
                 print(f"  Service id  : {srv_id}")
                 print(f"  Children    : {child_ids if child_ids else '(none)'}")
