@@ -56,7 +56,7 @@ class Supervisor(Spawner): # NOQA
         """
 
         put_html(tab_title.format("信息"))
-        tab_text = "| 类型 | 类型 | 版本 | 进程 | 时间 | 地址 |\n"
+        tab_text = "| 标识 | 类型 | 版本 | 进程 | 时间 | 地址 |\n"
         tab_text +="| ---- | ---- | ---- | ---- | ---- | ---- |\n"
         tab_text +="| {} | {} | {} | {} | {} | {} |\n".format(
             self._config.id,
