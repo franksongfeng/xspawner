@@ -292,9 +292,9 @@ class SpawnedModel(models.Model, metaclass = TieredModel):
 
 
 # 聚合模型
-class AggregateModel(models.Model):
+class EntityModel(models.Model):
     class Meta:
-        table = "m_aggregate"
+        table = "m_entity"
         unique_together = (("spawn", "key"),)           # 联合唯一约束
 
     id = fields.IntField(pk=True, generated=True)       # 代理主键
@@ -303,12 +303,12 @@ class AggregateModel(models.Model):
         "models.SpawnedModel",
         null=False,
         on_delete=fields.CASCADE,
-        related_name="aggregates",
+        related_name="entities",
     )
     value = fields.JSONField(null=True)
 
     def __str__(self):
-        return f"AggregateModel({self.key}@{self.spawn_id})"
+        return f"EntityModel({self.key}@{self.spawn_id})"
 
 
 def config_model_to_tuple(model: SpawnedModel) -> Config:

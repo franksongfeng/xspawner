@@ -558,7 +558,7 @@ class XSpawner(Spawnable):
             self.wLog("getValue: empty key")
             return None
         try:
-            model = await AggregateModel.get_or_none(
+            model = await EntityModel.get_or_none(
                 key=key,
                 spawn_id=self._config.id,
             )
@@ -578,7 +578,7 @@ class XSpawner(Spawnable):
             self.wLog("setValue: empty key")
             return False
         try:
-            model = await AggregateModel.get_or_none(
+            model = await EntityModel.get_or_none(
                 key=key,
                 spawn_id=self._config.id,
             )
@@ -587,7 +587,7 @@ class XSpawner(Spawnable):
                 await model.save()
                 self.iLog(f"setValue END {key} updated")
             else:
-                await AggregateModel.create(
+                await EntityModel.create(
                     key=key,
                     spawn_id=self._config.id,
                     value=value,
@@ -604,7 +604,7 @@ class XSpawner(Spawnable):
             self.wLog("delValue: empty key")
             return False
         try:
-            deleted = await AggregateModel.filter(
+            deleted = await EntityModel.filter(
                 key=key,
                 spawn_id=self._config.id,
             ).delete()
