@@ -295,7 +295,7 @@ class SpawnedModel(models.Model, metaclass = TieredModel):
 class AggregateModel(models.Model):
     class Meta:
         table = "m_aggregate"
-        unique_together = (("key", "spawn"),)           # 联合唯一约束
+        unique_together = (("spawn", "key"),)           # 联合唯一约束
 
     id = fields.IntField(pk=True, generated=True)       # 代理主键
     key = fields.CharField(max_length=255)              # 业务键
