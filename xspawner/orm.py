@@ -294,7 +294,7 @@ class SpawnedModel(models.Model, metaclass = TieredModel):
 # 聚合模型
 class AggregateModel(models.Model):
     class Meta:
-        table = "m_cache"
+        table = "m_aggregate"
         unique_together = (("key", "spawn"),)           # 联合唯一约束
 
     id = fields.IntField(pk=True, generated=True)       # 代理主键
