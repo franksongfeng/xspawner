@@ -12,7 +12,7 @@ XSpawner provides the following key features:
 - **🌐 Simple Lifecycle Management**: Manage service creation, startup, and shutdown through dependency relationships.
 - **⚡ Asynchronous Programming**: Powered by Tornado's battle-tested coroutines for high-performance asynchronous processing.
 - **🔒 Security Enhancement**: Native support for SSL/TLS certificates to ensure secure communication.
-
+- **🗄️ Database Support**: Powered by Tortoise ORM, supports SQLite, MySQL, and PostgreSQL, with built-in database backup and cleanup features.
 
 ## Use Cases
 
