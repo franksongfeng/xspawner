@@ -2,6 +2,7 @@ import inspect
 import re
 import os
 import shutil
+import datetime
 from typing import Optional
 from tortoise import Tortoise
 from tortoise import fields, models
@@ -264,7 +265,7 @@ def _backup_sqlite_database(file: str, outfile: str = None) -> bool:
         return False
 
     if outfile is None:
-        outfile = f"{file}.bak"
+        outfile = f"{file}.{_timestamp()}"
 
     # 通过 stdin 传 .backup，避免命令行的引号/空格解析问题
     result = subprocess.run(
@@ -295,7 +296,7 @@ def _backup_mysql_database(host, port, usr, psw, name, outfile: str = None) -> b
     import tempfile
 
     if outfile is None:
-        outfile = f"{name}.sql.bak"
+        outfile = f"{name}.{_timestamp()}.sql"
 
     # 密码写进临时选项文件，避免命令行泄露（ps 能看到命令行参数）
     with tempfile.NamedTemporaryFile(
@@ -352,7 +353,7 @@ def _backup_postgres_database(host, port, usr, psw, name, outfile: str = None) -
     import subprocess
 
     if outfile is None:
-        outfile = f"{name}.sql.bak"
+        outfile = f"{name}.{_timestamp()}.sql"
 
     # pg_dump 从环境变量 PGPASSWORD 读密码，避免命令行泄露
     env = os.environ.copy()
@@ -507,3 +508,6 @@ def config_model_to_tuple(model: SpawnedModel) -> Config:
 
 def config_model_to_dict(model: SpawnedModel) -> dict:
     return config_model_to_tuple(model)._asdict()
+
+def _timestamp() -> str:
+    return datetime.datetime.now().strftime("%Y%m%d%H%M%S")

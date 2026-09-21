@@ -602,10 +602,10 @@ if __name__ == "__main__":
                 try:
                     rt = requests.post(f"{srv_url}/backup_db", json={"conn": f"sqlite://{LOCAL_DB}"}).json()
                     if rt:
-                        print(f"Database backed up: {LOCAL_DB}.bak")
-                        logger.info(f"backup {srv_id} done: {LOCAL_DB}.bak")
+                        print("Database backed up")
+                        logger.info(f"backup {srv_id} done")
                     else:
-                        print(f"No database file to backup")
+                        print("No database file to backup")
                         logger.warning(f"backup {srv_id}: file not found {LOCAL_DB}")
                         sys.exit(1)
                 except Exception as e:
