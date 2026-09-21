@@ -226,6 +226,151 @@ async def drop_database(conn: str):
         await _drop_postgres_database(host, port, usr, psw, dbname)
 
 
+async def _checkpoint_sqlite_data() -> bool:
+
+    conn_obj = Tortoise.get_connection("default")
+    await conn_obj.execute_query("PRAGMA wal_checkpoint(TRUNCATE);")
+
+    return True
+
+
+def _backup_sqlite_data(file: str, outfile: str = None) -> bool:
+    """
+    用 sqlite3 CLI 的 .backup 命令备份 SQLite 数据库。
+
+    - .backup 使用 SQLite 的在线备份 API，自动合并 WAL 中的未合并数据
+    - 备份期间不阻塞其他连接
+    - 目标文件不存在则创建，存在则覆盖
+
+    参数:
+      - file:    源数据库路径
+      - outfile: 输出文件，默认 f"{file}.bak"
+
+    返回:
+      - True  备份成功
+      - False 源文件不存在（没什么可备份）
+      - 异常  sqlite3 执行失败
+    """
+    import subprocess
+
+    if not os.path.exists(file):
+        return False
+
+    if outfile is None:
+        outfile = f"{file}.bak"
+
+    # 通过 stdin 传 .backup，避免命令行的引号/空格解析问题
+    result = subprocess.run(
+        ["sqlite3", file],
+        input=f".backup '{outfile}'\n".encode(),
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"sqlite3 backup failed: {result.stderr.decode(errors='replace')}"
+        )
+
+    return True
+
+
+def _backup_mysql_data(host, port, usr, psw, name, outfile: str = None) -> bool:
+    """
+    用 mysqldump 备份 MySQL 数据库。
+    需要安装 > sudo apt install mysql-client
+    参数:
+      - host/port/usr/psw/name: 连接参数
+      - outfile: 输出文件，默认 f"{name}.sql.bak"
+
+    返回: True 成功 / 失败抛 RuntimeError
+    """
+    import subprocess
+    import tempfile
+
+    if outfile is None:
+        outfile = f"{name}.sql.bak"
+
+    # 密码写进临时选项文件，避免命令行泄露（ps 能看到命令行参数）
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".cnf", delete=False
+    ) as f:
+        f.write("[client]\n")
+        f.write(f"password={psw}\n")
+        cnf_path = f.name
+
+    try:
+        cmd = [
+            "mysqldump",
+            f"--defaults-extra-file={cnf_path}",
+            "-h", host,
+            "-P", str(port),
+            "-u", usr,
+            "--single-transaction",     # InnoDB 一致性快照，不锁表
+            "--routines",               # 存储过程/函数
+            "--triggers",               # 触发器
+            "--events",                 # 事件调度
+            "--set-gtid-purged=OFF",    # 避免 GTID 干扰恢复
+            name,
+        ]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"mysqldump failed: {result.stderr.decode(errors='replace')}"
+            )
+        with open(outfile, "wb") as f:
+            f.write(result.stdout)
+    finally:
+        try:
+            os.unlink(cnf_path)
+        except OSError:
+            pass
+
+    return True
+
+
+def _backup_postgres_data(host, port, usr, psw, name, outfile: str = None) -> bool:
+    """
+    用 pg_dump 备份 PostgreSQL 数据库。
+    需要安装 > sudo apt install postgresql-client
+    参数:
+      - host/port/usr/psw/name: 连接参数
+      - outfile: 输出文件，默认 f"{name}.sql.bak"
+
+    返回: True 成功 / 失败抛 RuntimeError
+    """
+    import subprocess
+
+    if outfile is None:
+        outfile = f"{name}.sql.bak"
+
+    # pg_dump 从环境变量 PGPASSWORD 读密码，避免命令行泄露
+    env = os.environ.copy()
+    env["PGPASSWORD"] = psw
+
+    cmd = [
+        "pg_dump",
+        "-h", host,
+        "-p", str(port),
+        "-U", usr,
+        "-F", "p",          # 纯文本 SQL 格式
+        "-f", outfile,      # 直接写文件
+        "--no-owner",       # 不带 owner
+        "--no-privileges",  # 不带 GRANT
+        name,
+    ]
+    result = subprocess.run(cmd, env=env, capture_output=True, check=False)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"pg_dump failed: {result.stderr.decode(errors='replace')}"
+        )
+
+    return True
+
+
 # 有键模型
 class KeyedModel(models.ModelMeta):
     def __new__(cls, name, bases, attrs):
