@@ -33,7 +33,7 @@ XSpawner 适合以下场景：
 XSpawner 的项目结构清晰，采用模块化设计：
 
 - **核心模块**（`spawner.py`、`xspawner.py`、`service.py`、`orm.py`、`constants.py`）位于主包根目录。
-- **插件系统**（`plugins/`）支持 `supervisor` 等核心插件，每个插件可独立包含测试和静态资源。
+- **插件系统**（`plugins/`）支持 从`Spawner`自定义派生插件类。`supervisor`等插件可独立包含测试和静态资源。
 - **工具库**（`utilities/`）提供日志、客户端、消息等通用功能。
 - **示例代码**（`demo/`）覆盖多种使用场景，便于快速上手。
 - **根目录脚本**（`init`、`start`、`stop`、`backup`、`drop`）提供命令行管理接口。
