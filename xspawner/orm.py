@@ -291,8 +291,8 @@ class SpawnedModel(models.Model, metaclass = TieredModel):
     keyfile = fields.CharField(max_length=255, default="")
 
 
-# 缓存模型
-class CachedModel(models.Model):
+# 聚合模型
+class AggregateModel(models.Model):
     class Meta:
         table = "m_cache"
         unique_together = (("key", "spawn"),)           # 联合唯一约束
@@ -308,7 +308,7 @@ class CachedModel(models.Model):
     val = fields.JSONField(null=True)
 
     def __str__(self):
-        return f"CachedModel({self.key}@{self.spawn_id})"
+        return f"AggregateModel({self.key}@{self.spawn_id})"
 
 
 def config_model_to_tuple(model: SpawnedModel) -> Config:
