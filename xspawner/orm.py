@@ -183,13 +183,7 @@ async def _drop_postgres_database(host, port, usr, psw, name):
 
 
 def _drop_sqlite_database(file, backup: bool = True):
-    dbf = file
-
-    # backup db to be removed
-    if backup and os.path.exists(dbf):
-        shutil.copy2(dbf, f"{dbf}.bak")
-
-    files_to_delete = [dbf, f"{dbf}-shm", f"{dbf}-wal"]
+    files_to_delete = [file, f"{file}-shm", f"{file}-wal"]
     for fname in files_to_delete:
         if os.path.exists(fname):
             os.remove(fname)
