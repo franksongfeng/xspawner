@@ -302,7 +302,7 @@ class EntityModel(models.Model):
     value = fields.JSONField(null=True)
 
     def __str__(self):
-        return f"EntityModel({self.key}@{self.spawn_id})"
+        return f"{self.__class__.__name__}({self.key}@{self.spawn_id})"
 
 
 def config_model_to_tuple(model: SpawnedModel) -> Config:
