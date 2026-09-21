@@ -112,17 +112,14 @@ async def open_database(conn: str, mmod: Optional[str] = None):
 
 
 def get_database_category() -> str:
-    conn = Tortoise.get_connection("default")
-    return conn.capabilities.dialect    # "sqlite" / "mysql" / "postgres"
+    conn_obj = Tortoise.get_connection("default")
+    return conn_obj.capabilities.dialect    # "sqlite" / "mysql" / "postgres"
 
 
 async def close_database():
     '''
     关闭所有数据库连接
     '''
-    if get_database_category() == "sqlite":
-        await _checkpoint_sqlite_data()
-
     await Tortoise.close_connections()
 
 
@@ -234,10 +231,10 @@ async def drop_database(conn: str):
         await _drop_postgres_database(host, port, usr, psw, dbname)
 
 
-async def _checkpoint_sqlite_data():
-
+async def checkpoint_database():
     conn_obj = Tortoise.get_connection("default")
-    await conn_obj.execute_query("PRAGMA wal_checkpoint(TRUNCATE);")
+    if conn_obj.capabilities.dialect == "sqlite":
+        await conn_obj.execute_query("PRAGMA wal_checkpoint(TRUNCATE);")
 
 
 def _backup_sqlite_data(file: str, outfile: str = None) -> bool:

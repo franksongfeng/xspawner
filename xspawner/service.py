@@ -579,8 +579,8 @@ if __name__ == "__main__":
                     logger.info(f"Systemed service logs for {srv_id}:\n{logs}")
                     child_ids = requests.post(f"{srv_url}/get_children", json={}).json()
                     for child_id in child_ids:
-                        time.sleep(1)
                         res = requests.post(f"{srv_url}/start_child", json={"id": child_id}).json()
+                        wait_for_service_ready(srv_url, timeout=60)
                         logger.info(f"Service {child_id} is started: {res}")
                         print(f"Service {child_id} is started: {res}")
                 else:
