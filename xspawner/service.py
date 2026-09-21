@@ -596,6 +596,8 @@ if __name__ == "__main__":
                 logger.info(f"Systemed service logs for {srv_id}:\n{logs}")
                 logger.info(f"Service {srv_id} and its descendants are stopped.")
                 print(f"Service {srv_id} and its descendants are stopped.")
+            # elif op == 'backup':
+            #     pass
             elif op == 'drop':
                 logger.info(f"drop {srv_id} ...")
                 if sts.get("ActiveState") != "active":
