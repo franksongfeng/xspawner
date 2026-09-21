@@ -195,10 +195,18 @@ def _drop_sqlite_database(file):
 
 
 async def drop_database(conn: str):
+
+    backup_database(conn)   # 失败抛异常 → 不删
+
     setting = parse_connection_str(conn)
     if "category" not in setting:
         raise ValueError(f"Miss category parameter in setting {setting}")
     category = setting["category"]
+
+    try:
+        await close_database()
+    except Exception:
+        pass
 
     if category == "sqlite":
         if "file" not in setting:
@@ -206,29 +214,25 @@ async def drop_database(conn: str):
         _drop_sqlite_database(setting["file"])
         return
 
-    if category not in ("mysql", "postgres"):
+    elif category in ("mysql", "postgres"):
+
+        required = ["usr", "psw", "host", "port", "name"]
+        missing = [k for k in required if k not in setting]
+        if missing:
+            raise ValueError(f"Miss parameter: {missing}")
+
+        host = setting["host"]
+        port = int(setting["port"])
+        usr = setting["usr"]
+        psw = setting["psw"]
+        dbname = setting["name"]
+
+        if category == "mysql":
+            await _drop_mysql_database(host, port, usr, psw, dbname)
+        elif category == "postgres":
+            await _drop_postgres_database(host, port, usr, psw, dbname)
+    else:
         raise ValueError(f"Invalid category: {category}")
-
-    required = ["usr", "psw", "host", "port", "name"]
-    missing = [k for k in required if k not in setting]
-    if missing:
-        raise ValueError(f"Miss parameter: {missing}")
-
-    host = setting["host"]
-    port = int(setting["port"])
-    usr = setting["usr"]
-    psw = setting["psw"]
-    dbname = setting["name"]
-
-    try:
-        await close_database()
-    except Exception:
-        pass
-
-    if category == "mysql":
-        await _drop_mysql_database(host, port, usr, psw, dbname)
-    elif category == "postgres":
-        await _drop_postgres_database(host, port, usr, psw, dbname)
 
 
 async def checkpoint_database():
@@ -237,7 +241,7 @@ async def checkpoint_database():
         await conn_obj.execute_query("PRAGMA wal_checkpoint(TRUNCATE);")
 
 
-def _backup_sqlite_data(file: str, outfile: str = None) -> bool:
+def _backup_sqlite_database(file: str, outfile: str = None) -> bool:
     """
     用 sqlite3 CLI 的 .backup 命令备份 SQLite 数据库。
 
@@ -277,7 +281,7 @@ def _backup_sqlite_data(file: str, outfile: str = None) -> bool:
     return True
 
 
-def _backup_mysql_data(host, port, usr, psw, name, outfile: str = None) -> bool:
+def _backup_mysql_database(host, port, usr, psw, name, outfile: str = None) -> bool:
     """
     用 mysqldump 备份 MySQL 数据库。
     需要安装 > sudo apt install mysql-client
@@ -335,7 +339,7 @@ def _backup_mysql_data(host, port, usr, psw, name, outfile: str = None) -> bool:
     return True
 
 
-def _backup_postgres_data(host, port, usr, psw, name, outfile: str = None) -> bool:
+def _backup_postgres_database(host, port, usr, psw, name, outfile: str = None) -> bool:
     """
     用 pg_dump 备份 PostgreSQL 数据库。
     需要安装 > sudo apt install postgresql-client
@@ -372,6 +376,37 @@ def _backup_postgres_data(host, port, usr, psw, name, outfile: str = None) -> bo
         )
 
     return True
+
+
+def backup_database(conn: str, outfile: str = None) -> bool:
+    setting = parse_connection_str(conn)
+    if "category" not in setting:
+        raise ValueError(f"Miss category parameter in setting {setting}")
+    category = setting["category"]
+
+    if category == "sqlite":
+        if "file" not in setting:
+            raise ValueError(f"Miss file parameter in setting")
+        return _backup_sqlite_database(setting["file"], outfile)
+
+    if category not in ("mysql", "postgres"):
+        raise ValueError(f"Invalid category: {category}")
+
+    required = ["usr", "psw", "host", "port", "name"]
+    missing = [k for k in required if k not in setting]
+    if missing:
+        raise ValueError(f"Miss parameter: {missing}")
+
+    host = setting["host"]
+    port = int(setting["port"])
+    usr = setting["usr"]
+    psw = setting["psw"]
+    dbname = setting["name"]
+
+    if category == "mysql":
+        return _backup_mysql_database(host, port, usr, psw, dbname, outfile)
+    elif category == "postgres":
+        return _backup_postgres_database(host, port, usr, psw, dbname, outfile)
 
 
 # 有键模型

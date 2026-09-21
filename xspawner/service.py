@@ -596,8 +596,23 @@ if __name__ == "__main__":
                 logger.info(f"Systemed service logs for {srv_id}:\n{logs}")
                 logger.info(f"Service {srv_id} and its descendants are stopped.")
                 print(f"Service {srv_id} and its descendants are stopped.")
-            # elif op == 'backup':
-            #     pass
+
+            elif op == 'backup':
+                logger.info(f"backup {srv_id} ...")
+                try:
+                    rt = requests.post(f"{srv_url}/backup_db", json={"conn": f"sqlite://{LOCAL_DB}"}).json()
+                    if rt:
+                        print(f"Database backed up: {LOCAL_DB}.bak")
+                        logger.info(f"backup {srv_id} done: {LOCAL_DB}.bak")
+                    else:
+                        print(f"No database file to backup")
+                        logger.warning(f"backup {srv_id}: file not found {LOCAL_DB}")
+                        sys.exit(1)
+                except Exception as e:
+                    logger.error(f"backup {srv_id} failed: {e}")
+                    print(f"Backup failed: {e}")
+                    sys.exit(1)
+
             elif op == 'drop':
                 logger.info(f"drop {srv_id} ...")
                 if sts.get("ActiveState") != "active":

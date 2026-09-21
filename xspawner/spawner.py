@@ -47,6 +47,22 @@ class Spawner(XSpawner): # NOQA
     def _get_config(self, headers: dict, data: dict):
         return self._config._asdict()
 
+    @ApiHandler.route("/backup_db")
+    async def _backup_db(self, headers: dict, data: dict):
+        self.iLog("{}::_backup_db BEG".format(self.__class__.__name__))
+        if "conn" not in data:
+            self.eLog("Failed to backup db, No conn in data")
+            return False
+        try:
+            loop = self._ioloop.asyncio_loop
+            rt = await loop.run_in_executor(None, backup_database, data["conn"])
+            self.iLog("{}::_backup_db END {}".format(self.__class__.__name__, rt))
+            return rt
+        except Exception as e:
+            self.eLog(f"Exception on backup db {e}")
+            return False
+
+
     @ApiHandler.route("/drop_db")
     async def _drop_db(self, headers: dict, data: dict):
         self.iLog("{}::_drop_db BEG".format(self.__class__.__name__))
@@ -55,7 +71,7 @@ class Spawner(XSpawner): # NOQA
             return False
         try:
             await drop_database(data["conn"])
-            self.iLog("{}::_drop_db END")
+            self.iLog("{}::_drop_db END".format(self.__class__.__name__))
         except Exception as e:
             self.eLog(f"Exception on drop db {e}")
             return False
