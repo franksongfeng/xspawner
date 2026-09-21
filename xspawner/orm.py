@@ -182,7 +182,7 @@ async def _drop_postgres_database(host, port, usr, psw, name):
         await conn.close()
 
 
-def _drop_sqlite_database(file, backup: bool = True):
+def _drop_sqlite_database(file):
     files_to_delete = [file, f"{file}-shm", f"{file}-wal"]
     for fname in files_to_delete:
         if os.path.exists(fname):
@@ -198,7 +198,7 @@ async def drop_database(conn: str):
     if category == "sqlite":
         if "file" not in setting:
             raise ValueError(f"Miss file parameter in setting")
-        _drop_sqlite_database(setting["file"], True)
+        _drop_sqlite_database(setting["file"])
         return
 
     if category not in ("mysql", "postgres"):
