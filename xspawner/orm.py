@@ -303,7 +303,7 @@ class AggregateModel(models.Model):
         "models.SpawnedModel",
         null=False,
         on_delete=fields.CASCADE,
-        related_name="aggregate",
+        related_name="aggregates",
     )
     value = fields.JSONField(null=True)
 
