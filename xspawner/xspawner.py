@@ -323,6 +323,9 @@ class Spawnable(object):
     async def init_db(self):
         raise NotImplementedError
 
+    async def getValues(self):
+        raise NotImplementedError
+
     async def getValue(self, key):
         raise NotImplementedError
 
@@ -539,18 +542,29 @@ class XSpawner(Spawnable):
         return os.getpid()
 
     async def init_db(self):
-        self.iLog(f"init_db BEG")
+        self.iLog("init_db BEG")
         try:
             await open_database(f"sqlite://{LOCAL_DB}", PLUGIN_PKG + "." + self._config.plugin)
             if not await self.getConfig(self._config.id):
                 # await tornado.gen.sleep(0.5)
                 await self.addConfig(self._config)
                 self.iLog(f"new a model {self._config}")
-            self.iLog(f"init_db END")
+            self.iLog("init_db END")
         except Exception as e:
             self.eLog(f"init_db raise {e}")
             self.cLog("init_db failed, service will be degraded!")
             self.stop()
+
+    async def getValues(self) -> dict:
+        self.iLog(f"getValues BEG spawn={self._config.id}")
+        try:
+            models = await EntityModel.filter(spawn_id=self._config.id).all()
+            rt = {m.key: m.value for m in models}
+            self.iLog(f"getValues END {len(rt)}")
+            return rt
+        except Exception as e:
+            self.eLog(f"getValues EXP: {e}")
+            return {}
 
     async def getValue(self, key: str):
         self.iLog(f"getValue BEG key={key} spawn={self._config.id}")
