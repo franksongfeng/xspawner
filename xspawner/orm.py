@@ -305,7 +305,7 @@ class AggregateModel(models.Model):
         on_delete=fields.CASCADE,
         related_name="caches",
     )
-    val = fields.JSONField(null=True)
+    value = fields.JSONField(null=True)
 
     def __str__(self):
         return f"AggregateModel({self.key}@{self.spawn_id})"

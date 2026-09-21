@@ -323,13 +323,13 @@ class Spawnable(object):
     async def init_db(self):
         raise NotImplementedError
 
-    async def getVal(self, key):
+    async def getValue(self, key):
         raise NotImplementedError
 
-    async def setVal(self, key, val):
+    async def setValue(self, key, value):
         raise NotImplementedError
 
-    async def delVal(self, key):
+    async def delValue(self, key):
         raise NotImplementedError
 
     async def getConfigs(self):
@@ -552,10 +552,10 @@ class XSpawner(Spawnable):
             self.cLog("init_db failed, service will be degraded!")
             self.stop()
 
-    async def getVal(self, key: str):
-        self.iLog(f"getVal BEG key={key} spawn={self._config.id}")
+    async def getValue(self, key: str):
+        self.iLog(f"getValue BEG key={key} spawn={self._config.id}")
         if not key:
-            self.wLog("getVal: empty key")
+            self.wLog("getValue: empty key")
             return None
         try:
             model = await AggregateModel.get_or_none(
@@ -563,19 +563,19 @@ class XSpawner(Spawnable):
                 spawn_id=self._config.id,
             )
             if model is None:
-                self.iLog(f"getVal END {key} no-hit")
+                self.iLog(f"getValue END {key} no-hit")
                 return None
-            self.iLog(f"getVal END {key} type={type(model.val).__name__}")
-            return model.val
+            self.iLog(f"getValue END {key} type={type(model.value).__name__}")
+            return model.value
         except Exception as e:
-            self.eLog(f"getVal EXP {key}: {e}")
+            self.eLog(f"getValue EXP {key}: {e}")
             return None
 
 
-    async def setVal(self, key: str, val) -> bool:
-        self.iLog(f"setVal BEG key={key} spawn={self._config.id} type={type(val).__name__}")
+    async def setValue(self, key: str, value) -> bool:
+        self.iLog(f"setValue BEG key={key} spawn={self._config.id} type={type(value).__name__}")
         if not key:
-            self.wLog("setVal: empty key")
+            self.wLog("setValue: empty key")
             return False
         try:
             model = await AggregateModel.get_or_none(
@@ -583,35 +583,35 @@ class XSpawner(Spawnable):
                 spawn_id=self._config.id,
             )
             if model:
-                model.val = val
+                model.value = value
                 await model.save()
-                self.iLog(f"setVal END {key} updated")
+                self.iLog(f"setValue END {key} updated")
             else:
                 await AggregateModel.create(
                     key=key,
                     spawn_id=self._config.id,
-                    val=val,
+                    value=value,
                 )
-                self.iLog(f"setVal END {key} created")
+                self.iLog(f"setValue END {key} created")
             return True
         except Exception as e:
-            self.eLog(f"setVal EXP {key}: {e}")
+            self.eLog(f"setValue EXP {key}: {e}")
             return False
 
-    async def delVal(self, key: str) -> bool:
-        self.iLog(f"delVal BEG key={key} spawn={self._config.id}")
+    async def delValue(self, key: str) -> bool:
+        self.iLog(f"delValue BEG key={key} spawn={self._config.id}")
         if not key:
-            self.wLog("delVal: empty key")
+            self.wLog("delValue: empty key")
             return False
         try:
             deleted = await AggregateModel.filter(
                 key=key,
                 spawn_id=self._config.id,
             ).delete()
-            self.iLog(f"delVal END {key} deleted={deleted}")
+            self.iLog(f"delValue END {key} deleted={deleted}")
             return True
         except Exception as e:
-            self.eLog(f"delVal EXP {key}: {e}")
+            self.eLog(f"delValue EXP {key}: {e}")
             return False
 
     async def getConfigs(self) -> Optional[List[Config]]:
