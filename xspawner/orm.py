@@ -291,7 +291,7 @@ class SpawnedModel(models.Model, metaclass = TieredModel):
     keyfile = fields.CharField(max_length=255, default="")
 
 
-# 聚合模型
+# 实体模型
 class EntityModel(models.Model):
     class Meta:
         table = "m_entity"
