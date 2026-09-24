@@ -17,7 +17,10 @@ dependencies = [
     "pywebio>=1.8.3",
     "psutil>=5.9.5",
     "bokeh>=3.1.1",
-    "tortoise-orm>=0.23.0"
+    "tortoise-orm>=0.23.0",
+    "aiomysql>=0.2.0",
+    "asyncpg>=0.30.0",    
+    "pyinstaller>=6.22.3"
 ]
 
 [project.urls]

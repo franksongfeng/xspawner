@@ -3,6 +3,10 @@ import re
 import os
 import shutil
 import datetime
+import subprocess
+import tempfile
+import aiomysql
+import asyncpg
 from typing import Optional
 from tortoise import Tortoise
 from tortoise import fields, models
@@ -135,7 +139,6 @@ def _quote_pg_ident(name: str) -> str:
 
 
 async def _drop_mysql_database(host, port, usr, psw, name):
-    import aiomysql
     # 不指定 db，直接连服务器
     conn = await aiomysql.connect(
         host=host, port=port,
@@ -165,7 +168,6 @@ async def _drop_mysql_database(host, port, usr, psw, name):
 
 
 async def _drop_postgres_database(host, port, usr, psw, name):
-    import asyncpg
     # 连到默认的 postgres 管理库
     conn = await asyncpg.connect(
         host=host, port=port,
@@ -259,8 +261,6 @@ def _backup_sqlite_database(file: str, outfile: str = None) -> bool:
       - False 源文件不存在（没什么可备份）
       - 异常  sqlite3 执行失败
     """
-    import subprocess
-
     if not os.path.exists(file):
         return False
 
@@ -292,9 +292,6 @@ def _backup_mysql_database(host, port, usr, psw, name, outfile: str = None) -> b
 
     返回: True 成功 / 失败抛 RuntimeError
     """
-    import subprocess
-    import tempfile
-
     if outfile is None:
         outfile = f"{name}.{_timestamp()}.sql"
 
@@ -350,8 +347,6 @@ def _backup_postgres_database(host, port, usr, psw, name, outfile: str = None) -
 
     返回: True 成功 / 失败抛 RuntimeError
     """
-    import subprocess
-
     if outfile is None:
         outfile = f"{name}.{_timestamp()}.sql"
 
