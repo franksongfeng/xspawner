@@ -428,7 +428,7 @@ class TieredModel(KeyedModel):
         # reference parent
         if "parent" not in attrs and "parent" not in fk_mapping:
             attrs['parent'] = fields.ForeignKeyField(
-                f"{app_label}.{name}",  # like "models.SpawnedModel"
+                f"{app_label}.{name}",  # like "models.SpawnModel"
                 null=True,
                 on_delete=fields.SET_NULL,
                 related_name="+",               # No reverse access
@@ -447,7 +447,7 @@ class TieredModel(KeyedModel):
 
 
 # 配置模型
-class SpawnedModel(models.Model, metaclass = TieredModel):
+class SpawnModel(models.Model, metaclass = TieredModel):
     class Meta:
         table = "m_spawn"
 
@@ -471,7 +471,7 @@ class EntityModel(models.Model):
     id = fields.IntField(pk=True, generated=True)       # 代理主键
     key = fields.CharField(max_length=255)              # 业务键
     spawn = fields.ForeignKeyField(
-        "models.SpawnedModel",
+        "models.SpawnModel",
         null=False,
         on_delete=fields.CASCADE,
         related_name="entities",
@@ -482,9 +482,9 @@ class EntityModel(models.Model):
         return f"{self.__class__.__name__}({self.key}@{self.spawn_id})"
 
 
-def config_model_to_tuple(model: SpawnedModel) -> Config:
-    if not isinstance(model, SpawnedModel):
-        raise TypeError(f"Expected SpawnedModel instance, got {type(model)}")
+def config_model_to_tuple(model: SpawnModel) -> Config:
+    if not isinstance(model, SpawnModel):
+        raise TypeError(f"Expected SpawnModel instance, got {type(model)}")
     return Config(
         id = model.id,
         plugin = model.plugin,
@@ -499,7 +499,7 @@ def config_model_to_tuple(model: SpawnedModel) -> Config:
         parent = model.parent_id or ""
     )
 
-def config_model_to_dict(model: SpawnedModel) -> dict:
+def config_model_to_dict(model: SpawnModel) -> dict:
     return config_model_to_tuple(model)._asdict()
 
 def _timestamp() -> str:

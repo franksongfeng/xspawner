@@ -631,7 +631,7 @@ class XSpawner(Spawnable):
     async def getConfigs(self) -> Optional[List[Config]]:
         self.iLog(f"getConfigs BEG")
         try:
-            models = await SpawnedModel.all()
+            models = await SpawnModel.all()
             ones = [config_model_to_tuple(m) for m in models]
             self.iLog(f"getConfigs END {len(ones)}")
             return ones
@@ -642,7 +642,7 @@ class XSpawner(Spawnable):
     async def getConfig(self, id: str) -> Optional[Config]:
         self.iLog(f"getConfig BEG {id}")
         try:
-            model = await SpawnedModel.get(id=id)
+            model = await SpawnModel.get(id=id)
         except DoesNotExist:
             self.iLog(f"getConfig END No")
             return None
@@ -656,7 +656,7 @@ class XSpawner(Spawnable):
     async def delConfig(self, id: str) -> bool:
         self.iLog(f"delConfig BEG {id}")
         try:
-            model = await SpawnedModel.get(id=id)
+            model = await SpawnModel.get(id=id)
             await model.delete()
             self.iLog("delConfig END")
             return True
@@ -672,7 +672,7 @@ class XSpawner(Spawnable):
         if data.get('parent'):
             parent_id = data['parent']
             try:
-                parent_obj = await SpawnedModel.get(id=parent_id)
+                parent_obj = await SpawnModel.get(id=parent_id)
                 # set parent with object or set parent_id with value
                 data['parent'] = parent_obj
             except DoesNotExist:
@@ -686,7 +686,7 @@ class XSpawner(Spawnable):
         if data.get('keyfile') is None:
             data['keyfile'] = ""
         try:
-            model = await SpawnedModel.create(**data)
+            model = await SpawnModel.create(**data)
             self.iLog(f"addConfig END {model}")
             return True
         except Exception as e:
@@ -696,8 +696,8 @@ class XSpawner(Spawnable):
     async def getChildren(self) -> List[str]:
         self.iLog(f"getChildren BEG")
         try:
-            models = await SpawnedModel.filter(parent_id=self._config.id).all()
-            self.iLog(f"Type: {type(models)} Len: {len(models)} Models: {models}") # Models: [SpawnedModel]
+            models = await SpawnModel.filter(parent_id=self._config.id).all()
+            self.iLog(f"Type: {type(models)} Len: {len(models)} Models: {models}") # Models: [SpawnModel]
             ids = [m.id for m in models]
             self.iLog(f"getChildren END {ids}")
             return ids
