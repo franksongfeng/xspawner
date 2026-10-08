@@ -102,7 +102,7 @@ def parse_connection_str(conn_str: str) -> dict:
 async def open_database(conn: str):
     '''
     初始化连接并建表
-    (去 orm 和 mmod 模块中查找模型类)
+    (去 orm 模块中查找模型类)
     '''
     await Tortoise.init(
         db_url=conn,
