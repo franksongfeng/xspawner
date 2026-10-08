@@ -113,9 +113,17 @@ async def open_database(conn: str):
 
     await Tortoise.generate_schemas(safe=True)
 
+    # 如果是 SQLite，启用 WAL 模式并设置 busy_timeout
+    if get_database_category() == "sqlite":
+        await get_database_connection().execute_query("PRAGMA journal_mode=WAL;")
+        await get_database_connection().execute_query("PRAGMA busy_timeout=5000;")  # 可选：等待锁超时 5 秒
+
+
+def get_database_connection():
+    return Tortoise.get_connection("default")
 
 def get_database_category() -> str:
-    conn_obj = Tortoise.get_connection("default")
+    conn_obj = get_database_connection()
     return conn_obj.capabilities.dialect    # "sqlite" / "mysql" / "postgres"
 
 
