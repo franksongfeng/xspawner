@@ -574,7 +574,7 @@ class XSpawner(Spawnable):
         try:
             model = await EntityModel.get_or_none(
                 key=key,
-                spawn_id=self._config.id,
+                spawn_id=self._config.id
             )
             if model is None:
                 self.iLog(f"getValue END {key} no-hit")
@@ -594,7 +594,7 @@ class XSpawner(Spawnable):
         try:
             model = await EntityModel.get_or_none(
                 key=key,
-                spawn_id=self._config.id,
+                spawn_id=self._config.id
             )
             if model:
                 model.value = value
@@ -604,7 +604,7 @@ class XSpawner(Spawnable):
                 await EntityModel.create(
                     key=key,
                     spawn_id=self._config.id,
-                    value=value,
+                    value=value
                 )
                 self.iLog(f"setValue END {key} created")
             return True
