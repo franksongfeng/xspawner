@@ -244,6 +244,9 @@ class Manager(Spawner):
     async def _render_home(self):
         values = self._filter_values(await self._fetch_values())
 
+        # key 列固定宽度 —— 所有标量行共用，保证跨行对齐
+        KEY_W = '180px'
+
         with use_scope('body', clear=True):
             if not values:
                 put_html('<div style="padding:24px;text-align:center;'
@@ -252,38 +255,58 @@ class Manager(Spawner):
 
             for k, v in values.items():
                 if isinstance(v, dict):
+                    # ---- 复合数据：details 折叠 ----
                     sub = ''.join(
-                        f'<div style="padding:2px 0 2px 20px;color:#555;">'
+                        f'<div style="padding:2px 0;color:#555;">'
                         f'<b>{_esc(sk)}</b>: {_esc(sv)}</div>'
                         for sk, sv in v.items()
                     )
                     left = (
-                        f'<div>'
                         f'<details>'
                         f'<summary style="cursor:pointer;color:#007bff;'
                         f'font-weight:bold;">{_esc(k)}</summary>'
-                        f'{sub}</details></div>'
+                        f'<div style="padding:2px 0 2px 20px;">{sub}</div>'
+                        f'</details>'
+                    )
+                    put_row(
+                        [
+                            put_html(left),
+                            put_buttons(
+                                [
+                                    {'label': '✏️', 'value': 'edit'},
+                                    {'label': '🗑️', 'value': 'delete'},
+                                ],
+                                small=True,
+                                onclick=lambda act, k=k: self.on_row_action(act, k)
+                            ),
+                        ],
+                        size='1fr auto',
                     )
                 else:
-                    left = (
-                        f'<div>'
-                        f'<b>{_esc(k)}</b>: {_esc(v)}</div>'
+                    # ---- 标量数据：key | value | 按钮 三列 ----
+                    key_cell = (
+                        f'<div style="color:#007bff;font-weight:bold;'
+                        f'overflow-wrap:anywhere;">{_esc(k)}</div>'
                     )
-
-                put_row(
-                    [
-                        put_html(left),
-                        put_buttons(
-                            [
-                                {'label': '✏️', 'value': 'edit'},
-                                {'label': '🗑️', 'value': 'delete'},
-                            ],
-                            small=True,
-                            onclick=lambda act, k=k: self.on_row_action(act, k)
-                        ),
-                    ],
-                    size='1fr auto',
-                )
+                    value_cell = (
+                        f'<div style="color:#333;'
+                        f'overflow-wrap:anywhere;">{_esc(v)}</div>'
+                    )
+                    put_row(
+                        [
+                            put_html(key_cell),
+                            put_html(value_cell),
+                            put_buttons(
+                                [
+                                    {'label': '✏️', 'value': 'edit'},
+                                    {'label': '🗑️', 'value': 'delete'},
+                                ],
+                                small=True,
+                                onclick=lambda act, k=k: self.on_row_action(act, k)
+                            ),
+                        ],
+                        size=f'{KEY_W} 1fr auto',
+                    )
 
     # ---------------- 按钮回调 ----------------
     async def on_nav(self, view):
