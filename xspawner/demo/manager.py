@@ -424,37 +424,29 @@ class Manager(Spawner):
             # ---- 全局样式 ----
             put_html(
                 '<style>'
-
-                # 1) 数据区外框：整个数据列表被一道线包住
                 '#pywebio-scope-body {'
-                '  border: 1px solid #e2e2e2;'              # 外框颜色
-                '  border-radius: 10px;'                    # 外框圆角大小
-                '  overflow: hidden;'
+                '  border: 1px solid #e2e2e2;'
+                '  border-radius: 10px;'
                 '  background: #ffffff;'
                 '  margin-top: 4px;'
+                '  padding: 8px;'
                 '}'
 
-                # 2) 数据行：很浅的底板 + 行间分隔线
-                #    同时保证左列展开/收起时按钮位置不被带动
                 '#pywebio-scope-body .pywebio-scope-row {'
-                '  background: #fafafa;'                    # 行底板
-                '  padding: 10px 16px;'                     # 行的"厚度": 上下 10px、左右 16px
-                '  border-bottom: 1px solid #eeeeee;'       # 行分隔线，位置由行高决定
+                '  background: #fafafa;'
+                '  padding: 8px 14px;'
+                '  border-radius: 6px;'
+                '  margin-bottom: 6px;'
                 '  align-items: flex-start !important;'
                 '  transition: background .15s ease;'
                 '}'
-
-                # 3) 最后一行去掉底部线，避免和外框重叠
                 '#pywebio-scope-body .pywebio-scope-row:last-child {'
-                '  border-bottom: none;'
+                '  margin-bottom: 0;'
                 '}'
-
-                # 4) 悬停时整行轻微加深，提示"这一行可以操作"
                 '#pywebio-scope-body .pywebio-scope-row:hover {'
-                '  background: #f0f4f8;'                    # 悬停时颜色
+                '  background: #f0f4f8;'
                 '}'
 
-                # 5) 按钮样式
                 '#pywebio-scope-body button {'
                 '  padding: 8px 14px !important;'
                 '  font-size: 18px !important;'
@@ -465,7 +457,6 @@ class Manager(Spawner):
                 '  margin-top: 2px !important;'
                 '}'
 
-                # 6) 表单控件字号
                 '#pywebio-scope-body input {'
                 '  font-size: 15px !important;'
                 '}'
