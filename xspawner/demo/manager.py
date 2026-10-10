@@ -16,6 +16,13 @@ import traceback
 import tornado.gen
 
 
+# 在 m_entity 表中存储 spec 的保留键。
+# EntityModel 的 (spawn, key) 联合唯一约束保证：
+#   同一个 spawn 实例下，key="__spec__" 的记录最多只有一条。
+# 选择双下划线前后缀是为了降低与用户业务键冲突的概率。
+SPEC_KEY = '__spec__'
+
+
 def _esc(s):
     """HTML 转义"""
     return (str(s)
@@ -29,13 +36,47 @@ class Manager(Spawner):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        # spec 的"真理之源"是 m_entity 表中的 (spawn, key=SPEC_KEY) 这一行，
+        # self.spec 只是会话内缓存，避免每次渲染都查库。
         self.spec = {}
+
+    # ---------------- spec 存取：走 EntityModel ----------------
+    async def _load_spec(self) -> dict:
+        """
+        从 EntityModel（m_entity 表）读取本 spawn 的 spec。
+        约定：value 字段是 dict 时视为合法 spec，否则视为空 spec。
+        """
+        try:
+            v = await self.getValue(SPEC_KEY)
+        except Exception as e:
+            self.eLog(f"_load_spec error: {e}")
+            v = None
+        self.spec = v if isinstance(v, dict) else {}
+        return self.spec
+
+    async def _save_spec(self, spec: dict) -> bool:
+        """
+        把 spec 写入 EntityModel（m_entity 表）。
+        成功时同步刷新内存缓存。
+        """
+        try:
+            ok = await self.setValue(SPEC_KEY, spec)
+        except Exception as e:
+            self.eLog(f"_save_spec error: {e}")
+            return False
+        if ok:
+            self.spec = spec
+        return ok
 
     # ---------------- 数据访问 ----------------
     async def _fetch_values(self) -> dict:
         try:
             v = await self.getValues()
-            return v if isinstance(v, dict) else {}
+            if not isinstance(v, dict):
+                return {}
+            # 关键：把 spec 这一行从业务数据里剔除，
+            # 否则它会以 key="__spec__" 的形式出现在主页列表上。
+            return {k: val for k, val in v.items() if k != SPEC_KEY}
         except Exception as e:
             self.eLog(f"_fetch_values error: {e}")
             return {}
@@ -106,6 +147,9 @@ class Manager(Spawner):
                 )
 
     async def _render_spec(self):
+        # 每次进入 spec 视图都从 EntityModel 重新读取，
+        # 避免多会话 / 多端修改时读到旧数据
+        await self._load_spec()
         with use_scope('body', clear=True):
             put_markdown('### 规范 (JSON)')
             put_textarea(
@@ -119,6 +163,8 @@ class Manager(Spawner):
             )
 
     async def _render_add(self):
+        # 新增表单需要依据 spec 决定字段类型，务必读最新
+        await self._load_spec()
         with use_scope('body', clear=True):
             put_markdown('### 新增数据')
             put_input('new_key', label='键')
@@ -167,7 +213,7 @@ class Manager(Spawner):
     async def on_save_spec(self, _b=None):
         text = (await pin.spec_text) or ''
         if not text.strip():
-            self.spec = {}
+            new_spec = {}
         else:
             try:
                 obj = json.loads(text)
@@ -175,15 +221,26 @@ class Manager(Spawner):
                 toast(f'JSON 格式错误: {e}', color='error'); return
             if not isinstance(obj, dict):
                 toast('规范必须是 JSON 对象', color='error'); return
-            self.spec = obj
-        toast('规范已保存', color='success')
-        local.view = 'home'
-        await self.render_body()
+            new_spec = obj
+
+        # ← 真正的持久化：写入 m_entity 表 (spawn=self._config.id, key=SPEC_KEY)
+        ok = await self._save_spec(new_spec)
+        toast('规范已保存' if ok else '规范保存失败',
+              color='success' if ok else 'error')
+        if ok:
+            local.view = 'home'
+            await self.render_body()
 
     async def on_save_new(self, _b=None):
         key = ((await pin.new_key) or '').strip()
         if not key:
             toast('键不能为空', color='error'); return
+        if key == SPEC_KEY:
+            # 防止用户业务键把内部 spec 覆盖掉
+            toast(f'"{SPEC_KEY}" 是保留键，请换一个', color='error'); return
+
+        # 用最新的 spec 解析字段类型
+        await self._load_spec()
 
         if not self.spec:
             value = await pin.new_value
@@ -221,6 +278,10 @@ class Manager(Spawner):
 
     # ---------------- 编辑 / 删除 ----------------
     async def _do_edit(self, key):
+        if key == SPEC_KEY:
+            # 不允许从数据页编辑 spec，请从 📋 视图改
+            toast(f'"{SPEC_KEY}" 为保留键，请用 📋 视图编辑', color='error')
+            return
         old = await self.getValue(key)
         if old is None:
             toast(f'键 "{key}" 不存在', color='error'); return
@@ -239,6 +300,9 @@ class Manager(Spawner):
         await self._render_home()
 
     async def _do_delete(self, key):
+        if key == SPEC_KEY:
+            toast(f'"{SPEC_KEY}" 为保留键，不能删除', color='error')
+            return
         res = await actions(
             f'确认删除 "{key}" 吗？',
             buttons=[{'label': '确认', 'value': 'yes', 'color': 'danger'},
