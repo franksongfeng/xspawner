@@ -67,14 +67,52 @@ class Manager(Spawner):
             return {}
 
     def _filter_values(self, values: dict) -> dict:
-        text = getattr(local, 'search_text', '') or ''
+        """
+        支持三种搜索语法：
+
+          1. "abc"        → 键以 "abc" 开头
+          2. "::xyz"      → 值（或复合数据的任一内部值）以 "xyz" 开头
+          3. "abc::xyz"   → 键以 "abc" 开头 且 值以 "xyz" 开头
+
+        细节：
+          - 以第一个 "::" 分隔键部分和值部分，各部分两端空白会被去掉
+          - 若 "::" 两侧都为空（如输入 "::"），视为无过滤条件，返回全部
+          - 若值是 dict，只要任一子值的字符串形式以 xyz 开头就算命中
+        """
+        raw = getattr(local, 'search_text', '') or ''
+        text = str(raw)
         if not text:
             return values
-        ft = str(text)
+
+        if '::' in text:
+            key_part, value_part = text.split('::', 1)
+        else:
+            key_part, value_part = text, ''
+
+        key_part = key_part.strip()
+        value_part = value_part.strip()
+
+        # 两侧都为空 → 无有效条件，返回全部
+        if not key_part and not value_part:
+            return values
+
+        def _match_key(k) -> bool:
+            if not key_part:
+                return True
+            return str(k).startswith(key_part)
+
+        def _match_value(v) -> bool:
+            if not value_part:
+                return True
+            if isinstance(v, dict):
+                return any(
+                    str(sv).startswith(value_part) for sv in v.values()
+                )
+            return str(v).startswith(value_part)
+
         return {
             k: v for k, v in values.items()
-            if (any(str(sv).startswith(ft) for sv in v.values())
-                if isinstance(v, dict) else str(v).startswith(ft))
+            if _match_key(k) and _match_value(v)
         }
 
     # ---------------- 类型推断 / 控件构造 / 回值转换 ----------------
@@ -522,7 +560,10 @@ class Manager(Spawner):
                         onclick=self.on_nav
                     ),
                     put_html('<div style="width:24px;"></div>'),
-                    put_input('search_input', placeholder='输入关键词...'),
+                    put_input(
+                        'search_input',
+                        placeholder='键前缀 或 ::值前缀 或 键::值'
+                    ),
                     put_button('🔍', onclick=self.on_search),
                 ],
                 size='auto auto 1fr auto',
@@ -531,7 +572,7 @@ class Manager(Spawner):
 
             put_scope('body')
 
-            # ---- 初始渲染：显示全部数据，不受搜索状态影响 ----
+            # ---- 初始渲染：显示全部数据 ----
             await self._render_home(filtered=False)
 
             while True:
