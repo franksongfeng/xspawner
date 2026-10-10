@@ -192,14 +192,19 @@ class Manager(Spawner):
             close_popup()
 
         async def _on_reset(_b=None):
+            """
+            清空所有字段。用 pin[safe] = value 同步到 UI。
+            - bool    → False
+            - int/float → ''（HTML number/float 输入框的空值）
+            - str     → ''
+            """
             for safe, _label, ftype, _v in fields:
                 try:
                     if ftype == 'bool':
-                        pin_update(safe, False)
-                    elif ftype in ('int', 'float'):
-                        pin_update(safe, None)
+                        pin[safe] = False
                     else:
-                        pin_update(safe, '')
+                        # int/float/str 都用空字符串，number/float 输入框才能显示为空
+                        pin[safe] = ''
                 except Exception as e:
                     self.eLog(f"reset {safe} failed: {e}")
             toast('已重置', color='info')
