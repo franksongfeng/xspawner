@@ -17,8 +17,6 @@ import tornado.gen
 
 
 # 在 m_entity 表中存储 spec 的保留键。
-# EntityModel 的 (spawn, key) 联合唯一约束保证：
-#   同一个 spawn 实例下，key="__spec__" 的记录最多只有一条。
 SPEC_KEY = '__spec__'
 
 
@@ -35,8 +33,6 @@ class Manager(Spawner):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # spec 的"真理之源"是 m_entity 表中的 (spawn, key=SPEC_KEY) 这一行，
-        # self.spec 只是会话内缓存，避免每次渲染都查库。
         self.spec = {}
 
     # ---------------- spec 存取：走 EntityModel ----------------
@@ -65,7 +61,6 @@ class Manager(Spawner):
             v = await self.getValues()
             if not isinstance(v, dict):
                 return {}
-            # 关键：把 spec 这一行从业务数据里剔除
             return {k: val for k, val in v.items() if k != SPEC_KEY}
         except Exception as e:
             self.eLog(f"_fetch_values error: {e}")
@@ -84,10 +79,6 @@ class Manager(Spawner):
 
     # ---------------- 类型推断 / 控件构造 / 回值转换 ----------------
     def _infer_type(self, value, spec_value) -> str:
-        """
-        决定字段控件与数据类型。
-        spec 优先（spec 是 schema 意图），否则按现值推断。
-        """
         ref = spec_value if spec_value is not None else value
         if isinstance(ref, bool):
             return 'bool'
@@ -98,10 +89,6 @@ class Manager(Spawner):
         return 'str'
 
     def _put_field(self, name: str, label: str, value, ftype: str):
-        """
-        在当前作用域渲染一个 pin 控件。
-        name 是安全字段名（f0/f1/... 或 __key__/__value__），label 是展示名。
-        """
         if ftype == 'bool':
             put_radio(
                 name, label=label,
@@ -125,7 +112,6 @@ class Manager(Spawner):
             )
 
     def _coerce(self, raw, ftype: str):
-        """把 pin 的原始值按 ftype 转成目标 Python 值。"""
         if ftype == 'bool':
             return bool(raw)
         if ftype == 'int':
@@ -142,19 +128,6 @@ class Manager(Spawner):
 
     # ---------------- 通用表单弹窗 ----------------
     async def _show_form_popup(self, title: str, fields: list):
-        """
-        通用表单弹窗。新增与编辑共用。
-
-        参数:
-          title:  弹窗标题
-          fields: [(safe_name, label, ftype, initial_value), ...]
-
-        返回:
-          - dict {safe_name: raw_value}  用户点击「💾 保存」
-          - None                         用户点击「↩️ 取消」
-
-        「🔄 重置」在弹窗内部完成，逐字段清空，不关闭弹窗、不返回。
-        """
         fut = tornado.gen.Future()
 
         async def _on_save(_b=None):
@@ -170,12 +143,6 @@ class Manager(Spawner):
             close_popup()
 
         async def _on_reset(_b=None):
-            """
-            清空所有字段。弹窗保持打开，不写库、不关闭。
-            - bool：重置为 False
-            - int/float：重置为空（None）
-            - str：重置为空字符串
-            """
             for safe, _label, ftype, _v in fields:
                 try:
                     if ftype == 'bool':
@@ -210,14 +177,6 @@ class Manager(Spawner):
 
     # ---------------- 规范弹窗 ----------------
     async def _do_spec(self):
-        """
-        规范（spec）编辑弹窗。
-        - 打开时读出最新 spec，序列化为 JSON 填入 textarea
-        - textarea 使用代码模式（语法高亮）
-        - 💾 保存：校验 JSON（失败则不关闭，用户可继续修改）
-        - ↩️ 取消：直接关闭，不写库
-        """
-        # 每次进入都从 EntityModel 重新读取
         await self._load_spec()
         default_text = json.dumps(self.spec, ensure_ascii=False, indent=2)
 
@@ -230,7 +189,6 @@ class Manager(Spawner):
                 text = ''
             text = text or ''
 
-            # 校验 JSON
             if not text.strip():
                 new_spec = {}
             else:
@@ -238,10 +196,10 @@ class Manager(Spawner):
                     obj = json.loads(text)
                 except Exception as e:
                     toast(f'JSON 格式错误: {e}', color='error')
-                    return  # 不关闭弹窗，让用户修正
+                    return
                 if not isinstance(obj, dict):
                     toast('规范必须是 JSON 对象', color='error')
-                    return  # 不关闭弹窗
+                    return
                 new_spec = obj
 
             if not fut.done():
@@ -271,7 +229,6 @@ class Manager(Spawner):
 
         new_spec = await fut
         if new_spec is None:
-            # 用户取消，不做任何写库
             return
 
         ok = await self._save_spec(new_spec)
@@ -282,7 +239,6 @@ class Manager(Spawner):
 
     # ---------------- 渲染 ----------------
     async def render_body(self):
-        # 新增与规范都改为弹窗后，body 只渲染主页
         await self._render_home()
 
     async def _render_home(self):
@@ -302,7 +258,7 @@ class Manager(Spawner):
                         for sk, sv in v.items()
                     )
                     left = (
-                        f'<div style="padding:8px 0;">'
+                        f'<div>'
                         f'<details>'
                         f'<summary style="cursor:pointer;color:#007bff;'
                         f'font-weight:bold;">{_esc(k)}</summary>'
@@ -310,7 +266,7 @@ class Manager(Spawner):
                     )
                 else:
                     left = (
-                        f'<div style="padding:8px 0;">'
+                        f'<div>'
                         f'<b>{_esc(k)}</b>: {_esc(v)}</div>'
                     )
 
@@ -332,14 +288,11 @@ class Manager(Spawner):
     # ---------------- 按钮回调 ----------------
     async def on_nav(self, view):
         if view == 'add':
-            # 新增走弹窗
             await self._do_add()
             return
         if view == 'spec':
-            # 规范走弹窗
             await self._do_spec()
             return
-        # 其余情况回主页
         local.view = 'home'
         await self.render_body()
 
@@ -356,41 +309,30 @@ class Manager(Spawner):
 
     # ---------------- 新增（弹窗） ----------------
     async def _do_add(self):
-        # 需要最新 spec 决定字段类型
         await self._load_spec()
 
-        # fields: [(safe, label, ftype, initial_value)]
         fields = [
-            # 键字段：永远是文本，初始为空
             ('__key__', '键', 'str', ''),
         ]
 
         if not self.spec:
-            # 无 spec → 单值模式
             fields.append(('__value__', '值', 'str', ''))
         else:
             for i, (sk, sv) in enumerate(self.spec.items()):
                 ftype = self._infer_type(None, sv)
-                # 新增时的初始值：按 spec 类型给个合理的空值
-                if ftype == 'bool':
-                    initial = False
-                else:
-                    initial = None
+                initial = False if ftype == 'bool' else None
                 fields.append((f'f{i}', sk, ftype, initial))
 
         values = await self._show_form_popup('新增数据', fields)
         if values is None:
-            # 用户取消
             return
 
-        # 解析键
         key = str(values.get('__key__', '') or '').strip()
         if not key:
             toast('键不能为空', color='error'); return
         if key == SPEC_KEY:
             toast(f'"{SPEC_KEY}" 是保留键，请换一个', color='error'); return
 
-        # 构造 value
         if not self.spec:
             value = self._coerce(values.get('__value__'), 'str')
         else:
@@ -406,10 +348,9 @@ class Manager(Spawner):
         if ok:
             await self._render_home()
 
-    # ---------------- 编辑（弹窗，与新增风格一致） ----------------
+    # ---------------- 编辑（弹窗） ----------------
     async def _do_edit(self, key):
         if key == SPEC_KEY:
-            # 不允许从数据页编辑 spec，请从 📋 视图改
             toast(f'"{SPEC_KEY}" 为保留键，请用 📋 视图编辑', color='error')
             return
 
@@ -417,15 +358,12 @@ class Manager(Spawner):
         if old is None:
             toast(f'键 "{key}" 不存在', color='error'); return
 
-        # 用最新 spec 决定字段类型
         await self._load_spec()
 
-        # fields: [(safe, label, ftype, initial_value)]
         fields = []
         is_dict = isinstance(old, dict)
 
         if is_dict:
-            # 字段集合 = spec 字段 ∪ old 字段（保序：spec 优先）
             names = list(self.spec.keys()) if self.spec else []
             for k in old.keys():
                 if k not in names:
@@ -441,10 +379,8 @@ class Manager(Spawner):
 
         values = await self._show_form_popup(f'编辑 "{key}"', fields)
         if values is None:
-            # 取消：不做任何写库，弹窗关闭即回到之前的样子
             return
 
-        # 构造最终 value
         if is_dict:
             value = {}
             for safe, label, ftype, _v in fields:
@@ -485,9 +421,40 @@ class Manager(Spawner):
             if not hasattr(local, 'search_text'):
                 local.search_text = ''
 
-            # ---- 全局样式：图标按钮字号略大，数据行按钮高度对齐 ----
+            # ---- 全局样式 ----
             put_html(
                 '<style>'
+
+                # 1) 数据区外框：整个数据列表被一道线包住
+                '#pywebio-scope-body {'
+                '  border: 1px solid #e2e2e2;'              # 外框颜色
+                '  border-radius: 10px;'                    # 外框圆角大小
+                '  overflow: hidden;'
+                '  background: #ffffff;'
+                '  margin-top: 4px;'
+                '}'
+
+                # 2) 数据行：很浅的底板 + 行间分隔线
+                #    同时保证左列展开/收起时按钮位置不被带动
+                '#pywebio-scope-body .pywebio-scope-row {'
+                '  background: #fafafa;'                    # 行底板
+                '  padding: 10px 16px;'                     # 行的"厚度": 上下 10px、左右 16px
+                '  border-bottom: 1px solid #eeeeee;'       # 行分隔线，位置由行高决定
+                '  align-items: flex-start !important;'
+                '  transition: background .15s ease;'
+                '}'
+
+                # 3) 最后一行去掉底部线，避免和外框重叠
+                '#pywebio-scope-body .pywebio-scope-row:last-child {'
+                '  border-bottom: none;'
+                '}'
+
+                # 4) 悬停时整行轻微加深，提示"这一行可以操作"
+                '#pywebio-scope-body .pywebio-scope-row:hover {'
+                '  background: #f0f4f8;'                    # 悬停时颜色
+                '}'
+
+                # 5) 按钮样式
                 '#pywebio-scope-body button {'
                 '  padding: 8px 14px !important;'
                 '  font-size: 18px !important;'
@@ -497,14 +464,18 @@ class Manager(Spawner):
                 '  vertical-align: middle;'
                 '  margin-top: 2px !important;'
                 '}'
+
+                # 6) 表单控件字号
+                '#pywebio-scope-body input {'
+                '  font-size: 15px !important;'
+                '}'
+
                 '</style>'
             )
 
-            # ---- 头部第一行：标题 ----
             put_html(f'<h2 style="margin:6px 0;">'
                      f'Manager {self._config.id}</h2>')
 
-            # ---- 头部第二行：导航按钮 + 搜索框 + 搜索按钮 ----
             put_row(
                 [
                     put_buttons(
@@ -523,13 +494,10 @@ class Manager(Spawner):
             )
             put_html('<hr style="margin:8px 0;">')
 
-            # ---- 数据区 ----
             put_scope('body')
 
-            # ---- 初始渲染 ----
             await self.render_body()
 
-            # ---- 保持会话存活 ----
             while True:
                 await tornado.gen.sleep(60)
 
