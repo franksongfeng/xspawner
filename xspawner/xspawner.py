@@ -82,7 +82,6 @@ class ApiHandler(tornado.web.RequestHandler):
 
     async def post(self):
         """ handle http/post request with data in body"""
-        from xspawner import XSpawner # NOQA
         gServer = XSpawner.getServer()
         assert gServer
         q = gServer._req_queue
@@ -118,7 +117,6 @@ class ApiHandler(tornado.web.RequestHandler):
 
     async def get(self):
         """ handle http/get request with arguments in url"""
-        from xspawner import XSpawner # NOQA
         gServer = XSpawner.getServer()
         assert gServer
         q = gServer._req_queue
@@ -220,7 +218,6 @@ class FlowHandler(tornado.web.RequestHandler):
         assert (isinstance(interval, int) or isinstance(interval, float)) and (interval > 0)
         # no Content-Type in self.request.headers
         # self.request.body should be empty
-        from xspawner import XSpawner # NOQA
         gServer = XSpawner.getServer()
         assert gServer
         if path in self.path_map:
