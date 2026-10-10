@@ -213,6 +213,7 @@ class Manager(Spawner):
         """
         规范（spec）编辑弹窗。
         - 打开时读出最新 spec，序列化为 JSON 填入 textarea
+        - textarea 使用代码模式（语法高亮）
         - 💾 保存：校验 JSON（失败则不关闭，用户可继续修改）
         - ↩️ 取消：直接关闭，不写库
         """
@@ -253,7 +254,12 @@ class Manager(Spawner):
             close_popup()
 
         with popup('规范 (JSON)', closable=False):
-            put_textarea('__spec_text__', value=default_text, rows=12)
+            put_textarea(
+                '__spec_text__',
+                value=default_text,
+                rows=14,
+                code=True,
+            )
             put_html('<div style="height:8px;"></div>')
             put_buttons(
                 [
