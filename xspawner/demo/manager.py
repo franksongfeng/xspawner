@@ -73,11 +73,6 @@ class Manager(Spawner):
           1. "abc"        → 键以 "abc" 开头
           2. "::xyz"      → 值（或复合数据的任一内部值）以 "xyz" 开头
           3. "abc::xyz"   → 键以 "abc" 开头 且 值以 "xyz" 开头
-
-        细节：
-          - 以第一个 "::" 分隔键部分和值部分，各部分两端空白会被去掉
-          - 若 "::" 两侧都为空（如输入 "::"），视为无过滤条件，返回全部
-          - 若值是 dict，只要任一子值的字符串形式以 xyz 开头就算命中
         """
         raw = getattr(local, 'search_text', '') or ''
         text = str(raw)
@@ -92,7 +87,6 @@ class Manager(Spawner):
         key_part = key_part.strip()
         value_part = value_part.strip()
 
-        # 两侧都为空 → 无有效条件，返回全部
         if not key_part and not value_part:
             return values
 
@@ -165,7 +159,24 @@ class Manager(Spawner):
         return '' if raw is None else str(raw)
 
     # ---------------- 通用表单弹窗 ----------------
-    async def _show_form_popup(self, title: str, fields: list):
+    async def _show_form_popup(self, title: str, fields: list,
+                               indent_after: int = 0):
+        """
+        通用表单弹窗。
+
+        参数:
+          title:         弹窗标题
+          fields:        [(safe_name, label, ftype, initial_value), ...]
+          indent_after:  前 N 个字段正常渲染；剩余字段放入带左侧竖线的
+                         缩进 scope 中，表达"主键 vs 内部字段"的层次关系。
+                         0 表示不缩进（默认，编辑场景）。
+
+        返回:
+          - dict {safe_name: raw_value}  用户点击「💾 保存」
+          - None                         用户点击「↩️ 取消」
+
+        「🔄 重置」在弹窗内部完成，逐字段清空，不关闭弹窗、不返回。
+        """
         fut = tornado.gen.Future()
 
         async def _on_save(_b=None):
@@ -198,9 +209,23 @@ class Manager(Spawner):
                 fut.set_result(None)
             close_popup()
 
+        # 是否需要缩进：缩进量在 [1, len(fields)-1] 之间才生效
+        use_indent = 0 < indent_after < len(fields)
+
         with popup(title, closable=False):
-            for safe, label, ftype, sv in fields:
-                self._put_field(safe, label, sv, ftype)
+            if use_indent:
+                # 前半段：主键字段（正常渲染）
+                for safe, label, ftype, sv in fields[:indent_after]:
+                    self._put_field(safe, label, sv, ftype)
+
+                # 后半段：内部字段（缩进 + 左侧竖线）
+                with use_scope('form_inner', clear=True):
+                    for safe, label, ftype, sv in fields[indent_after:]:
+                        self._put_field(safe, label, sv, ftype)
+            else:
+                for safe, label, ftype, sv in fields:
+                    self._put_field(safe, label, sv, ftype)
+
             put_html('<div style="height:8px;"></div>')
             put_buttons(
                 [
@@ -277,21 +302,15 @@ class Manager(Spawner):
 
     # ---------------- 渲染 ----------------
     async def render_body(self):
-        # 默认渲染：受搜索过滤影响
         await self._render_home(filtered=True)
 
     async def _render_home(self, filtered=True):
-        """
-        filtered=True  → 按 local.search_text 过滤后显示（搜索按钮走这条路）
-        filtered=False → 忽略搜索，显示全部数据（首页按钮走这条路）
-        """
         all_values = await self._fetch_values()
         if filtered:
             values = self._filter_values(all_values)
         else:
             values = all_values
 
-        # key 列固定宽度 —— 所有标量行共用，保证跨行对齐
         KEY_W = '180px'
 
         with use_scope('body', clear=True):
@@ -302,7 +321,6 @@ class Manager(Spawner):
 
             for k, v in values.items():
                 if isinstance(v, dict):
-                    # ---- 复合数据：details 折叠 ----
                     sub = ''.join(
                         f'<div style="padding:2px 0;color:#555;">'
                         f'<b>{_esc(sk)}</b>: {_esc(sv)}</div>'
@@ -330,7 +348,6 @@ class Manager(Spawner):
                         size='1fr auto',
                     )
                 else:
-                    # ---- 标量数据：key | value | 按钮 三列 ----
                     key_cell = (
                         f'<div style="color:#007bff;font-weight:bold;'
                         f'overflow-wrap:anywhere;">{_esc(k)}</div>'
@@ -364,7 +381,6 @@ class Manager(Spawner):
             await self._do_spec()
             return
 
-        # ---- 首页：清空搜索状态 + 清空搜索框 + 忽略过滤显示全部 ----
         local.view = 'home'
         local.search_text = ''
         try:
@@ -399,13 +415,17 @@ class Manager(Spawner):
 
         if not self.spec:
             fields.append(('__value__', '值', 'str', ''))
+            indent_after = 0   # 标量数据：键和值同级，不缩进
         else:
             for i, (sk, sv) in enumerate(self.spec.items()):
                 ftype = self._infer_type(None, sv)
                 initial = False if ftype == 'bool' else None
                 fields.append((f'f{i}', sk, ftype, initial))
+            indent_after = 1   # 复合数据：主键之后整体缩进
 
-        values = await self._show_form_popup('新增数据', fields)
+        values = await self._show_form_popup(
+            '新增数据', fields, indent_after=indent_after
+        )
         if values is None:
             return
 
@@ -459,6 +479,7 @@ class Manager(Spawner):
             ftype = self._infer_type(old, None)
             fields.append(('f0', '值', ftype, old))
 
+        # 编辑时主键已作为标题显示，表单里只有内部字段，不缩进
         values = await self._show_form_popup(f'编辑 "{key}"', fields)
         if values is None:
             return
@@ -543,6 +564,13 @@ class Manager(Spawner):
                 '  font-size: 15px !important;'
                 '}'
 
+                # 弹窗内：主键之后字段的缩进容器（表达"内部字段"层次）
+                '#pywebio-scope-form_inner {'
+                '  padding: 4px 0 4px 16px;'
+                '  border-left: 3px solid #d0e0ee;'
+                '  margin: 4px 0 4px 6px;'
+                '}'
+
                 '</style>'
             )
 
@@ -572,7 +600,6 @@ class Manager(Spawner):
 
             put_scope('body')
 
-            # ---- 初始渲染：显示全部数据 ----
             await self._render_home(filtered=False)
 
             while True:
