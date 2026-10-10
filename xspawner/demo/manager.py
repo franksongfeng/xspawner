@@ -239,10 +239,19 @@ class Manager(Spawner):
 
     # ---------------- 渲染 ----------------
     async def render_body(self):
-        await self._render_home()
+        # 默认渲染：受搜索过滤影响
+        await self._render_home(filtered=True)
 
-    async def _render_home(self):
-        values = self._filter_values(await self._fetch_values())
+    async def _render_home(self, filtered=True):
+        """
+        filtered=True  → 按 local.search_text 过滤后显示（搜索按钮走这条路）
+        filtered=False → 忽略搜索，显示全部数据（首页按钮走这条路）
+        """
+        all_values = await self._fetch_values()
+        if filtered:
+            values = self._filter_values(all_values)
+        else:
+            values = all_values
 
         # key 列固定宽度 —— 所有标量行共用，保证跨行对齐
         KEY_W = '180px'
@@ -316,13 +325,25 @@ class Manager(Spawner):
         if view == 'spec':
             await self._do_spec()
             return
+
+        # ---- 首页：清空搜索状态 + 清空搜索框 + 忽略过滤显示全部 ----
         local.view = 'home'
-        await self.render_body()
+        local.search_text = ''
+        try:
+            pin_update('search_input', '')
+        except Exception as e:
+            self.eLog(f"pin_update search_input failed: {e}")
+            try:
+                pin['search_input'] = ''
+            except Exception as e2:
+                self.eLog(f"pin setitem search_input failed: {e2}")
+
+        await self._render_home(filtered=False)
 
     async def on_search(self, _b=None):
         local.search_text = (await pin.search_input) or ''
         local.view = 'home'
-        await self.render_body()
+        await self._render_home(filtered=True)
 
     async def on_row_action(self, act, key):
         if act == 'edit':
@@ -510,7 +531,8 @@ class Manager(Spawner):
 
             put_scope('body')
 
-            await self.render_body()
+            # ---- 初始渲染：显示全部数据，不受搜索状态影响 ----
+            await self._render_home(filtered=False)
 
             while True:
                 await tornado.gen.sleep(60)
