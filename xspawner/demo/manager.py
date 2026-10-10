@@ -208,13 +208,76 @@ class Manager(Spawner):
 
         return await fut
 
+    # ---------------- 规范弹窗 ----------------
+    async def _do_spec(self):
+        """
+        规范（spec）编辑弹窗。
+        - 打开时读出最新 spec，序列化为 JSON 填入 textarea
+        - 💾 保存：校验 JSON（失败则不关闭，用户可继续修改）
+        - ↩️ 取消：直接关闭，不写库
+        """
+        # 每次进入都从 EntityModel 重新读取
+        await self._load_spec()
+        default_text = json.dumps(self.spec, ensure_ascii=False, indent=2)
+
+        fut = tornado.gen.Future()
+
+        async def _on_save(_b=None):
+            try:
+                text = await pin['__spec_text__']
+            except Exception:
+                text = ''
+            text = text or ''
+
+            # 校验 JSON
+            if not text.strip():
+                new_spec = {}
+            else:
+                try:
+                    obj = json.loads(text)
+                except Exception as e:
+                    toast(f'JSON 格式错误: {e}', color='error')
+                    return  # 不关闭弹窗，让用户修正
+                if not isinstance(obj, dict):
+                    toast('规范必须是 JSON 对象', color='error')
+                    return  # 不关闭弹窗
+                new_spec = obj
+
+            if not fut.done():
+                fut.set_result(new_spec)
+            close_popup()
+
+        async def _on_cancel(_b=None):
+            if not fut.done():
+                fut.set_result(None)
+            close_popup()
+
+        with popup('规范 (JSON)', closable=False):
+            put_textarea('__spec_text__', value=default_text, rows=12)
+            put_html('<div style="height:8px;"></div>')
+            put_buttons(
+                [
+                    {'label': '💾 保存', 'value': 'save', 'color': 'primary'},
+                    {'label': '↩️ 取消', 'value': 'cancel'},
+                ],
+                onclick=[_on_save, _on_cancel],
+            )
+
+        new_spec = await fut
+        if new_spec is None:
+            # 用户取消，不做任何写库
+            return
+
+        ok = await self._save_spec(new_spec)
+        toast('规范已保存' if ok else '规范保存失败',
+              color='success' if ok else 'error')
+        if ok:
+            await self._render_home()
+
     # ---------------- 渲染 ----------------
     async def render_body(self):
-        view = getattr(local, 'view', 'home')
-        if view == 'spec':
-            await self._render_spec()
-        else:
-            await self._render_home()
+        # 新增与规范都改为弹窗后，body 只渲染主页
+        await self._render_home()
 
     async def _render_home(self):
         values = self._filter_values(await self._fetch_values())
@@ -260,29 +323,18 @@ class Manager(Spawner):
                     size='1fr auto',
                 )
 
-    async def _render_spec(self):
-        await self._load_spec()
-        with use_scope('body', clear=True):
-            put_markdown('### 规范 (JSON)')
-            put_textarea(
-                'spec_text',
-                value=json.dumps(self.spec, ensure_ascii=False, indent=2),
-                rows=12
-            )
-            put_buttons(
-                [{'label': '💾', 'value': 'save'}],
-                onclick=[self.on_save_spec]
-            )
-
     # ---------------- 按钮回调 ----------------
     async def on_nav(self, view):
         if view == 'add':
-            # 新增走弹窗，不占 body 视图
+            # 新增走弹窗
             await self._do_add()
             return
-        if view not in ('home', 'spec'):
-            view = 'home'
-        local.view = view
+        if view == 'spec':
+            # 规范走弹窗
+            await self._do_spec()
+            return
+        # 其余情况回主页
+        local.view = 'home'
         await self.render_body()
 
     async def on_search(self, _b=None):
@@ -295,26 +347,6 @@ class Manager(Spawner):
             await self._do_edit(key)
         elif act == 'delete':
             await self._do_delete(key)
-
-    async def on_save_spec(self, _b=None):
-        text = (await pin.spec_text) or ''
-        if not text.strip():
-            new_spec = {}
-        else:
-            try:
-                obj = json.loads(text)
-            except Exception as e:
-                toast(f'JSON 格式错误: {e}', color='error'); return
-            if not isinstance(obj, dict):
-                toast('规范必须是 JSON 对象', color='error'); return
-            new_spec = obj
-
-        ok = await self._save_spec(new_spec)
-        toast('规范已保存' if ok else '规范保存失败',
-              color='success' if ok else 'error')
-        if ok:
-            local.view = 'home'
-            await self.render_body()
 
     # ---------------- 新增（弹窗） ----------------
     async def _do_add(self):
@@ -366,8 +398,7 @@ class Manager(Spawner):
         toast('保存成功' if ok else '保存失败',
               color='success' if ok else 'error')
         if ok:
-            local.view = 'home'
-            await self.render_body()
+            await self._render_home()
 
     # ---------------- 编辑（弹窗，与新增风格一致） ----------------
     async def _do_edit(self, key):
