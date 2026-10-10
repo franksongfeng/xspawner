@@ -19,7 +19,6 @@ import tornado.gen
 # 在 m_entity 表中存储 spec 的保留键。
 # EntityModel 的 (spawn, key) 联合唯一约束保证：
 #   同一个 spawn 实例下，key="__spec__" 的记录最多只有一条。
-# 选择双下划线前后缀是为了降低与用户业务键冲突的概率。
 SPEC_KEY = '__spec__'
 
 
@@ -42,10 +41,6 @@ class Manager(Spawner):
 
     # ---------------- spec 存取：走 EntityModel ----------------
     async def _load_spec(self) -> dict:
-        """
-        从 EntityModel（m_entity 表）读取本 spawn 的 spec。
-        约定：value 字段是 dict 时视为合法 spec，否则视为空 spec。
-        """
         try:
             v = await self.getValue(SPEC_KEY)
         except Exception as e:
@@ -55,10 +50,6 @@ class Manager(Spawner):
         return self.spec
 
     async def _save_spec(self, spec: dict) -> bool:
-        """
-        把 spec 写入 EntityModel（m_entity 表）。
-        成功时同步刷新内存缓存。
-        """
         try:
             ok = await self.setValue(SPEC_KEY, spec)
         except Exception as e:
@@ -74,8 +65,7 @@ class Manager(Spawner):
             v = await self.getValues()
             if not isinstance(v, dict):
                 return {}
-            # 关键：把 spec 这一行从业务数据里剔除，
-            # 否则它会以 key="__spec__" 的形式出现在主页列表上。
+            # 关键：把 spec 这一行从业务数据里剔除
             return {k: val for k, val in v.items() if k != SPEC_KEY}
         except Exception as e:
             self.eLog(f"_fetch_values error: {e}")
@@ -92,13 +82,137 @@ class Manager(Spawner):
                 if isinstance(v, dict) else str(v).startswith(ft))
         }
 
+    # ---------------- 类型推断 / 控件构造 / 回值转换 ----------------
+    def _infer_type(self, value, spec_value) -> str:
+        """
+        决定字段控件与数据类型。
+        spec 优先（spec 是 schema 意图），否则按现值推断。
+        """
+        ref = spec_value if spec_value is not None else value
+        if isinstance(ref, bool):
+            return 'bool'
+        if isinstance(ref, int):
+            return 'int'
+        if isinstance(ref, float):
+            return 'float'
+        return 'str'
+
+    def _put_field(self, name: str, label: str, value, ftype: str):
+        """
+        在当前作用域渲染一个 pin 控件。
+        name 是安全字段名（f0/f1/... 或 __key__/__value__），label 是展示名。
+        """
+        if ftype == 'bool':
+            put_radio(
+                name, label=label,
+                options=[('是', True), ('否', False)],
+                value=bool(value) if value is not None else False,
+            )
+        elif ftype == 'int':
+            put_input(
+                name, label=label, type='number',
+                value=value if value is not None else '',
+            )
+        elif ftype == 'float':
+            put_input(
+                name, label=label, type='float',
+                value=value if value is not None else '',
+            )
+        else:
+            put_input(
+                name, label=label,
+                value='' if value is None else str(value),
+            )
+
+    def _coerce(self, raw, ftype: str):
+        """把 pin 的原始值按 ftype 转成目标 Python 值。"""
+        if ftype == 'bool':
+            return bool(raw)
+        if ftype == 'int':
+            try:
+                return int(raw) if raw not in (None, '') else 0
+            except (ValueError, TypeError):
+                return 0
+        if ftype == 'float':
+            try:
+                return float(raw) if raw not in (None, '') else 0.0
+            except (ValueError, TypeError):
+                return 0.0
+        return '' if raw is None else str(raw)
+
+    # ---------------- 通用表单弹窗 ----------------
+    async def _show_form_popup(self, title: str, fields: list):
+        """
+        通用表单弹窗。新增与编辑共用。
+
+        参数:
+          title:  弹窗标题
+          fields: [(safe_name, label, ftype, initial_value), ...]
+
+        返回:
+          - dict {safe_name: raw_value}  用户点击「💾 保存」
+          - None                         用户点击「↩️ 取消」
+
+        「🔄 重置」在弹窗内部完成，逐字段清空，不关闭弹窗、不返回。
+        """
+        fut = tornado.gen.Future()
+
+        async def _on_save(_b=None):
+            values = {}
+            for safe, _label, _ftype, _v in fields:
+                try:
+                    raw = await pin[safe]
+                except Exception:
+                    raw = None
+                values[safe] = raw
+            if not fut.done():
+                fut.set_result(values)
+            close_popup()
+
+        async def _on_reset(_b=None):
+            """
+            清空所有字段。弹窗保持打开，不写库、不关闭。
+            - bool：重置为 False
+            - int/float：重置为空（None）
+            - str：重置为空字符串
+            """
+            for safe, _label, ftype, _v in fields:
+                try:
+                    if ftype == 'bool':
+                        pin_update(safe, False)
+                    elif ftype in ('int', 'float'):
+                        pin_update(safe, None)
+                    else:
+                        pin_update(safe, '')
+                except Exception as e:
+                    self.eLog(f"reset {safe} failed: {e}")
+            toast('已重置', color='info')
+
+        async def _on_cancel(_b=None):
+            if not fut.done():
+                fut.set_result(None)
+            close_popup()
+
+        with popup(title, closable=False):
+            for safe, label, ftype, sv in fields:
+                self._put_field(safe, label, sv, ftype)
+            put_html('<div style="height:8px;"></div>')
+            put_buttons(
+                [
+                    {'label': '💾 保存', 'value': 'save', 'color': 'primary'},
+                    {'label': '🔄 重置', 'value': 'reset'},
+                    {'label': '↩️ 取消', 'value': 'cancel'},
+                ],
+                onclick=[_on_save, _on_reset, _on_cancel],
+            )
+
+        return await fut
+
     # ---------------- 渲染 ----------------
     async def render_body(self):
         view = getattr(local, 'view', 'home')
         if view == 'spec':
             await self._render_spec()
-        elif view == 'add':
-            await self._render_add()
         else:
             await self._render_home()
 
@@ -147,8 +261,6 @@ class Manager(Spawner):
                 )
 
     async def _render_spec(self):
-        # 每次进入 spec 视图都从 EntityModel 重新读取，
-        # 避免多会话 / 多端修改时读到旧数据
         await self._load_spec()
         with use_scope('body', clear=True):
             put_markdown('### 规范 (JSON)')
@@ -162,39 +274,13 @@ class Manager(Spawner):
                 onclick=[self.on_save_spec]
             )
 
-    async def _render_add(self):
-        # 新增表单需要依据 spec 决定字段类型，务必读最新
-        await self._load_spec()
-        with use_scope('body', clear=True):
-            put_markdown('### 新增数据')
-            put_input('new_key', label='键')
-
-            if not self.spec:
-                put_input('new_value', label='值')
-            else:
-                for sk, sv in self.spec.items():
-                    if isinstance(sv, bool):
-                        put_radio(f'new_{sk}', label=sk,
-                                  options=[('是', True), ('否', False)],
-                                  value=False)
-                    elif isinstance(sv, int) and not isinstance(sv, bool):
-                        put_input(f'new_{sk}', label=sk, type='number')
-                    elif isinstance(sv, float):
-                        put_input(f'new_{sk}', label=sk, type='float')
-                    else:
-                        put_input(f'new_{sk}', label=sk)
-
-            put_buttons(
-                [
-                    {'label': '💾', 'value': 'save'},
-                    {'label': '🧹', 'value': 'clear'},
-                ],
-                onclick=[self.on_save_new, self.on_clear_new]
-            )
-
     # ---------------- 按钮回调 ----------------
     async def on_nav(self, view):
-        if view not in ('home', 'spec', 'add'):
+        if view == 'add':
+            # 新增走弹窗，不占 body 视图
+            await self._do_add()
+            return
+        if view not in ('home', 'spec'):
             view = 'home'
         local.view = view
         await self.render_body()
@@ -223,7 +309,6 @@ class Manager(Spawner):
                 toast('规范必须是 JSON 对象', color='error'); return
             new_spec = obj
 
-        # ← 真正的持久化：写入 m_entity 表 (spawn=self._config.id, key=SPEC_KEY)
         ok = await self._save_spec(new_spec)
         toast('规范已保存' if ok else '规范保存失败',
               color='success' if ok else 'error')
@@ -231,40 +316,51 @@ class Manager(Spawner):
             local.view = 'home'
             await self.render_body()
 
-    async def on_save_new(self, _b=None):
-        key = ((await pin.new_key) or '').strip()
+    # ---------------- 新增（弹窗） ----------------
+    async def _do_add(self):
+        # 需要最新 spec 决定字段类型
+        await self._load_spec()
+
+        # fields: [(safe, label, ftype, initial_value)]
+        fields = [
+            # 键字段：永远是文本，初始为空
+            ('__key__', '键', 'str', ''),
+        ]
+
+        if not self.spec:
+            # 无 spec → 单值模式
+            fields.append(('__value__', '值', 'str', ''))
+        else:
+            for i, (sk, sv) in enumerate(self.spec.items()):
+                ftype = self._infer_type(None, sv)
+                # 新增时的初始值：按 spec 类型给个合理的空值
+                if ftype == 'bool':
+                    initial = False
+                else:
+                    initial = None
+                fields.append((f'f{i}', sk, ftype, initial))
+
+        values = await self._show_form_popup('新增数据', fields)
+        if values is None:
+            # 用户取消
+            return
+
+        # 解析键
+        key = str(values.get('__key__', '') or '').strip()
         if not key:
             toast('键不能为空', color='error'); return
         if key == SPEC_KEY:
-            # 防止用户业务键把内部 spec 覆盖掉
             toast(f'"{SPEC_KEY}" 是保留键，请换一个', color='error'); return
 
-        # 用最新的 spec 解析字段类型
-        await self._load_spec()
-
+        # 构造 value
         if not self.spec:
-            value = await pin.new_value
-            if value is None:
-                value = ''
-            value = str(value)
+            value = self._coerce(values.get('__value__'), 'str')
         else:
             value = {}
-            for sk, sv in self.spec.items():
-                raw = await pin[f'new_{sk}']
-                if isinstance(sv, bool):
-                    value[sk] = bool(raw)
-                elif isinstance(sv, int) and not isinstance(sv, bool):
-                    try:
-                        value[sk] = int(raw) if raw not in (None, '') else 0
-                    except (ValueError, TypeError):
-                        value[sk] = 0
-                elif isinstance(sv, float):
-                    try:
-                        value[sk] = float(raw) if raw not in (None, '') else 0.0
-                    except (ValueError, TypeError):
-                        value[sk] = 0.0
-                else:
-                    value[sk] = raw if raw is not None else ''
+            for i, (sk, sv) in enumerate(self.spec.items()):
+                ftype = self._infer_type(None, sv)
+                raw = values.get(f'f{i}')
+                value[sk] = self._coerce(raw, ftype)
 
         ok = await self.setValue(key, value)
         toast('保存成功' if ok else '保存失败',
@@ -273,32 +369,60 @@ class Manager(Spawner):
             local.view = 'home'
             await self.render_body()
 
-    async def on_clear_new(self, _b=None):
-        await self._render_add()
-
-    # ---------------- 编辑 / 删除 ----------------
+    # ---------------- 编辑（弹窗，与新增风格一致） ----------------
     async def _do_edit(self, key):
         if key == SPEC_KEY:
             # 不允许从数据页编辑 spec，请从 📋 视图改
             toast(f'"{SPEC_KEY}" 为保留键，请用 📋 视图编辑', color='error')
             return
+
         old = await self.getValue(key)
         if old is None:
             toast(f'键 "{key}" 不存在', color='error'); return
-        default = (json.dumps(old, ensure_ascii=False)
-                   if isinstance(old, dict) else str(old))
-        text = await input(f'编辑 "{key}" 的值', value=default)
-        if text is None:
+
+        # 用最新 spec 决定字段类型
+        await self._load_spec()
+
+        # fields: [(safe, label, ftype, initial_value)]
+        fields = []
+        is_dict = isinstance(old, dict)
+
+        if is_dict:
+            # 字段集合 = spec 字段 ∪ old 字段（保序：spec 优先）
+            names = list(self.spec.keys()) if self.spec else []
+            for k in old.keys():
+                if k not in names:
+                    names.append(k)
+            for i, sk in enumerate(names):
+                sv = old.get(sk, self.spec.get(sk))
+                spec_v = self.spec.get(sk)
+                ftype = self._infer_type(sv, spec_v)
+                fields.append((f'f{i}', sk, ftype, sv))
+        else:
+            ftype = self._infer_type(old, None)
+            fields.append(('f0', '值', ftype, old))
+
+        values = await self._show_form_popup(f'编辑 "{key}"', fields)
+        if values is None:
+            # 取消：不做任何写库，弹窗关闭即回到之前的样子
             return
-        try:
-            val = json.loads(text)
-        except (ValueError, TypeError):
-            val = text
-        ok = await self.setValue(key, val)
+
+        # 构造最终 value
+        if is_dict:
+            value = {}
+            for safe, label, ftype, _v in fields:
+                raw = values.get(safe)
+                value[label] = self._coerce(raw, ftype)
+        else:
+            safe, _label, ftype, _v = fields[0]
+            value = self._coerce(values.get(safe), ftype)
+
+        ok = await self.setValue(key, value)
         toast('更新成功' if ok else '更新失败',
               color='success' if ok else 'error')
         await self._render_home()
 
+    # ---------------- 删除 ----------------
     async def _do_delete(self, key):
         if key == SPEC_KEY:
             toast(f'"{SPEC_KEY}" 为保留键，不能删除', color='error')
