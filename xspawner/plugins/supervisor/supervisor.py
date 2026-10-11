@@ -142,6 +142,14 @@ class Supervisor(Spawner): # NOQA
                     placeholder="选择一个Python源文件或包 (*.py/*.zip)",
                     help_text="支持拖拽文件到此区域",
                     required=True
+                ),
+                textarea(
+                    label="附加信息",
+                    name="additional",
+                    rows=5,
+                    placeholder='可选，任意字符串',
+                    help_text="可选。原样透传给子服务",
+                    required=False
                 )
             ]
         )
@@ -164,6 +172,7 @@ class Supervisor(Spawner): # NOQA
         srvname = data["id"]
         srvport = data["port"]
         srvseverity = data["severity"] or "info"
+        additional_raw = data.get("additional") or ""
 
         if srvname:
             if srvname in await self.getChildren():
@@ -227,7 +236,8 @@ class Supervisor(Spawner): # NOQA
             "severity": srvseverity,
             "ssl": self._config.ssl,
             "certfile": self._config.certfile,
-            "keyfile": self._config.keyfile
+            "keyfile": self._config.keyfile,
+            "additional": additional_raw
         }
 
         res = await self._start_child(None, child_config)

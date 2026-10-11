@@ -9,5 +9,6 @@
   "severity": "debug",
   "ssl": false,
   "certfile": "",
-  "keyfile": ""
+  "keyfile": "",
+  "additional": ""
 }

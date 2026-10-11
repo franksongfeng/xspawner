@@ -30,6 +30,7 @@ if __name__ == '__main__':
         parser.add_argument("--ssl", action="store_true", help="SSL/TLS Support")
         parser.add_argument("--certfile", type=str, default="", help="Certification file")
         parser.add_argument("--keyfile", type=str, default="", help="Private key file")
+        parser.add_argument("--additional", type=str, default="", help="Additional string")
         args = parser.parse_args()
         
         globals()["__version__"] = __version__

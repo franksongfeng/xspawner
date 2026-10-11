@@ -468,7 +468,7 @@ class SpawnModel(models.Model, metaclass = TieredModel):
     ssl = fields.BooleanField()
     certfile = fields.CharField(max_length=255, default="")
     keyfile = fields.CharField(max_length=255, default="")
-
+    additional = fields.TextField(default="")
 
 # 实体模型
 class EntityModel(models.Model):
@@ -504,7 +504,8 @@ def config_model_to_tuple(model: SpawnModel) -> Config:
         ssl = model.ssl,
         certfile = model.certfile,
         keyfile = model.keyfile,
-        parent = model.parent_id or ""
+        parent = model.parent_id or "",
+        additional=model.additional or ""
     )
 
 def config_model_to_dict(model: SpawnModel) -> dict:

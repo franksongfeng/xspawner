@@ -682,6 +682,9 @@ class XSpawner(Spawnable):
             data['certfile'] = ""
         if data.get('keyfile') is None:
             data['keyfile'] = ""
+        if data.get('additional') is None:
+            data['additional'] = ""
+
         try:
             model = await SpawnModel.create(**data)
             self.iLog(f"addConfig END {model}")

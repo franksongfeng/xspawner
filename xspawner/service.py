@@ -134,6 +134,11 @@ def get_exec_cmd(config: Config) -> str:
     if config.ssl and config.certfile and config.keyfile:
         cmd_parts.extend(["--ssl", "--certfile", shlex.quote(config.certfile), "--keyfile", shlex.quote(config.keyfile)])
 
+    # add additional option
+    additional = getattr(config, "additional", "") or ""
+    if additional:
+        cmd_parts.extend(["--additional", shlex.quote(additional)])
+
     return " ".join(cmd_parts)
 
 
