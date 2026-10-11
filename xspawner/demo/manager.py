@@ -503,18 +503,49 @@ class Manager(Spawner):
               color='success' if ok else 'error')
         await self._render_home()
 
-    # ---------------- 删除 ----------------
+    # ---------------- 删除（弹窗） ----------------
     async def _do_delete(self, key):
         if key == SPEC_KEY:
             toast(f'"{SPEC_KEY}" 为保留键，不能删除', color='error')
             return
-        res = await actions(
-            f'确认删除 "{key}" 吗？',
-            buttons=[{'label': '确认', 'value': 'yes', 'color': 'danger'},
-                     {'label': '取消', 'value': 'no'}]
-        )
-        if res != 'yes':
+
+        # 先确认键存在，避免进入弹窗后才发现读不到
+        old = await self.getValue(key)
+        if old is None:
+            toast(f'键 "{key}" 不存在', color='error')
             return
+
+        fut = tornado.gen.Future()
+
+        async def _on_confirm(_b=None):
+            if not fut.done():
+                fut.set_result('yes')
+            close_popup()
+
+        async def _on_cancel(_b=None):
+            if not fut.done():
+                fut.set_result(None)
+            close_popup()
+
+        with popup('确认删除', closable=False):
+            put_html(
+                '<div style="padding:4px 0 12px 0;color:#333;font-size:16px;">'
+                f'确定要删除 <b style="color:#007bff;">{_esc(key)}</b> 吗？'
+                '</div>'
+            )
+            put_buttons(
+                [
+                    {'label': '🗑️ 确认删除', 'value': 'yes', 'color': 'danger'},
+                    {'label': '↩️ 取消', 'value': 'cancel'},
+                ],
+                onclick=[_on_confirm, _on_cancel],
+            )
+
+        res = await fut
+        if res != 'yes':
+            # 用户取消，不做任何写库
+            return
+
         ok = await self.delValue(key)
         toast('删除成功' if ok else '删除失败',
               color='success' if ok else 'error')
