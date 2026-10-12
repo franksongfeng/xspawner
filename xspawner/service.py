@@ -67,6 +67,24 @@ def get_service_status(service_name: str) -> Dict[str, Any]:
         return {'name': service_name, 'error': str(e)}
 
 
+def get_service_status_text(service_name: str, lines: int = 10) -> str:
+    """
+    获取 `systemctl status <id>` 的完整文本输出（人类可读），
+    包含：Active/Loaded/CGroup/最近日志。
+    """
+    try:
+        result = subprocess.run(
+            ["systemctl", "status", service_name,
+             "-n", str(lines), "--no-pager"],
+            capture_output=True, text=True, check=False,
+        )
+        # systemctl status 在服务未运行时退出码非 0，但 stdout 仍有内容
+        return result.stdout or result.stderr
+    except Exception as e:
+        logger.error(f"Failed to get service status text: {e}")
+        return ""
+
+
 def _run_systemctl(command: List[str]) -> bool:
     """执行 systemctl 命令的通用函数"""
     logger.info(f"_run_systemctl BEG {command}")
