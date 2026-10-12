@@ -38,10 +38,52 @@ from .fmt_dict import get_first_level_json
 ##############################################################################
 # Constants and Variables and Classes
 ##############################################################################
+
+
+def _esc(s):
+    """HTML 转义"""
+    return (str(s)
+            .replace('&', '&amp;')
+            .replace('<', '&lt;')
+            .replace('>', '&gt;')
+            .replace('"', '&quot;'))
+
+
 CSS = read_text_file("xspawner/plugins/supervisor/static/common.css")
 
 
 class Supervisor(Spawner): # NOQA
+
+
+    # ---------------- 辅助：配置弹窗 ----------------
+    async def _show_config_popup(self, srv_id):
+        """
+        点击"配置"列按钮时弹出该服务的 JSON 配置。
+        - 主服务：直接取 self._config._asdict()
+        - 子服务：通过 POST /get_config 获取
+        """
+        if srv_id == self._config.id:
+            # 主服务：内存里已有
+            data = self._config._asdict()
+        else:
+            child = await self.getConfig(srv_id)
+            if not child:
+                toast(f'服务 {srv_id} 不存在', color='error')
+                return
+            child_addr = self.getAddr(child.port)
+            try:
+                data = await self.postJson(f"{child_addr}/get_config", {})
+            except Exception as e:
+                self.eLog(f"get_config from {child_addr} failed: {e}")
+                toast('获取配置失败', color='error')
+                return
+            if not isinstance(data, dict):
+                toast('配置格式无效', color='error')
+                return
+
+        json_str = json.dumps(data, indent=4, ensure_ascii=False)
+        with popup(f'配置 - {srv_id}', closable=True):
+            put_code(json_str, language='json')
 
 
     @UiHandler.route("/")
@@ -55,51 +97,85 @@ class Supervisor(Spawner): # NOQA
         </div>
         """
 
-        put_html(tab_title.format("信息"))
-        tab_text = "| 标识 | 类型 | 版本 | 进程 | 时间 | 地址 |\n"
-        tab_text +="| ---- | ---- | ---- | ---- | ---- | ---- |\n"
-        tab_text +="| {} | {} | {} | {} | {} | {} |\n".format(
-            self._config.id,
-            self.getClassName(),
-            self.getVersion(),
-            self.getPid(),
-            self.getPidTime(),
-            self.getAddr()
-            )
-        put_markdown(tab_text, sanitize=False)
+        put_html(tab_title.format("服务"))
 
-        put_html(tab_title.format("配置"))
-        json_str = json.dumps(self._config._asdict(), indent=4, separators=(',', ':'))
-        put_code(json_str, language="json")
+        # ---- 收集主服务 + 子服务数据 ----
+        rows = []
 
+        # 主服务本身作为第一行
+        rows.append({
+            "id":   self._config.id,
+            "cls":  self.getClassName(),
+            "vsn":  self.getVersion(),
+            "pid":  self.getPid(),
+            "time": self.getPidTime(),
+            "addr": self.getAddr(),
+        })
+
+        # 子服务依次追加
         children = await self.getChildren()
-        if children:
-            put_html(tab_title.format("服务"))
-            # 与"信息"段相同的表头
-            tab_text = "| 标识 | 类型 | 版本 | 进程 | 时间 | 地址 |\n"
-            tab_text += "| ---- | ---- | ---- | ---- | ---- | ---- |\n"
-            for child_id in children:
-                child = await self.getConfig(child_id)
-                child_addr = self.getAddr(child.port)
-                child_url = "{}/".format(child_addr)
-                # 向子服务查询 /get_info，失败时用占位符，不中断渲染
-                try:
-                    info = await self.postJson(f"{child_addr}/get_info", {})
-                except Exception as e:
-                    self.eLog("get_info from {} failed: {}".format(child_addr, e))
-                    info = None
-                if isinstance(info, dict):
-                    cls = info.get("class", "-")
-                    vsn = info.get("vsn", "-")
-                    pid = info.get("pid", "-")
-                    start_time = info.get("start_time", "-")
-                else:
-                    cls = vsn = pid = start_time = "-"
-                addr_link = "[{}]({})".format(child_addr, child_url)
-                tab_text += "| {} | {} | {} | {} | {} | {} |\n".format(
-                    child_id, cls, vsn, pid, start_time, addr_link
-                )
-            put_markdown(tab_text, sanitize=False)
+        for child_id in children:
+            child = await self.getConfig(child_id)
+            if not child:
+                continue
+            child_addr = self.getAddr(child.port)
+            try:
+                info = await self.postJson(f"{child_addr}/get_info", {})
+            except Exception as e:
+                self.eLog("get_info from {} failed: {}".format(child_addr, e))
+                info = None
+            if isinstance(info, dict):
+                rows.append({
+                    "id":   child_id,
+                    "cls":  info.get("class", "-"),
+                    "vsn":  info.get("vsn", "-"),
+                    "pid":  info.get("pid", "-"),
+                    "time": info.get("start_time", "-"),
+                    "addr": child_addr,
+                })
+            else:
+                rows.append({
+                    "id":   child_id,
+                    "cls":  "-",
+                    "vsn":  "-",
+                    "pid":  "-",
+                    "time": "-",
+                    "addr": child_addr,
+                })
+
+        # ---- 构造表格 ----
+        scheme = "https" if self._config.ssl else "http"
+
+        table = []
+        # 表头
+        table.append([
+            put_html("<b>标识</b>"),
+            put_html("<b>类型</b>"),
+            put_html("<b>版本</b>"),
+            put_html("<b>进程</b>"),
+            put_html("<b>时间</b>"),
+            put_html("<b>配置</b>"),
+            put_html("<b>地址</b>"),
+        ])
+
+        for r in rows:
+            srv_id = r["id"]
+            addr_url = "{}://{}/".format(scheme, r["addr"])
+            table.append([
+                put_html(_esc(srv_id)),
+                put_html(_esc(str(r["cls"]))),
+                put_html(_esc(str(r["vsn"]))),
+                put_html(_esc(str(r["pid"]))),
+                put_html(_esc(str(r["time"]))),
+                put_buttons(
+                    [{"label": "查看", "value": "cfg"}],
+                    small=True, outline=True,
+                    onclick=lambda _v, s=srv_id: self._show_config_popup(s),
+                ),
+                put_link(r["addr"], url=addr_url),
+            ])
+
+        put_table(table)
 
         put_html(tab_title.format("操作"))
         addr = self.getAddr()
@@ -107,7 +183,7 @@ class Supervisor(Spawner): # NOQA
             {"name": "创建服务", "url": "{}/create".format(addr)},
             {"name": "销毁服务", "url": "{}/delete".format(addr)},
             {"name": "查看日志", "url": "{}/log".format(addr)},
-            {"name": "调试接口", "url": "{}/debug".format(addr)}
+            {"name": "调试接口", "url": "{}/debug".format(addr)},
         ]
         funcs_text = "\n".join(
             f"- [{item['name']}]({item['url']})" for item in funcs
@@ -453,4 +529,3 @@ class Supervisor(Spawner): # NOQA
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
