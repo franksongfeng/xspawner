@@ -553,6 +553,7 @@ class Manager(Spawner):
 
     # ---------------- 主路由 ----------------
     @UiHandler.route("/")
+    @config(theme="yeti")
     async def _(self):
         try:
             if not hasattr(local, 'view'):
