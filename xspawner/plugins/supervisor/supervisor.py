@@ -158,11 +158,16 @@ class Supervisor(Spawner): # NOQA
             put_html("<b>地址</b>"),
         ])
 
-        for r in rows:
+        for idx, r in enumerate(rows):
             srv_id = r["id"]
             addr_url = "{}://{}/".format(scheme, r["addr"])
+
+            # 主服务的标识后面加星
+            is_main = (idx == 0)                # 第一行是主服务
+            id_display = f'{_esc(srv_id)} ★' if is_main else _esc(srv_id)
+
             table.append([
-                put_html(_esc(srv_id)),
+                put_html(id_display),
                 put_html(_esc(str(r["cls"]))),
                 put_html(_esc(str(r["vsn"]))),
                 put_html(_esc(str(r["pid"]))),
