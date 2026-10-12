@@ -711,13 +711,11 @@ class XSpawner(Spawnable):
     # implement singleton
     @classmethod
     def getServer(cls,**kwargs):
-        print("{}::getServer BEG {}".format(cls.__name__, kwargs))
         if XSpawner._instance is None:
             XSpawner._instance = cls(
                 **kwargs
             )
-            print("{}::_instance is created".format(cls.__name__))
-        print("{}::getServer END {}".format(cls.__name__, XSpawner._instance))
+            print("{}::getServer XSpawner's singleton is created".format(cls.__name__))
         return XSpawner._instance
 
     @classmethod
