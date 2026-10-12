@@ -75,11 +75,31 @@ class Supervisor(Spawner): # NOQA
         children = await self.getChildren()
         if children:
             put_html(tab_title.format("服务"))
-            content = []
+            # 与"信息"段相同的表头
+            tab_text = "| 标识 | 类型 | 版本 | 进程 | 时间 | 地址 |\n"
+            tab_text += "| ---- | ---- | ---- | ---- | ---- | ---- |\n"
             for child_id in children:
                 child = await self.getConfig(child_id)
-                content.append(put_link(child_id, url="{}/".format(self.getAddr(child.port))))
-            put_row(content)
+                child_addr = self.getAddr(child.port)
+                child_url = "{}/".format(child_addr)
+                # 向子服务查询 /get_info，失败时用占位符，不中断渲染
+                try:
+                    info = await self.postJson(f"{child_addr}/get_info", {})
+                except Exception as e:
+                    self.eLog("get_info from {} failed: {}".format(child_addr, e))
+                    info = None
+                if isinstance(info, dict):
+                    cls = info.get("class", "-")
+                    vsn = info.get("vsn", "-")
+                    pid = info.get("pid", "-")
+                    start_time = info.get("start_time", "-")
+                else:
+                    cls = vsn = pid = start_time = "-"
+                addr_link = "[{}]({})".format(child_addr, child_url)
+                tab_text += "| {} | {} | {} | {} | {} | {} |\n".format(
+                    child_id, cls, vsn, pid, start_time, addr_link
+                )
+            put_markdown(tab_text, sanitize=False)
 
         put_html(tab_title.format("操作"))
         addr = self.getAddr()
