@@ -522,15 +522,12 @@ def get_similar_cls(mod, base_cls_name, kind=2):
 
 # kls is a derivative class of the base class
 def is_descendant_cls(kls, base_cls_name):
-    print("is_descendant_cls {} {}".format(str(kls), base_cls_name))
     if not kls:
-        print("is_descendant_cls paused")
         return False
     if kls.__name__ == "object":
-        print("is_descendant_cls terminated")
         return False
     if kls.__base__.__name__ == base_cls_name:
-        print("is_descendant_cls found!")
+        print("is_descendant_cls: found subclass of {} - {}!".format(base_cls_name, str(kls)))
         return True
     return is_descendant_cls(kls.__base__, base_cls_name)
 
