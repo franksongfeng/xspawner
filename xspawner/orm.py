@@ -8,6 +8,8 @@ import tempfile
 import aiomysql
 import asyncpg
 from typing import Optional
+from contextlib import asynccontextmanager
+from tortoise.transactions import in_transaction
 from tortoise import Tortoise, fields, models
 from urllib.parse import quote_plus, unquote_plus
 from xspawner.constants import Config
@@ -145,6 +147,223 @@ def _quote_pg_ident(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
 
+# ============================================================================
+# 直接 SQL 执行支持
+# ============================================================================
+
+_TABLE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _check_ident(name: str) -> str:
+    """表名/列名白名单校验，避免拼接 SQL 时的注入风险。"""
+    if not isinstance(name, str) or not _TABLE_NAME_RE.match(name):
+        raise ValueError(f"Invalid identifier: {name!r}")
+    return name
+
+
+def _adapt_sql(sql: str, dialect: str) -> str:
+    """
+    把数据库无关的 '?' 占位符适配到目标方言：
+      - sqlite:   原样使用 '?'
+      - mysql:    '?' -> '%s'
+      - postgres: '?' -> '$1', '$2', ...
+
+    注意：本函数只做简单替换，字符串字面量里的 '?' 会被误替换。
+    生产环境若 SQL 里含字面 '?'，请直接使用对应驱动的原生占位符并调用
+    execute_sql(sql, params, adapt=False)。
+    """
+    if dialect == "sqlite":
+        return sql
+    if dialect == "mysql":
+        return sql.replace("?", "%s")
+    if dialect == "postgres":
+        counter = [0]
+
+        def _repl(_m):
+            counter[0] += 1
+            return f"${counter[0]}"
+
+        return re.sub(r"\?", _repl, sql)
+    return sql
+
+
+async def execute_sql(sql: str, params: Optional[list] = None,
+                      adapt: bool = True) -> int:
+    """
+    执行一条写操作 SQL（INSERT / UPDATE / DELETE / DDL）。
+
+    参数:
+      - sql:    SQL 语句，占位符用 '?'（adapt=True 时自动适配方言）
+      - params: 占位符对应的参数列表
+      - adapt:  是否自动适配占位符。False 时按当前驱动的原生占位符处理
+
+    返回:
+      受影响的行数。驱动不提供时返回 -1。
+    """
+    conn = get_database_connection()
+    dialect = get_database_category()
+    if adapt:
+        sql = _adapt_sql(sql, dialect)
+    try:
+        return await conn.execute_query(sql, params or [])
+    except Exception as e:
+        raise RuntimeError(f"execute_sql failed: {e}\nSQL: {sql}\nPARAMS: {params}") from e
+
+
+async def select_sql(sql: str, params: Optional[list] = None,
+                     adapt: bool = True) -> list:
+    """
+    执行 SELECT，返回 list[dict]。每行是 {列名: 值} 的字典。
+    """
+    conn = get_database_connection()
+    dialect = get_database_category()
+    if adapt:
+        sql = _adapt_sql(sql, dialect)
+    try:
+        return await conn.execute_query_dict(sql, params or [])
+    except Exception as e:
+        raise RuntimeError(f"select_sql failed: {e}\nSQL: {sql}\nPARAMS: {params}") from e
+
+
+async def select_one(sql: str, params: Optional[list] = None,
+                     adapt: bool = True) -> Optional[dict]:
+    """返回第一行 dict，无结果返回 None。"""
+    rows = await select_sql(sql, params, adapt=adapt)
+    return rows[0] if rows else None
+
+
+async def select_value(sql: str, params: Optional[list] = None,
+                       adapt: bool = True):
+    """返回第一行第一列的值，无结果返回 None。"""
+    row = await select_one(sql, params, adapt=adapt)
+    if not row:
+        return None
+    return next(iter(row.values()))
+
+
+async def execute_many(sql: str, params_list: list,
+                       adapt: bool = True) -> int:
+    """
+    批量执行同一条 SQL，参数列表逐条传入。
+    返回成功执行的条数。
+    """
+    conn = get_database_connection()
+    dialect = get_database_category()
+    if adapt:
+        sql = _adapt_sql(sql, dialect)
+    ok = 0
+    for params in params_list:
+        try:
+            await conn.execute_query(sql, params or [])
+            ok += 1
+        except Exception as e:
+            raise RuntimeError(
+                f"execute_many failed at {ok + 1}/{len(params_list)}: {e}\n"
+                f"SQL: {sql}\nPARAMS: {params}"
+            ) from e
+    return ok
+
+
+async def execute_script(script: str) -> bool:
+    """
+    执行多语句 SQL 脚本（分号分隔）。
+    - SQLite: 走 executescript，语义最完整
+    - 其它: 按 ';' 拆分逐条执行
+    """
+    conn = get_database_connection()
+    dialect = get_database_category()
+
+    if dialect == "sqlite":
+        # Tortoise 内部持有的 aiosqlite 连接
+        raw = getattr(conn, "_connection", None)
+        if raw is not None and hasattr(raw, "executescript"):
+            await raw.executescript(script)
+            return True
+
+    stmts = [s.strip() for s in script.split(";") if s.strip()]
+    for s in stmts:
+        await execute_sql(s, adapt=False)
+    return True
+
+
+async def execute_sql_file(fpath: str) -> bool:
+    """从文件加载并执行 SQL 脚本。"""
+    if not os.path.isfile(fpath):
+        raise FileNotFoundError(f"SQL file not found: {fpath}")
+    with open(fpath, "r", encoding="utf-8") as f:
+        script = f.read()
+    return await execute_script(script)
+
+
+# ---------------- 事务 ----------------
+@asynccontextmanager
+async def transaction(connection_name: str = "default"):
+    """
+    事务上下文：
+
+        async with transaction() as tx:
+            await tx.execute_query("INSERT ...", [...])
+            await tx.execute_query("UPDATE ...", [...])
+        # 正常退出自动 commit，异常自动 rollback
+    """
+    async with in_transaction(connection_name) as tx:
+        yield tx
+
+
+# ---------------- 元数据 ----------------
+async def list_tables() -> list:
+    """返回当前数据库中的所有表名。"""
+    dialect = get_database_category()
+    if dialect == "sqlite":
+        rows = await select_sql(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+        )
+    elif dialect == "mysql":
+        rows = await select_sql(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = DATABASE() ORDER BY table_name"
+        )
+    elif dialect == "postgres":
+        rows = await select_sql(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = current_schema() ORDER BY table_name"
+        )
+    else:
+        return []
+    return [next(iter(r.values())) for r in rows]
+
+
+async def table_exists(name: str) -> bool:
+    """判断表是否存在。"""
+    _check_ident(name)
+    tables = await list_tables()
+    return name in tables
+
+
+async def describe_table(name: str) -> list:
+    """返回表的列信息（list[dict]，字段随方言而异）。"""
+    _check_ident(name)
+    dialect = get_database_category()
+    if dialect == "sqlite":
+        return await select_sql(f"PRAGMA table_info('{name}')")
+    if dialect == "mysql":
+        return await select_sql(f"SHOW COLUMNS FROM `{name}`")
+    if dialect == "postgres":
+        return await select_sql(
+            "SELECT column_name, data_type, is_nullable "
+            "FROM information_schema.columns "
+            "WHERE table_schema = current_schema() AND table_name = ? "
+            "ORDER BY ordinal_position",
+            [name],
+        )
+    return []
+
+
+# ============================================================================
+# 销毁数据库
+# ============================================================================
+
 async def _drop_mysql_database(host, port, usr, psw, name):
     # 不指定 db，直接连服务器
     conn = await aiomysql.connect(
@@ -250,6 +469,10 @@ async def checkpoint_database():
     if conn_obj.capabilities.dialect == "sqlite":
         await conn_obj.execute_query("PRAGMA wal_checkpoint(TRUNCATE);")
 
+
+# ============================================================================
+# 备份数据库
+# ============================================================================
 
 def _backup_sqlite_database(file: str, outfile: str = None) -> bool:
     """
@@ -411,6 +634,10 @@ def backup_database(conn: str, outfile: str = None) -> bool:
     elif category == "postgres":
         return _backup_postgres_database(host, port, usr, psw, dbname, outfile)
 
+
+# ============================================================================
+# 模型定义
+# ============================================================================
 
 # 有键模型
 class KeyedModel(models.ModelMeta):
