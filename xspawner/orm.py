@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import aiomysql
 import asyncpg
+from typing import Optional
 from tortoise import Tortoise, fields, models
 from urllib.parse import quote_plus, unquote_plus
 from xspawner.constants import Config
@@ -99,7 +100,7 @@ def parse_connection_str(conn_str: str) -> dict:
     raise ValueError(f"Invalid category: {category}")
 
 
-async def open_database(conn: str):
+async def open_database(conn: str, mmod: Optional[str] = None):
     '''
     初始化连接并建表
     (去 orm 模块中查找模型类)
@@ -107,7 +108,7 @@ async def open_database(conn: str):
     await Tortoise.init(
         db_url=conn,
         modules={
-            'models': [__name__]
+            'models': [__name__, mmod] if mmod else [__name__]
         }
     )
 

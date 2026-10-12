@@ -541,7 +541,9 @@ class XSpawner(Spawnable):
     async def init_db(self):
         self.iLog("init_db BEG")
         try:
-            await open_database(f"sqlite://{LOCAL_DB}")
+            connection_str = f"sqlite://{LOCAL_DB}"
+            extra_model_mod = "{}.{}".format(PLUGIN_PKG, self._config.plugin)
+            await open_database(connection_str, extra_model_mod)
             if not await self.getConfig(self._config.id):
                 # await tornado.gen.sleep(0.5)
                 await self.addConfig(self._config)
