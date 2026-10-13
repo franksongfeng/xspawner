@@ -2,7 +2,7 @@
   "id": "xspawner",
   "plugin": "supervisor",
   "host": "localhost",
-  "port": 8668,
+  "port": 7790,
   "access": "0.0.0.0",
   "parent": "",
   "log": true,
