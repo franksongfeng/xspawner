@@ -555,9 +555,9 @@ class XSpawner(Spawnable):
             self.stop()
 
     async def getValues(self) -> dict:
-        self.iLog(f"getValues BEG cfg={self._config.id}")
+        self.iLog(f"getValues BEG config={self._config.id}")
         try:
-            models = await StateModel.filter(spawn_id=self._config.id).all()
+            models = await StateModel.filter(config_id=self._config.id).all()
             rt = {m.key: m.value for m in models}
             self.iLog(f"getValues END {len(rt)}")
             return rt
@@ -566,14 +566,14 @@ class XSpawner(Spawnable):
             return {}
 
     async def getValue(self, key: str):
-        self.iLog(f"getValue BEG key={key} cfg={self._config.id}")
+        self.iLog(f"getValue BEG key={key} config={self._config.id}")
         if not key:
             self.wLog("getValue: empty key")
             return None
         try:
             model = await StateModel.get_or_none(
                 key=key,
-                spawn_id=self._config.id
+                config_id=self._config.id
             )
             if model is None:
                 self.iLog(f"getValue END {key} no-hit")
@@ -586,14 +586,14 @@ class XSpawner(Spawnable):
 
 
     async def setValue(self, key: str, value) -> bool:
-        self.iLog(f"setValue BEG key={key} cfg={self._config.id} type={type(value).__name__}")
+        self.iLog(f"setValue BEG key={key} config={self._config.id} type={type(value).__name__}")
         if not key:
             self.wLog("setValue: empty key")
             return False
         try:
             model = await StateModel.get_or_none(
                 key=key,
-                spawn_id=self._config.id
+                cfg_id=self._config.id
             )
             if model:
                 model.value = value
@@ -602,7 +602,7 @@ class XSpawner(Spawnable):
             else:
                 await StateModel.create(
                     key=key,
-                    spawn_id=self._config.id,
+                    config_id=self._config.id,
                     value=value
                 )
                 self.iLog(f"setValue END {key} created")
@@ -612,14 +612,14 @@ class XSpawner(Spawnable):
             return False
 
     async def delValue(self, key: str) -> bool:
-        self.iLog(f"delValue BEG key={key} cfg={self._config.id}")
+        self.iLog(f"delValue BEG key={key} config={self._config.id}")
         if not key:
             self.wLog("delValue: empty key")
             return False
         try:
             deleted = await StateModel.filter(
                 key=key,
-                spawn_id=self._config.id,
+                config_id=self._config.id,
             ).delete()
             self.iLog(f"delValue END {key} deleted={deleted}")
             return True

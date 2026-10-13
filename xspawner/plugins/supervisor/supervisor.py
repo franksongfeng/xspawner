@@ -13,26 +13,11 @@ from xspawner.utilities.misc import * # NOQA
 from xspawner.constants import * # NOQA
 import tornado.gen
 import tornado.process
-import psutil
 
-import inspect
-import importlib
-import unittest
 import os
-import sys
 import json
 import traceback
-import hashlib
-import uuid
-import zipfile
 import tempfile
-import shutil
-import subprocess
-import socket
-import time
-import signal
-import mimetypes
-import datetime
 
 from .fmt_dict import get_first_level_json
 
@@ -174,24 +159,16 @@ class Supervisor(Spawner): # NOQA
             except Exception as e:
                 self.eLog("get_info from {} failed: {}".format(child_addr, e))
                 info = None
-            if isinstance(info, dict):
-                rows.append({
-                    "id":   child_id,
-                    "cls":  info.get("class", "-"),
-                    "vsn":  info.get("vsn", "-"),
-                    "pid":  info.get("pid", "-"),
-                    "time": info.get("start_time", "-"),
-                    "addr": child_addr,
-                })
-            else:
-                rows.append({
-                    "id":   child_id,
-                    "cls":  "-",
-                    "vsn":  "-",
-                    "pid":  "-",
-                    "time": "-",
-                    "addr": child_addr,
-                })
+            if not isinstance(info, dict):
+                info = {}
+            rows.append({
+                "id":   child_id,
+                "cls":  info.get("class", "-"),
+                "vsn":  info.get("vsn", "-"),
+                "pid":  info.get("pid", "-"),
+                "time": info.get("start_time", "-"),
+                "addr": child_addr,
+            })
 
         # ---- 构造表格 ----
 
@@ -218,17 +195,17 @@ class Supervisor(Spawner): # NOQA
 
             table.append([
                 put_html(id_display),
-                put_html(_esc(str(r["cls"]))),
-                put_html(_esc(str(r["vsn"]))),
-                put_html(_esc(str(r["pid"]))),
-                put_html(_esc(str(r["time"]))),
+                put_text(str(r["cls"])),
+                put_text(str(r["vsn"])),
+                put_text(str(r["pid"])),
+                put_text(str(r["time"])),
                 put_buttons(
-                    [{"label": "查看", "value": "cfg"}],
+                    [{"label": "查看", "value": "config"}],
                     small=True, outline=True,
                     onclick=lambda _v, s=srv_id: self._show_config_popup(s),
                 ),
                 put_buttons(
-                    [{"label": "查看", "value": "sts"}],
+                    [{"label": "查看", "value": "status"}],
                     small=True, outline=True,
                     onclick=lambda _v, s=srv_id: self._show_status_popup(s),
                 ),

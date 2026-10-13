@@ -702,11 +702,11 @@ class ConfigModel(models.Model, metaclass = TieredModel):
 class StateModel(models.Model):
     class Meta:
         table = "m_state"
-        unique_together = (("cfg", "key"),)           # 联合唯一约束
+        unique_together = (("config", "key"),)           # 联合唯一约束
 
     id = fields.IntField(pk=True, generated=True)       # 代理主键
     key = fields.CharField(max_length=255)              # 状态键
-    cfg = fields.ForeignKeyField(
+    config = fields.ForeignKeyField(
         "models.ConfigModel",
         null=False,
         on_delete=fields.CASCADE,
@@ -715,7 +715,7 @@ class StateModel(models.Model):
     value = fields.JSONField(null=True)
 
     def __str__(self):
-        return f"{self.__class__.__name__}({self.key}@{self.spawn_id})"
+        return f"{self.__class__.__name__}({self.key}@{self.config_id})"
 
 
 def config_model_to_tuple(model: ConfigModel) -> Config:
