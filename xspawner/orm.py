@@ -664,7 +664,7 @@ class TieredModel(KeyedModel):
         # reference parent
         if "parent" not in attrs and "parent" not in fk_mapping:
             attrs['parent'] = fields.ForeignKeyField(
-                f"{app_label}.{name}",  # like "models.SpawnModel"
+                f"{app_label}.{name}",  # like "models.ConfigModel"
                 null=True,
                 on_delete=fields.SET_NULL,
                 related_name="+",               # No reverse access
@@ -683,9 +683,9 @@ class TieredModel(KeyedModel):
 
 
 # 配置模型
-class SpawnModel(models.Model, metaclass = TieredModel):
+class ConfigModel(models.Model, metaclass = TieredModel):
     class Meta:
-        table = "m_spawn"
+        table = "m_config"
 
     plugin = fields.CharField(max_length=32)
     host = fields.CharField(max_length=32)
@@ -698,16 +698,16 @@ class SpawnModel(models.Model, metaclass = TieredModel):
     keyfile = fields.CharField(max_length=255, default="")
     additional = fields.TextField(default="")
 
-# 实体模型
-class EntityModel(models.Model):
+# 状态模型
+class StateModel(models.Model):
     class Meta:
-        table = "m_entity"
-        unique_together = (("spawn", "key"),)           # 联合唯一约束
+        table = "m_state"
+        unique_together = (("cfg", "key"),)           # 联合唯一约束
 
     id = fields.IntField(pk=True, generated=True)       # 代理主键
-    key = fields.CharField(max_length=255)              # 业务键
-    spawn = fields.ForeignKeyField(
-        "models.SpawnModel",
+    key = fields.CharField(max_length=255)              # 状态键
+    cfg = fields.ForeignKeyField(
+        "models.ConfigModel",
         null=False,
         on_delete=fields.CASCADE,
         related_name="entities",
@@ -718,9 +718,9 @@ class EntityModel(models.Model):
         return f"{self.__class__.__name__}({self.key}@{self.spawn_id})"
 
 
-def config_model_to_tuple(model: SpawnModel) -> Config:
-    if not isinstance(model, SpawnModel):
-        raise TypeError(f"Expected SpawnModel instance, got {type(model)}")
+def config_model_to_tuple(model: ConfigModel) -> Config:
+    if not isinstance(model, ConfigModel):
+        raise TypeError(f"Expected ConfigModel instance, got {type(model)}")
     return Config(
         id = model.id,
         plugin = model.plugin,
@@ -736,7 +736,7 @@ def config_model_to_tuple(model: SpawnModel) -> Config:
         additional=model.additional or ""
     )
 
-def config_model_to_dict(model: SpawnModel) -> dict:
+def config_model_to_dict(model: ConfigModel) -> dict:
     return config_model_to_tuple(model)._asdict()
 
 def _timestamp() -> str:

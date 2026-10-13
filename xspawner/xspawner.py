@@ -555,9 +555,9 @@ class XSpawner(Spawnable):
             self.stop()
 
     async def getValues(self) -> dict:
-        self.iLog(f"getValues BEG spawn={self._config.id}")
+        self.iLog(f"getValues BEG cfg={self._config.id}")
         try:
-            models = await EntityModel.filter(spawn_id=self._config.id).all()
+            models = await StateModel.filter(spawn_id=self._config.id).all()
             rt = {m.key: m.value for m in models}
             self.iLog(f"getValues END {len(rt)}")
             return rt
@@ -566,12 +566,12 @@ class XSpawner(Spawnable):
             return {}
 
     async def getValue(self, key: str):
-        self.iLog(f"getValue BEG key={key} spawn={self._config.id}")
+        self.iLog(f"getValue BEG key={key} cfg={self._config.id}")
         if not key:
             self.wLog("getValue: empty key")
             return None
         try:
-            model = await EntityModel.get_or_none(
+            model = await StateModel.get_or_none(
                 key=key,
                 spawn_id=self._config.id
             )
@@ -586,12 +586,12 @@ class XSpawner(Spawnable):
 
 
     async def setValue(self, key: str, value) -> bool:
-        self.iLog(f"setValue BEG key={key} spawn={self._config.id} type={type(value).__name__}")
+        self.iLog(f"setValue BEG key={key} cfg={self._config.id} type={type(value).__name__}")
         if not key:
             self.wLog("setValue: empty key")
             return False
         try:
-            model = await EntityModel.get_or_none(
+            model = await StateModel.get_or_none(
                 key=key,
                 spawn_id=self._config.id
             )
@@ -600,7 +600,7 @@ class XSpawner(Spawnable):
                 await model.save()
                 self.iLog(f"setValue END {key} updated")
             else:
-                await EntityModel.create(
+                await StateModel.create(
                     key=key,
                     spawn_id=self._config.id,
                     value=value
@@ -612,12 +612,12 @@ class XSpawner(Spawnable):
             return False
 
     async def delValue(self, key: str) -> bool:
-        self.iLog(f"delValue BEG key={key} spawn={self._config.id}")
+        self.iLog(f"delValue BEG key={key} cfg={self._config.id}")
         if not key:
             self.wLog("delValue: empty key")
             return False
         try:
-            deleted = await EntityModel.filter(
+            deleted = await StateModel.filter(
                 key=key,
                 spawn_id=self._config.id,
             ).delete()
@@ -630,7 +630,7 @@ class XSpawner(Spawnable):
     async def getConfigs(self) -> Optional[List[Config]]:
         self.iLog(f"getConfigs BEG")
         try:
-            models = await SpawnModel.all()
+            models = await ConfigModel.all()
             ones = [config_model_to_tuple(m) for m in models]
             self.iLog(f"getConfigs END {len(ones)}")
             return ones
@@ -641,7 +641,7 @@ class XSpawner(Spawnable):
     async def getConfig(self, id: str) -> Optional[Config]:
         self.iLog(f"getConfig BEG {id}")
         try:
-            model = await SpawnModel.get(id=id)
+            model = await ConfigModel.get(id=id)
         except DoesNotExist:
             self.iLog(f"getConfig END No")
             return None
@@ -655,7 +655,7 @@ class XSpawner(Spawnable):
     async def delConfig(self, id: str) -> bool:
         self.iLog(f"delConfig BEG {id}")
         try:
-            model = await SpawnModel.get(id=id)
+            model = await ConfigModel.get(id=id)
             await model.delete()
             self.iLog("delConfig END")
             return True
@@ -671,7 +671,7 @@ class XSpawner(Spawnable):
         if data.get('parent'):
             parent_id = data['parent']
             try:
-                parent_obj = await SpawnModel.get(id=parent_id)
+                parent_obj = await ConfigModel.get(id=parent_id)
                 # set parent with object or set parent_id with value
                 data['parent'] = parent_obj
             except DoesNotExist:
@@ -688,7 +688,7 @@ class XSpawner(Spawnable):
             data['additional'] = ""
 
         try:
-            model = await SpawnModel.create(**data)
+            model = await ConfigModel.create(**data)
             self.iLog(f"addConfig END {model}")
             return True
         except Exception as e:
@@ -698,8 +698,8 @@ class XSpawner(Spawnable):
     async def getChildren(self) -> List[str]:
         self.iLog(f"getChildren BEG")
         try:
-            models = await SpawnModel.filter(parent_id=self._config.id).all()
-            self.iLog(f"Type: {type(models)} Len: {len(models)} Models: {models}") # Models: [SpawnModel]
+            models = await ConfigModel.filter(parent_id=self._config.id).all()
+            self.iLog(f"Type: {type(models)} Len: {len(models)} Models: {models}") # Models: [ConfigModel]
             ids = [m.id for m in models]
             self.iLog(f"getChildren END {ids}")
             return ids

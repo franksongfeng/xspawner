@@ -16,7 +16,7 @@ import traceback
 import tornado.gen
 
 
-# 在 m_entity 表中存储 spec 的保留键。
+# 在 m_state 表中存储 spec 的保留键。
 SPEC_KEY = '__spec__'
 
 
@@ -35,7 +35,7 @@ class Manager(Spawner):
         super().__init__(**kwargs)
         self.spec = {}
 
-    # ---------------- spec 存取：走 EntityModel ----------------
+    # ---------------- spec 存取：走 StateModel ----------------
     async def _load_spec(self) -> dict:
         try:
             v = await self.getValue(SPEC_KEY)
