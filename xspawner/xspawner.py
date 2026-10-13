@@ -80,77 +80,59 @@ class ApiHandler(tornado.web.RequestHandler):
         self.set_header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type")
         self.set_header("Access-Control-Allow-Methods", "POST,GET,OPTIONS")
 
-    async def post(self):
-        """ handle http/post request with data in body"""
+    async def _handle(self, path, headers, body, content_type):
+        """POST/GET 共用的转发+等待+回写逻辑。"""
         gServer = XSpawner.getServer()
         assert gServer
         q = gServer._req_queue
+
+        if path not in self.path_map:
+            self.write('false')
+            self.finish()
+            return
+
         future = tornado.concurrent.Future()
         condition = tornado.locks.Condition()
-        path = self.request.path
-        headers = self.request.headers
-        body = self.request.body
-        if path in self.path_map:
-            elem = (future, condition, path, headers, body)
-            await q.put(elem)
-            cond_res = await condition.wait(timeout=datetime.timedelta(seconds=60))
-            if cond_res and future._state == 'FINISHED':
-                if isinstance(future.result(), tuple):
-                    # download file
-                    fdata, fname = future.result()
-                    assert isinstance(fname, str) and \
-                           isinstance(fdata, bytes)
-                    self.set_header('Content-Type', 'application/octet-stream')
-                    self.set_header('Content-Disposition', 'attachment; filename=%s' % fname)
-                    self.write(fdata)
-                else:
-                    self.set_header('Content-Type', 'application/json')
-                    if isinstance(future.result(), str):
-                        self.write(future.result())
-                    else:
-                        self.write(json.dumps(future.result()))
+        await q.put((future, condition, path, headers, body))
+
+        cond_res = await condition.wait(timeout=datetime.timedelta(seconds=60))
+        if cond_res and future._state == 'FINISHED':
+            result = future.result()
+            if isinstance(result, tuple):
+                # download file
+                fdata, fname = result
+                assert isinstance(fname, str) and isinstance(fdata, bytes)
+                self.set_header('Content-Type', 'application/octet-stream')
+                self.set_header('Content-Disposition',
+                                'attachment; filename=%s' % fname)
+                self.write(fdata)
             else:
-                self.write('false')
+                self.set_header('Content-Type', content_type)
+                self.write(result if isinstance(result, str)
+                           else json.dumps(result))
         else:
             self.write('false')
         self.finish()
 
+    async def post(self):
+        """ handle http/post request with data in body"""
+        await self._handle(
+            path=self.request.path,
+            headers=self.request.headers,
+            body=self.request.body,
+            content_type='application/json',
+        )
+
     async def get(self):
         """ handle http/get request with arguments in url"""
-        gServer = XSpawner.getServer()
-        assert gServer
-        q = gServer._req_queue
-        future = tornado.concurrent.Future()
-        condition = tornado.locks.Condition()
-        path = self.request.path
-        headers = dict(self.request.headers.get_all())
         reqargs = self.request.arguments
         args = {arg: reqargs[arg][0].decode() for arg in reqargs}
-        body = json.dumps(args).encode()
-        if path in self.path_map:
-            elem = (future, condition, path, headers, body)
-            await q.put(elem)
-            cond_res = await condition.wait(timeout=datetime.timedelta(seconds=60))
-            if cond_res and future._state == 'FINISHED':
-                if isinstance(future.result(), tuple):
-                    # download file
-                    fdata, fname = future.result()
-                    assert isinstance(fname, str) and \
-                           isinstance(fdata, bytes)
-                    self.set_header('Content-Type', 'application/octet-stream')
-                    self.set_header('Content-Disposition', 'attachment; filename=%s' % fname)
-                    self.write(fdata)
-                else:
-                    self.set_header('Content-Type', 'text/html; charset=utf-8')
-                    if isinstance(future.result(), str):
-                        self.write(future.result())
-                    else:
-                        self.write(json.dumps(future.result()))
-            else:
-                self.write('false')
-        else:
-            self.write('false')
-        self.finish()
+        await self._handle(
+            path=self.request.path,
+            headers=dict(self.request.headers.get_all()),
+            body=json.dumps(args).encode(),
+            content_type='text/html; charset=utf-8',
+        )
 
     @classmethod
     def route(cls, path):
@@ -863,4 +845,3 @@ def search_for_class_in_package(fpath, class_name):
                         print("search_for_class_in_package END {}".format(srv_cls))
                         return srv_cls
     print("search_for_class_in_package END {}".format(None))
-
