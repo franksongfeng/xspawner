@@ -184,7 +184,6 @@ def open_service(config: Config) -> bool:
 
         # 2. 生成服务文件内容
         service_content = generate_service_file(config)
-        logger.info("service content: {}".format(service_content))
 
         # 3. 写入服务文件
         service_path = f"{SERVICE_DIR}/{service_name}.service"
