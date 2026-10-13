@@ -194,7 +194,6 @@ class Supervisor(Spawner): # NOQA
                 })
 
         # ---- 构造表格 ----
-        scheme = "https" if self._config.ssl else "http"
 
         table = []
         # 表头
@@ -211,7 +210,7 @@ class Supervisor(Spawner): # NOQA
 
         for idx, r in enumerate(rows):
             srv_id = r["id"]
-            addr_url = "{}://{}/".format(scheme, r["addr"])
+            addr_url = "{}/".format(r["addr"])
 
             # 主服务的标识后面加星
             is_main = (idx == 0)                # 第一行是主服务
