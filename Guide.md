@@ -50,8 +50,8 @@ XSpawner 的项目结构清晰，采用模块化设计：
 | `__init__.py`    | 文件 | 包初始化文件               |
 | `__main__.py`    | 文件 | 程序入口文件               |
 | `__version__.py` | 文件 | 版本信息文件               |
-| `constants.py`   | 文件 | 常量定义文件               |
-| `orm.py`         | 文件 | 对象关系映射文件           |
+| `constants.py`   | 文件 | 公共常量定义文件           |
+| `orm.py`         | 文件 | SQL应用接口和对象关系映射文件 |
 | `service.py`     | 文件 | 服务管理核心模块           |
 | `xspawner.py`    | 文件 | 异步Web请求的处理          |
 | `spawner.py`     | 文件 | 应用编程接口和插件基类      |
