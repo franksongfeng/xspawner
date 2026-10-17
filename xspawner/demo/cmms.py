@@ -1,633 +1,226 @@
 # -*- coding: utf-8 -*-
-from bokeh.embed import components
+# Copyright © 2025 Song Feng.
+
 from pywebio import config
 from pywebio.input import *
 from pywebio.output import *
 from pywebio.session import *
-from pywebio.pin import *
-from xspawner.xspawner import *  # NOQA
-from xspawner.spawner import *  # NOQA
-from xspawner.utilities.log import *  # NOQA
-from xspawner.utilities.misc import *  # NOQA
-from xspawner import *  # NOQA
-from bokeh.plotting import figure, output_notebook
+from xspawner.spawner import Spawner
+from xspawner.xspawner import UiHandler
+
+import tornado.gen
 import traceback
-import json
-import asyncio
-import inspect
 from collections import defaultdict
-from functools import partial
+
+
+CSS = """
+html, body { height: 100%; margin: 0; padding: 0; }
+body { display: flex; flex-direction: column; }
+* { box-sizing: border-box; }
+#pywebio-scope-header, #pywebio-scope-nav,
+#pywebio-scope-main, #pywebio-scope-statement { border: 1px solid #ccc; }
+#pywebio-scope-header { flex-shrink: 0; height: 60px; }
+#pywebio-scope-nav    { flex-shrink: 0; height: 60px; padding: 8px 10px; }
+#pywebio-scope-main   { flex: 1; min-height: 0; }
+#pywebio-scope-statement {
+    flex-shrink: 0; height: 40px; padding: 8px;
+    text-align: center; color: #666;
+}
+#pywebio-scope-main .pywebio-scope-row { height: 100%; margin: 0; }
+#pywebio-scope-main .pywebio-scope-column {
+    height: 100%; min-width: 0; padding: 0;
+}
+#pywebio-scope-main .pywebio-scope-column:first-child {
+    border-right: 1px solid #ccc; overflow-y: auto;
+}
+#pywebio-scope-main .pywebio-scope-column:last-child {
+    overflow: auto; padding: 10px;
+}
+"""
 
 
 class CMMS(Spawner):  # NOQA
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.current_nav = "home"
-        self.selected_klass = None
-        self.selected_subklass = None
-        self.selected_alias = None
-        self.data = getContent()                     # 必须包含完整数据
-        self.expanded_klasses = {item["Klass"] for item in self.data}
-        self.expanded_subklasses = set()
-        self._menu_queue: asyncio.Queue = None       # 菜单事件队列
+        self.selected = None                    # (klass, subklass, alias)
+        self.data = getContent()
+        self.expanded = {(item["Klass"], item["Subklass"]) for item in self.data}
 
-    # ─────────────────────────────────────────────────────────────────────
-    # 路由入口
-    # ─────────────────────────────────────────────────────────────────────
+    # ── 路由 ──────────────────────────────────────────────
     @UiHandler.route("/")
     @config(theme="yeti")
     async def _(self):
         try:
             set_env(title="CMMS", output_animation=False)
+            put_html(f"<style>{CSS}</style>")
 
-            # 初始化队列并启动后台任务
-            self._menu_queue = asyncio.Queue()
-            run_async(self._poll_loop())          # 轮询 JS 事件
+            with use_scope("header"):
+                put_html('<h1 style="margin:0;padding:10px 20px;'
+                         'color:#2c3e50;">CMMS</h1>')
 
-            put_html(
-                """
-                <style>
-                    html, body { height: 100%; margin: 0; padding: 0; }
-                    body { display: flex; flex-direction: column; box-sizing: border-box; }
-                    * { box-sizing: border-box; }
+            self._render_nav()
 
-                    #pywebio-scope-header,
-                    #pywebio-scope-nav,
-                    #pywebio-scope-main,
-                    #pywebio-scope-statement { border: 1px solid #ccc; }
-
-                    #pywebio-scope-header    { flex-shrink: 0; height: 60px; }
-                    #pywebio-scope-nav       { flex-shrink: 0; height: 60px; }
-                    #pywebio-scope-main      { flex: 1; min-height: 0; }
-                    #pywebio-scope-statement { flex-shrink: 0; height: 40px; }
-
-                    #pywebio-scope-main > div > .row {
-                        display: grid !important;
-                        grid-template-columns: 250px 1fr !important;
-                        height: 100%; margin: 0 !important; padding: 0 !important; gap: 0 !important;
-                    }
-                    #pywebio-scope-main > div > .row > .column {
-                        width: auto !important; max-width: none !important;
-                        min-width: 0 !important; height: 100%; overflow: hidden;
-                    }
-                    #pywebio-scope-main > div > .row > .column:first-child {
-                        border-right: 1px solid #ccc; width: 300px !important;
-                        flex-shrink: 0 !important; flex-grow: 0 !important;
-                        overflow-y: auto; overflow-x: hidden;
-                    }
-                    #pywebio-scope-main > div > .row > .column:last-child { flex: 1; overflow: auto; }
-
-                    #pywebio-scope-left_panel {
-                        width: 100% !important; max-width: 300px !important; overflow: hidden;
-                    }
-                    #pywebio-scope-left_panel .btn {
-                        width: auto !important; min-width: 60px; margin: 2px 8px;
-                        padding: 2px 8px; font-size: 12px; white-space: nowrap;
-                        overflow: hidden; text-overflow: ellipsis; max-width: 100%;
-                    }
-
-                    /* 导航栏样式 */
-                    .ncms-nav-bar { display: flex; align-items: center; gap: 8px; padding: 5px 10px; flex-wrap: wrap; }
-                    .ncms-nav-bar .btn { margin: 0; }
-
-                    /* 三点按钮样式 */
-                    .province-menu-btn {
-                        background: none !important;
-                        border: none !important;
-                        color: #666;
-                        font-size: 18px;
-                        cursor: pointer;
-                        padding: 0 6px;
-                        line-height: 1;
-                        border-radius: 3px;
-                        position: absolute;
-                        right: 0;
-                        top: 50%;
-                        transform: translateY(-50%);
-                    }
-                    .province-menu-btn:hover {
-                        background: #ddd !important;
-                        color: #000;
-                    }
-                    /* 让 summary 成为定位容器 */
-                    #pywebio-scope-left_panel details > summary {
-                        position: relative;
-                        padding-right: 30px;
-                    }
-                </style>
-                """
-            )
-
-            # 标题栏
-            with use_scope("header", clear=True):
-                put_html('<h1 style="text-align:left;color:#2c3e50;padding:10px 20px;margin:0;">CMMS</h1>')
-
-            # 导航栏
-            self.render_nav()
-
-            # 主区域（左树 + 右内容）
-            with use_scope("main", clear=True):
-                with put_row(size="250px 1fr").style("height:100%;margin:0;padding:0;"):
-                    with put_column().style(
-                            "height:100%;display:flex;flex-direction:column;"
-                            "min-width:0;border-right:2px solid #ccc;"
-                    ):
-                        put_scope("left_panel")
-                    with put_column().style("height:100%;min-width:0;"):
+            with use_scope("main"):
+                with put_row(size="300px 1fr"):
+                    with put_column():
+                        put_scope("tree")
+                    with put_column():
                         put_scope("content")
 
-            # 声明栏
-            with use_scope("statement", clear=True):
-                put_html('<div style="padding:10px 20px;text-align:center;color:#666;">'
-                         '© 2026 · CMMS 系统</div>')
+            with use_scope("statement"):
+                put_html("© 2026 · CMMS 系统")
 
-            # 构建左侧树
-            self.render_tree()
-
-            # 默认显示首页
+            self._render_tree()
             self._switch_nav("home")
 
-            # 进入模态循环（阻塞，直到会话结束）
-            await self._modal_loop()
+            while True:
+                await tornado.gen.sleep(3600)       # 保持会话
 
         except Exception:
-            put_text("应用内部错误，详情如下：")
             put_text(traceback.format_exc())
 
-
-    # ─────────────────────────────────────────────────────────────────────
-    # 导航栏
-    # ─────────────────────────────────────────────────────────────────────
-    def render_nav(self):
+    # ── 导航 ──────────────────────────────────────────────
+    def _render_nav(self):
         with use_scope("nav", clear=True):
-            def _go(nav):
-                if nav in ("home", "help"):
-                    self._switch_nav(nav)
+            def _btn(label, value):
+                active = (self.current_nav == value)
+                return {
+                    "label": label, "value": value,
+                    "color": "primary" if active else "dark",
+                    "outline": not active,
+                }
+            put_buttons(
+                [_btn("首页", "home"), _btn("帮助", "help")],
+                onclick=lambda v: self._switch_nav(v),
+            )
 
-            btns = [
-                dict(
-                    label="首页",
-                    value="home",
-                    color="primary" if self.current_nav == "home" else "dark",
-                    outline=(self.current_nav != "home"),
-                ),
-                dict(
-                    label="帮助",
-                    value="help",
-                    color="primary" if self.current_nav == "help" else "dark",
-                    outline=(self.current_nav != "help"),
-                ),
-            ]
-            put_buttons(btns, onclick=_go).style("margin:5px 10px;display:inline-flex;gap:0;")
-
-    # ─────────────────────────────────────────────────────────────────────
-    # 左侧树（带三点菜单）
-    # ─────────────────────────────────────────────────────────────────────
-    def render_tree(self):
-        with use_scope("left_panel", clear=True):
-            put_html('<h3 style="margin-top:0;padding:10px;flex-shrink:0;border-bottom:1px solid #eee;">元器件类型</h3>')
+    # ── 左侧树 ────────────────────────────────────────────
+    def _render_tree(self):
+        with use_scope("tree", clear=True):
             if not self.data:
                 put_warning("暂无元器件数据。")
                 return
 
-            # 按 Klass 分组
-            klass_dict = {}
+            grouped = defaultdict(lambda: defaultdict(set))
             for item in self.data:
-                k = item["Klass"]
-                if k not in klass_dict:
-                    klass_dict[k] = defaultdict(set)
-                klass_dict[k][item["Subklass"]].add(item["Alias"])
+                grouped[item["Klass"]][item["Subklass"]].add(item["Alias"])
 
-            with put_scrollable().style("flex-grow:1;overflow-y:auto;min-height:0;padding:0 10px;"):
-                for klass, sub_dict in sorted(klass_dict.items()):
-                    with put_collapse(klass, open=(klass in self.expanded_klasses)):
-                        for subklass, aliases in sorted(sub_dict.items()):
-                            with put_collapse(subklass,
-                                              open=((klass, subklass) in self.expanded_subklasses)).style("margin-left:10px;"):
+            with put_scrollable():
+                for klass, subs in sorted(grouped.items()):
+                    with put_collapse(klass, open=True):
+                        for subklass, aliases in sorted(subs.items()):
+                            key = (klass, subklass)
+                            with put_collapse(subklass, open=(key in self.expanded)):
+                                put_buttons(
+                                    [
+                                        {"label": "+ 创建", "value": "create",
+                                         "color": "primary"},
+                                        {"label": "- 删除", "value": "delete",
+                                         "color": "danger", "outline": True},
+                                    ],
+                                    small=True,
+                                    onclick=lambda v, k=klass, s=subklass:
+                                        self._on_action(v, k, s),
+                                ).style("margin: 4px 0;")
                                 for alias in sorted(aliases):
-                                    is_selected = (self.selected_klass == klass and
-                                                   self.selected_subklass == subklass and
-                                                   self.selected_alias == alias)
+                                    is_sel = self.selected == (klass, subklass, alias)
                                     put_button(
                                         alias,
-                                        onclick=partial(self.select_alias, klass, subklass, alias),
-                                        outline=not is_selected,
+                                        onclick=lambda k=klass, s=subklass, a=alias:
+                                            self._select(k, s, a),
+                                        color="primary" if is_sel else "dark",
+                                        outline=not is_sel,
                                         small=True,
-                                        color="primary" if is_selected else "dark",
-                                    ).style("margin-left:10px;")
+                                    ).style("margin-left: 10px;")
 
-        # 注入 JS：三点悬浮菜单
-        run_js("""
-        (function() {
-            if (!window.__cmms_event_queue)   window.__cmms_event_queue   = [];
-            if (window.__cmms_polling_paused === undefined) window.__cmms_polling_paused = false;
+    async def _on_action(self, action, klass, subklass):
+        if action == "create":
+            await self._create(klass, subklass)
+        elif action == "delete":
+            await self._delete(klass, subklass)
 
-            function pushEvent(type, klass, subklass, action) {
-                if (window.__cmms_polling_paused) return;
-                var ev = {type: type, klass: klass, subklass: subklass};
-                if (action) ev.action = action;
-                window.__cmms_event_queue.push(ev);
-            }
-
-            function extractNodeText(summary) {
-                var text = summary.innerText || summary.textContent;
-                return text.replace('⋮', '').trim();
-            }
-
-            function bindEvents() {
-                var panel = document.getElementById('pywebio-scope-left_panel');
-                if (!panel) return;
-
-                // 悬浮菜单（只创建一次）
-                if (!window.__cmms_floating_menu) {
-                    var menu = document.createElement('div');
-                    menu.id = '__cmms_floating_menu';
-                    menu.style.position = 'fixed';
-                    menu.style.zIndex = '99999';
-                    menu.style.minWidth = '120px';
-                    menu.style.background = '#fff';
-                    menu.style.border = '1px solid #ddd';
-                    menu.style.borderRadius = '6px';
-                    menu.style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)';
-                    menu.style.padding = '6px';
-                    menu.style.display = 'none';
-                    menu.style.fontSize = '13px';
-                    menu.innerHTML = [
-                        '<div data-action="create" style="padding:6px 8px; cursor:pointer; border-radius:4px;">创建内容</div>',
-                        '<div data-action="delete" style="padding:6px 8px; cursor:pointer; border-radius:4px; color:#c0392b;">删除内容</div>'
-                    ].join('');
-                    menu.addEventListener('mouseover', function(e){
-                        var item = e.target && e.target.getAttribute && e.target.getAttribute('data-action');
-                        if (!item) return;
-                        e.target.style.background = '#f4f6f8';
-                    });
-                    menu.addEventListener('mouseout', function(e){
-                        var item = e.target && e.target.getAttribute && e.target.getAttribute('data-action');
-                        if (!item) return;
-                        e.target.style.background = '';
-                    });
-                    menu.addEventListener('mousedown', function(e){ e.stopPropagation(); });
-                    menu.addEventListener('click', function(e){
-                        e.stopPropagation();
-                        var act = e.target && e.target.getAttribute && e.target.getAttribute('data-action');
-                        if (!act) return;
-                        var klass = menu.getAttribute('data-klass');
-                        var subklass = menu.getAttribute('data-subklass');
-                        menu.style.display = 'none';
-                        if (!klass || !subklass) return;
-                        pushEvent('menu_action', klass, subklass, act);
-                    });
-                    document.body.appendChild(menu);
-                    document.addEventListener('mousedown', function(e){
-                        if (menu.contains(e.target)) return;
-                        menu.style.display = 'none';
-                    }, false);
-                    window.__cmms_floating_menu = menu;
-                    window.__cmms_menu_hide_timer = null;
-                }
-
-                // 为每个 Subklass 的 summary 绑定菜单
-                panel.querySelectorAll('details > summary').forEach(function(summary) {
-                    if (summary.getAttribute('data-cmms-bound')) return;
-                    summary.setAttribute('data-cmms-bound', 'true');
-
-                    var detail = summary.parentElement;
-                    var isTopLevel = detail.parentElement &&
-                                     detail.parentElement.closest('details') === null;
-
-                    // 只为二级节点（Subklass）添加三点按钮
-                    if (!isTopLevel) {
-                        var subklass = extractNodeText(summary);
-                        if (subklass) summary.setAttribute('data-subklass', subklass);
-
-                        var parentDetail = detail.parentElement.closest('details');
-                        var klass = '';
-                        if (parentDetail) {
-                            var parentSummary = parentDetail.querySelector('summary');
-                            if (parentSummary) {
-                                klass = extractNodeText(parentSummary);
-                                summary.setAttribute('data-klass', klass);
-                            }
-                        }
-
-                        if (!summary.querySelector('.province-menu-btn')) {
-                            var btn = document.createElement('button');
-                            btn.className = 'province-menu-btn';
-                            btn.innerHTML = '⋮';
-                            btn.title = '操作菜单';
-                            btn.addEventListener('mousedown', function(e){ e.stopPropagation(); });
-
-                            function showMenuAt(x, y) {
-                                var klass = summary.getAttribute('data-klass');
-                                var subklass = summary.getAttribute('data-subklass');
-                                if (!klass || !subklass) return;
-                                var menu = window.__cmms_floating_menu;
-                                menu.setAttribute('data-klass', klass);
-                                menu.setAttribute('data-subklass', subklass);
-                                var vw = window.innerWidth, vh = window.innerHeight;
-                                menu.style.display = 'block';
-                                var rect = menu.getBoundingClientRect();
-                                if (x + rect.width > vw - 8) x = vw - rect.width - 8;
-                                if (y + rect.height > vh - 8) y = vh - rect.height - 8;
-                                menu.style.left = x + 'px';
-                                menu.style.top = y + 'px';
-                            }
-                            function cancelHide() {
-                                if (window.__cmms_menu_hide_timer) {
-                                    clearTimeout(window.__cmms_menu_hide_timer);
-                                    window.__cmms_menu_hide_timer = null;
-                                }
-                            }
-                            function scheduleHide() {
-                                cancelHide();
-                                window.__cmms_menu_hide_timer = setTimeout(function(){
-                                    window.__cmms_floating_menu.style.display = 'none';
-                                }, 180);
-                            }
-                            btn.addEventListener('mouseenter', function(e) {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                cancelHide();
-                                showMenuAt(e.clientX, e.clientY);
-                            });
-                            btn.addEventListener('mouseleave', function(e){
-                                scheduleHide();
-                            });
-                            window.__cmms_floating_menu.addEventListener('mouseenter', cancelHide);
-                            window.__cmms_floating_menu.addEventListener('mouseleave', scheduleHide);
-                            btn.addEventListener('click', function(e){
-                                e.stopPropagation();
-                                e.preventDefault();
-                                cancelHide();
-                                showMenuAt(e.clientX, e.clientY);
-                            });
-                            summary.appendChild(btn);
-                        }
-                    }
-                });
-            }
-
-            setTimeout(function() {
-                bindEvents();
-                var panel = document.getElementById('pywebio-scope-left_panel');
-                if (panel) {
-                    new MutationObserver(bindEvents)
-                        .observe(panel, {childList: true, subtree: true});
-                }
-            }, 400);
-        })();
-        """)
-
-    # ─────────────────────────────────────────────────────────────────────
-    # 事件轮询与分发
-    # ─────────────────────────────────────────────────────────────────────
-    async def _eval_js_compat(self, expression: str):
-        res = eval_js(expression)
-        if inspect.isawaitable(res):
-            return await res
-        else:
-            return res
-
-    async def _poll_loop(self):
-        while True:
-            await asyncio.sleep(0.2)
-            try:
-                raw = await self._eval_js_compat(r"""
-                (function(){
-                  try{
-                    if(!window.__cmms_event_queue) window.__cmms_event_queue = [];
-                    var q = window.__cmms_event_queue;
-                    window.__cmms_event_queue = [];
-                    return JSON.stringify({ok: true, q: q});
-                  }catch(e){
-                    return JSON.stringify({ok: false, err: String(e && (e.stack||e.message||e))});
-                  }
-                })()
-                """)
-
-                if not raw:
-                    continue
-
-                payload = json.loads(raw)
-                if not payload.get('ok', False):
-                    await asyncio.sleep(1)
-                    continue
-
-                events = payload.get('q') or []
-
-                for event in events:
-                    self._dispatch_sync(event)
-            except Exception as e:
-                toast(f"轮询异常: {str(e)}", color='error', duration=1)
-                await asyncio.sleep(1)
-
-    def _dispatch_sync(self, event):
-        try:
-            etype = event.get('type', '')
-            if etype == 'nav_click':
-                return
-            if etype == 'menu_action':
-                klass = event.get('klass', '')
-                subklass = event.get('subklass', '')
-                action = event.get('action', '')
-                if not klass or not subklass or not action:
-                    return
-                try:
-                    self._menu_queue.put_nowait((klass, subklass, action))
-                except asyncio.QueueFull:
-                    pass
-        except Exception as e:
-            toast(f"分发事件异常: {str(e)}", color='error')
-
-    async def _modal_loop(self):
-        while True:
-            try:
-                klass, subklass, action = await self._menu_queue.get()
-                run_js("window.__cmms_polling_paused = true;")
-                try:
-                    if action == 'create':
-                        self.show_create_popup(klass, subklass)
-                    elif action == 'delete':
-                        self.show_delete_popup(klass, subklass)
-                except Exception as e:
-                    toast(f"菜单处理出错: {e}", color='error')
-                    traceback.print_exc()
-                finally:
-                    run_js(
-                        "window.__cmms_polling_paused = false;"
-                        "window.__cmms_event_queue = [];"
-                    )
-                    self._menu_queue.task_done()
-            except Exception as e:
-                toast(f"菜单循环异常: {e}", color='error')
-                await asyncio.sleep(1)
-
-    # ─────────────────────────────────────────────────────────────────────
-    # 创建 / 删除弹窗
-    # ─────────────────────────────────────────────────────────────────────
-    def _get_aliases(self, klass, subklass):
-        return sorted({d['Alias'] for d in self.data
-                       if d['Klass'] == klass and d['Subklass'] == subklass})
-
-    def show_create_popup(self, klass: str, subklass: str):
-        popup(f"创建内容 - {klass} / {subklass}", [
-            put_row([
-                put_text("Alias").style("width:90px;"),
-                put_input(label="", name="cmms_c_alias", type=TEXT, value="").style("width:260px;"),
-            ]),
-            put_row([
-                put_text("C").style("width:90px;"),
-                put_input(label="", name="cmms_c_c", type=TEXT, value="").style("width:260px;"),
-            ]),
-            put_row([
-                put_text("L").style("width:90px;"),
-                put_input(label="", name="cmms_c_l", type=TEXT, value="").style("width:260px;"),
-            ]),
-            put_row([
-                put_text("R1").style("width:90px;"),
-                put_input(label="", name="cmms_c_r1", type=TEXT, value="").style("width:260px;"),
-            ]),
-            put_row([
-                put_text("R2").style("width:90px;"),
-                put_input(label="", name="cmms_c_r2", type=TEXT, value="").style("width:260px;"),
-            ]),
-            put_row([
-                put_buttons(
-                    [
-                        {"label": "确定", "value": "ok", "color": "primary"},
-                        {"label": "取消", "value": "cancel", "color": "secondary", "outline": True},
-                    ],
-                    onclick=lambda v: self._handle_create_popup_submit(v, klass, subklass),
-                )
-            ]).style("justify-content:center; padding-top:10px;"),
-        ])
-
-    def _handle_create_popup_submit(self, v: str, klass: str, subklass: str):
-        if v != "ok":
-            close_popup()
+    async def _create(self, klass, subklass):
+        data = await input_group(
+            f"创建 - {klass} / {subklass}",
+            [
+                input("Alias", name="alias", required=True),
+                input("C",     name="c",     required=True),
+                input("L",     name="l",     required=True),
+                input("R1",    name="r1",    required=True),
+                input("R2",    name="r2",    required=True),
+                actions(name="action", buttons=[
+                    {"label": "确定", "value": "ok", "color": "primary"},
+                    {"label": "取消", "value": "cancel"},
+                ]),
+            ],
+        )
+        if data["action"] != "ok":
             return
-
-        alias = (pin.cmms_c_alias or "").strip()
-        c = (pin.cmms_c_c or "").strip()
-        l = (pin.cmms_c_l or "").strip()
-        r1 = (pin.cmms_c_r1 or "").strip()
-        r2 = (pin.cmms_c_r2 or "").strip()
-
-        if not alias or not c or not l or not r1 or not r2:
-            toast("请填写所有字段", color="error")
-            return
-
         self.data.append({
-            "Klass": klass,
-            "Subklass": subklass,
-            "Alias": alias,
-            "C": c,
-            "L": l,
-            "R1": r1,
-            "R2": r2,
+            "Klass": klass, "Subklass": subklass,
+            "Alias": data["alias"], "C": data["c"],
+            "L": data["l"], "R1": data["r1"], "R2": data["r2"],
         })
-        self.expanded_klasses.add(klass)
-        self.expanded_subklasses.add((klass, subklass))
-        self.render_tree()
-        with use_scope('content', clear=True):
-            put_markdown(f"已添加 **{klass} / {subklass} / {alias}**")
-        close_popup()
+        self.expanded.add((klass, subklass))
+        self._render_tree()
+        with use_scope("content", clear=True):
+            put_markdown(f"已添加 **{klass} / {subklass} / {data['alias']}**")
         toast("创建成功", color="success")
 
-    def show_delete_popup(self, klass: str, subklass: str):
-        aliases = self._get_aliases(klass, subklass)
+    async def _delete(self, klass, subklass):
+        aliases = sorted({
+            d["Alias"] for d in self.data
+            if (d["Klass"], d["Subklass"]) == (klass, subklass)
+        })
         if not aliases:
-            toast("该分类下没有可删除的 Alias", color="warning")
+            toast("无可删除的 Alias", color="warning")
             return
-
-        popup(f"删除内容 - {klass} / {subklass}", [
-            put_markdown(f"选择要删除的 Alias："),
-            put_row([
-                put_text("Alias").style("width:90px;"),
-                put_select(
-                    label="",
-                    options=aliases,
-                    name="cmms_d_alias",
-                    value=aliases[0]
-                ).style("width:260px;"),
-            ]),
-            put_row([
-                put_buttons(
-                    [
-                        {"label": "确定", "value": "ok", "color": "primary"},
-                        {"label": "取消", "value": "cancel", "color": "secondary", "outline": True},
-                    ],
-                    onclick=lambda v: self._handle_delete_popup_submit(v, klass, subklass),
-                )
-            ]).style("justify-content:center; padding-top:10px;"),
-        ])
-
-    def _handle_delete_popup_submit(self, v: str, klass: str, subklass: str):
-        if v != "ok":
-            close_popup()
+        data = await input_group(
+            f"删除 - {klass} / {subklass}",
+            [
+                select("Alias", name="alias", options=aliases, required=True),
+                actions(name="action", buttons=[
+                    {"label": "确定", "value": "ok", "color": "danger"},
+                    {"label": "取消", "value": "cancel"},
+                ]),
+            ],
+        )
+        if data["action"] != "ok":
             return
-
-        alias = pin.cmms_d_alias
-        if not alias:
-            toast("请选择 Alias", color="error")
-            return
-
-        before = len(self.data)
-        self.data = [d for d in self.data
-                     if not (d["Klass"] == klass and d["Subklass"] == subklass and d["Alias"] == alias)]
-        after = len(self.data)
-        if after == before:
-            toast("未找到对应记录", color="warning")
-            return
-
-        if (self.selected_klass == klass and self.selected_subklass == subklass and
-                self.selected_alias == alias):
-            self.selected_klass = None
-            self.selected_subklass = None
-            self.selected_alias = None
-
-        self.expanded_klasses.add(klass)
-        self.expanded_subklasses.add((klass, subklass))
-        self.render_tree()
-        with use_scope('content', clear=True):
+        alias = data["alias"]
+        self.data = [
+            d for d in self.data
+            if not (d["Klass"] == klass
+                    and d["Subklass"] == subklass
+                    and d["Alias"] == alias)
+        ]
+        if self.selected == (klass, subklass, alias):
+            self.selected = None
+        self.expanded.add((klass, subklass))
+        self._render_tree()
+        with use_scope("content", clear=True):
             put_markdown(f"已删除 **{klass} / {subklass} / {alias}**")
-        close_popup()
         toast("删除成功", color="success")
 
-    # ─────────────────────────────────────────────────────────────────────
-    # 原有功能：选中 Alias 显示详情
-    # ─────────────────────────────────────────────────────────────────────
-    def select_alias(self, klass, subklass, alias):
-        self.selected_klass = klass
-        self.selected_subklass = subklass
-        self.selected_alias = alias
-        self.expanded_subklasses.add((klass, subklass))
-
-        detail = None
-        for item in self.data:
-            if item["Klass"] == klass and item["Subklass"] == subklass and item["Alias"] == alias:
-                detail = item
-                break
-
+    # ── 选中 Alias ────────────────────────────────────────
+    def _select(self, klass, subklass, alias):
+        self.selected = (klass, subklass, alias)
+        self.expanded.add((klass, subklass))
+        self._render_tree()
+        detail = next((
+            d for d in self.data
+            if (d["Klass"], d["Subklass"], d["Alias"]) == (klass, subklass, alias)
+        ), None)
         with use_scope("content", clear=True):
-            if not detail:
-                put_warning("未找到对应的元器件记录。")
-            else:
-                rows = [
-                    ["Klass", detail["Klass"]],
-                    ["Subklass", detail["Subklass"]],
-                    ["Alias", detail["Alias"]],
-                    ["C", detail["C"]],
-                    ["L", detail["L"]],
-                    ["R1", detail["R1"]],
-                    ["R2", detail["R2"]],
-                ]
+            if detail:
                 put_html(f"<h3>{klass} / {subklass} / {alias}</h3>")
-                put_table(rows)
+                put_table([[k, v] for k, v in detail.items()])
+            else:
+                put_warning("未找到对应记录。")
 
-    # ─────────────────────────────────────────────────────────────────────
-    # 内容区：主页 / 帮助
-    # ─────────────────────────────────────────────────────────────────────
+    # ── 首页 / 帮助 ──────────────────────────────────────
     def _show_home(self):
         with use_scope("content", clear=True):
             headers = ["Klass", "Subklass", "Alias", "C", "L", "R1", "R2"]
@@ -639,25 +232,19 @@ class CMMS(Spawner):  # NOQA
         with use_scope("content", clear=True):
             put_markdown(
                 "### 帮助\n\n"
-                "1. 在左侧树中展开 `Klass`（元器件类型）、`Subklass`，然后点击具体的 `Alias` 节点。\n"
-                "2. 右侧会以“字段-值”列表形式显示该元器件的参数：`C`、`L`、`R1`、`R2` 等。\n"
-                "3. 将鼠标悬停在 **Subklass** 右侧的 `⋮` 按钮上，可弹出菜单：\n"
-                "   - **创建内容**：在当前 Subklass 下添加新的 Alias\n"
-                "   - **删除内容**：从当前 Subklass 中删除指定的 Alias\n"
+                "1. 左侧树中展开 `Klass`、`Subklass`，点击 `Alias` 查看详情。\n"
+                "2. 每个 `Subklass` 展开后，顶部有 **+ 创建** 与 **- 删除** 按钮。\n"
             )
 
     def _switch_nav(self, target):
         self.current_nav = target
-        self.render_nav()
+        self._render_nav()
         if target == "home":
             self._show_home()
         elif target == "help":
             self._show_help()
 
 
-# ─────────────────────────────────────────────────────────────────────────
-# 完整数据
-# ─────────────────────────────────────────────────────────────────────────
 def getContent():
     return [
         {"Klass": "Capacitor", "Subklass": "CBB", "Alias": "102", "C": "1.91408n", "L": "21.5334n", "R1": "154.333m", "R2": "639.911"},
