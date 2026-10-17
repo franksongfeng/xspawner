@@ -14,25 +14,18 @@ from xspawner.constants import * # NOQA
 import tornado.gen
 import tornado.process
 
+import datetime
+import json
+from decimal import Decimal
 import os
 import json
 import traceback
 import tempfile
 
-from .fmt_dict import get_first_level_json
 
 ##############################################################################
 # Constants and Variables and Classes
 ##############################################################################
-
-
-def _esc(s):
-    """HTML 转义"""
-    return (str(s)
-            .replace('&', '&amp;')
-            .replace('<', '&lt;')
-            .replace('>', '&gt;')
-            .replace('"', '&quot;'))
 
 
 CSS = read_text_file("xspawner/plugins/supervisor/static/common.css")
@@ -583,3 +576,80 @@ class Supervisor(Spawner): # NOQA
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+
+
+def get_first_level_json(data, pretty=True):
+    """
+    返回字典第一级属性的 JSON 字符串。
+
+    对特殊类型做降级处理：
+      - datetime / date / time  → ISO 字符串
+      - Decimal                 → float
+      - list / tuple / dict     → 递归简化
+      - 其他（函数、模块、对象）→ str(value)，失败则退化为 <类型名>
+
+    参数:
+        data:   字典数据
+        pretty: 是否美化输出（缩进 2 空格）
+
+    返回:
+        JSON 字符串；若 data 非 dict，返回带 error 字段的 JSON
+    """
+    if not isinstance(data, dict):
+        return json.dumps(
+            {"error": f"input must be dict, got {type(data).__name__}"},
+            indent=2 if pretty else None,
+            ensure_ascii=False,
+        )
+
+    result = {str(k): _simplify(v) for k, v in data.items()}
+    return json.dumps(
+        result,
+        indent=2 if pretty else None,
+        ensure_ascii=False,
+        default=str,
+    )
+
+
+def _simplify(value):
+    """把单个值简化为可 JSON 序列化的形式。"""
+    # 基本类型（含 None）原样返回
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+
+    # 时间类型 → ISO 字符串
+    if isinstance(value, (datetime.datetime, datetime.date, datetime.time)):
+        return value.isoformat()
+
+    # Decimal → float
+    if isinstance(value, Decimal):
+        return float(value)
+
+    # 容器类型：递归简化；深度异常时退化为类型名
+    if isinstance(value, (list, tuple)):
+        try:
+            return [_simplify(v) for v in value]
+        except Exception:
+            return f"<{type(value).__name__} len={len(value)}>"
+
+    if isinstance(value, dict):
+        try:
+            return {str(k): _simplify(v) for k, v in value.items()}
+        except Exception:
+            return f"<dict len={len(value)}>"
+
+    # 其他类型（函数、模块、自定义对象等）：尝试 str
+    try:
+        return str(value)
+    except Exception:
+        return f"<{type(value).__name__}>"
+
+
+def _esc(s):
+    """HTML 转义"""
+    return (str(s)
+            .replace('&', '&amp;')
+            .replace('<', '&lt;')
+            .replace('>', '&gt;')
+            .replace('"', '&quot;'))
