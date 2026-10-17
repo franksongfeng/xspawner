@@ -276,6 +276,14 @@ class Supervisor(Spawner): # NOQA
                     help_text="支持拖拽文件到此区域",
                     required=True
                 ),
+                input(
+                    label="依赖库",
+                    name="libs",
+                    type=TEXT,
+                    placeholder="pip 包名，以逗号分割（如：requests, numpy>=1.20, flask[async]）",
+                    help_text="可选。服务启动时自动安装这些 pip 库；支持版本约束与 extras",
+                    required=False
+                ),
                 textarea(
                     label="附加信息",
                     name="additional",
@@ -306,6 +314,14 @@ class Supervisor(Spawner): # NOQA
         srvport = data["port"]
         srvseverity = data["severity"] or "info"
         additional_raw = data.get("additional") or ""
+        libs_raw = (data.get("libs") or "").strip()
+
+        # 提前校验，与 service.split_libs 同口径
+        if libs_raw:
+            for pkg in split_libs(libs_raw):
+                if not is_valid_pip_pkg(pkg):
+                    put_error('Invalid pip package spec: {}'.format(pkg))
+                    return
 
         if srvname:
             if srvname in await self.getChildren():
@@ -370,6 +386,7 @@ class Supervisor(Spawner): # NOQA
             "ssl": self._config.ssl,
             "certfile": self._config.certfile,
             "keyfile": self._config.keyfile,
+            "libs": libs_raw,
             "additional": additional_raw
         }
 

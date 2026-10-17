@@ -696,6 +696,7 @@ class ConfigModel(models.Model, metaclass = TieredModel):
     ssl = fields.BooleanField()
     certfile = fields.CharField(max_length=255, default="")
     keyfile = fields.CharField(max_length=255, default="")
+    libs = fields.TextField(default="")
     additional = fields.TextField(default="")
 
 # 状态模型
@@ -733,6 +734,7 @@ def config_model_to_tuple(model: ConfigModel) -> Config:
         certfile = model.certfile,
         keyfile = model.keyfile,
         parent = model.parent_id or "",
+        libs = model.libs or "",
         additional=model.additional or ""
     )
 

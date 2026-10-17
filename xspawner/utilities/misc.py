@@ -230,7 +230,7 @@ def start_background_process(command):
             command,
             shell=False
         )
-        time.sleep(1) # need a delay for other requests
+        time.sleep(1) # need a delay for other request
         # the next is just for sudo
         # return os.popen(f"pgrep -P {proc.pid}").read().strip()
         return proc.pid

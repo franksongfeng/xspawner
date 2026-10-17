@@ -227,7 +227,8 @@ class Spawner(XSpawner): # NOQA
             parent=self._config.id,
             plugin=plugin_id,
             id=child_id,
-            port=child_port
+            port=child_port,
+            libs=fargs.get("libs", "") if fargs else ""
         )
 
         if not await self.addConfig(child_config):
@@ -378,33 +379,6 @@ class Spawner(XSpawner): # NOQA
     async def _get_info(self, headers: dict, data: dict):
         return self.getInfo()
 
-
-    def on_state(self, chunk):
-        event = parse_sse_event(chunk.decode('utf-8'))
-        self.setReport(event["data"])
-
-    def addFlow(self, srvurl, cb):
-        self.iLog("{}::addFlow BEG {}".format(self.__class__.__name__, srvurl))
-        async def connect(srvurl):
-            client = tornado.httpclient.AsyncHTTPClient(force_instance=True)
-            request = tornado.httpclient.HTTPRequest(
-                url=srvurl,
-                method="GET",
-                streaming_callback=cb,
-                request_timeout=0,
-                headers={
-                    'Accept': 'text/event-stream',
-                    'Cache-Control': 'no-cache'
-                }
-            )
-            try:
-                await client.fetch(request)
-            except Exception as e:
-                self.eLog('Flow {} is disconnected, exception {}:{}'.format(srvurl, e.__class__.__name__, e))
-            finally:
-                client.close()
-        self._ioloop.add_callback(connect, srvurl)
-        self.iLog("{}::addFlow END".format(self.__class__.__name__))
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

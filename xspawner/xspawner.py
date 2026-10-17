@@ -16,6 +16,7 @@ from tortoise.exceptions import DoesNotExist
 
 import pywebio.platform.tornado
 
+import time
 import os
 import json
 import psutil
@@ -42,7 +43,7 @@ from .orm import * #NOQA
 
 
 INTERNAL_HANDLERS = ["PingPongHandler", "HomePageHandler", "ResourceHandler"]
-CUSTOMED_HANDLERS = ["ApiHandler", "UiHandler", "FlowHandler"]
+CUSTOMED_HANDLERS = ["ApiHandler", "UiHandler"]
 
 class PingPongHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("GET",)
@@ -96,7 +97,7 @@ class ApiHandler(tornado.web.RequestHandler):
         await q.put((future, condition, path, headers, body))
 
         cond_res = await condition.wait(timeout=datetime.timedelta(seconds=60))
-        if cond_res and future._state == 'FINISHED':
+        if cond_res and future.done():
             result = future.result()
             if isinstance(result, tuple):
                 # download file
@@ -162,80 +163,6 @@ class UiHandler:
         return decorator
 
 
-class FlowHandler(tornado.web.RequestHandler):
-    SUPPORTED_METHODS = ("GET", "OPTIONS")
-    path_map = {}
-
-    # CORS
-    def options(self, *args, **kwargs):
-        self.set_status(204)
-        self.finish()
-
-    def set_default_headers(self):
-        self.set_header("Access-Control-Allow-Origin", "*")
-        self.set_header("Access-Control-Allow-Headers", "Content-Type")
-        self.set_header("Access-Control-Allow-Methods", "GET, OPTIONS")
-
-    def initialize(self):
-        self.set_header('Content-Type', 'text/event-stream')
-        self.set_header('Cache-Control', 'no-cache')
-        self.set_header('Connection', 'keep-alive')
-
-    def on_finish(self):
-        # Ensure the client disconnects when the handler is finished
-        if not self._finished:
-            self.finish()
-
-    async def get(self):
-        async def call_cbf(fun, *args, **kwargs):
-            if inspect.iscoroutinefunction(fun):
-                res = await fun(*args, **kwargs)
-            else:
-                res = fun(*args, **kwargs)
-            return res
-        # Send a message to the client every second
-        path = self.request.path
-        headers = dict(self.request.headers.get_all())
-        interval = float(self.get_argument('interval', default="1.0"))
-        assert (isinstance(interval, int) or isinstance(interval, float)) and (interval > 0)
-        # no Content-Type in self.request.headers
-        # self.request.body should be empty
-        gServer = XSpawner.getServer()
-        assert gServer
-        if path in self.path_map:
-            f, varnames = self.path_map[path]
-            reqargs = self.request.arguments
-            args = {arg: reqargs[arg][0].decode() for arg in reqargs}
-            try:
-                while True:
-                    evt = await call_cbf(f, gServer, headers, args)
-                    if evt:
-                        for k in evt:
-                            text = "{}: {}\n".format(k, evt[k])
-                            self.write(text)
-                        self.write("\n")
-                        await self.flush()
-                    elif evt is False:
-                        print(f"stream is closed from server {path}")
-                        self.finish()
-                        return
-                    else:
-                        pass
-                    await tornado.gen.sleep(interval)
-            except Exception as e:
-                print(traceback.format_exc())
-                print("stream is closed on exception: {}".format(str(e)))
-            self.finish()
-            return
-
-    @classmethod
-    def route(cls, path):
-        def decorator(f):
-            varnames = f.__code__.co_varnames[1:] if len(f.__code__.co_varnames) > 1 else ()
-            cls.path_map[path] = (f, varnames)
-            return f
-        return decorator
-
 
 class State(UserDict):
     SerializableTypes = (str, int, float, bool, type(None))
@@ -297,6 +224,9 @@ class Spawnable(object):
         raise NotImplementedError
 
     def getAddr(self, port):
+        raise NotImplementedError
+
+    def getLocalAddr(self, port):
         raise NotImplementedError
 
     async def init_db(self):
@@ -371,8 +301,6 @@ class XSpawner(Spawnable):
         # user handlers are prior
         for path in ApiHandler.path_map:
             handlers.append((path, ApiHandler))
-        for path in FlowHandler.path_map:
-            handlers.append((path, FlowHandler))
         for path in UiHandler.path_map:
             handlers.append((path, UiHandler(path, self)))
         # fixed handlers are at the bottom
@@ -435,7 +363,7 @@ class XSpawner(Spawnable):
             if fun.__code__.co_argcount == 1: # for UiHandler
                 self.iLog("{} without params".format(fun.__code__.co_name))
                 return ()
-            elif fun.__code__.co_argcount == 3: # for ApiHandler I (normal) or FlowHandler
+            elif fun.__code__.co_argcount == 3: # for ApiHandler I (normal)
                 # transport JSON
                 jdata = body.decode()
                 self.iLog("{} with params {}".format(fun.__code__.co_name, jdata))
@@ -516,6 +444,12 @@ class XSpawner(Spawnable):
         return "{}:{}".format(
             self.getHostAddr(),
             port if port else self._config.port)
+
+    def getLocalAddr(self, port=None):
+        return "{}:{}".format(
+            self.getLocalHostAddr(),
+            port if port else self._config.port)
+
 
     def getPid(self):
         return os.getpid()
@@ -666,6 +600,8 @@ class XSpawner(Spawnable):
             data['certfile'] = ""
         if data.get('keyfile') is None:
             data['keyfile'] = ""
+        if data.get('libs') is None:
+            data['libs'] = ""
         if data.get('additional') is None:
             data['additional'] = ""
 
@@ -690,7 +626,7 @@ class XSpawner(Spawnable):
             return []
 
 
-    # implement singleton
+    # 所有子类共享单例
     @classmethod
     def getServer(cls,**kwargs):
         if XSpawner._instance is None:
@@ -804,6 +740,12 @@ class XSpawner(Spawnable):
         return "{}://{}".format(
             "https" if self._config.ssl else "http",
             self._config.host
+        )
+
+    def getLocalHostAddr(self):
+        return "{}://{}".format(
+            "https" if self._config.ssl else "http",
+            "127.0.0.1"
         )
 
 
