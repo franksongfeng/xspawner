@@ -1,0 +1,13 @@
+# /etc/caddy/Caddyfile
+{
+    admin 127.0.0.1:2019
+}
+
+xspawner.com {
+    # 屏蔽下条语句, Caddy 全自动申请证书
+    # tls <certfile> <keyfile>
+    root * /usr/share/caddy
+    file_server
+
+    # 不写任何 /service/* 规则，全部由 Admin API 动态注入到 routes 头部
+}
