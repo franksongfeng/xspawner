@@ -507,71 +507,107 @@ class Supervisor(Spawner): # NOQA
     @config(theme="yeti")
     async def _debug(self):
 
+        HINTS = {
+            "View": "渲染 PyWebIO 元素",
+            "Eval": "输出变量的值 JSON",
+        }
+
+        # ── 同步提示到 radio 选项组的右侧 ──────────────────
+        def _sync_hint(value):
+            hint = HINTS.get(value, "")
+            # 用 setTimeout 推迟执行，确保 input_group 的 DOM 已渲染
+            run_js(f'''
+                setTimeout(function() {{
+                    var radio = document.querySelector('input[name="func"]');
+                    if (!radio) return;
+
+                    // 向上找"包含多个 radio 的容器"，即选项组
+                    var group = radio.parentElement;
+                    while (group && group.querySelectorAll('input[type="radio"]').length < 2) {{
+                        group = group.parentElement;
+                        if (!group || group === document.body) return;
+                    }}
+
+                    // 让选项组和提示同行
+                    group.style.display = 'inline-flex';
+                    group.style.alignItems = 'center';
+                    group.style.gap = '4px';
+
+                    // 找到/创建提示节点（作为 group 的最后一个子元素 → 即选项右边）
+                    var hint = group.querySelector('.func-hint');
+                    if (!hint) {{
+                        hint = document.createElement('span');
+                        hint.className = 'func-hint';
+                        hint.style.marginLeft = '12px';
+                        hint.style.color = '#888';
+                        hint.style.fontSize = '13px';
+                        hint.style.whiteSpace = 'nowrap';
+                        group.appendChild(hint);
+                    }}
+                    hint.textContent = {json.dumps(hint)};   // ← 注意：变量名与外层形参重名，见下方说明
+                }}, 30);
+            ''')
+
+        def on_func_change(value):
+            _sync_hint(value)
+
         async def show_form(init_data):
             async def open_url(url):
                 run_js('window.open(url)', url=url)
 
-            # 显示表单
             with use_scope("form_scope", clear=True):
                 data = await input_group(
                     "调试接口",
                     [
                         radio(
-                            label="类型",
                             name="func",
-                            options=["UI","Eval"],
+                            options=[("界面", "View"), ("求解", "Eval")],
                             inline=True,
                             value=init_data["func"],
-                            required=True
+                            onchange=on_func_change,
+                            required=True,
                         ),
                         textarea(
                             label='代码',
                             name='code',
                             value=init_data["code"],
-                            help_text="支持拖拽文件到此区域",
+                            help_text="支持拖拽文件到代码块",
                             rows=25,
                             code={
                                 "mode": "python",
-                                "theme": "idea", # eclipse, idea, ssms
+                                "theme": "idea",
                                 "lineNumbers": True,
-                                "indentUnit": 4
-                            }
+                                "indentUnit": 4,
+                            },
                         ),
                         actions(
                             name='action',
                             buttons=[
                                 {'label': '提交', 'value': 'submit', 'color': 'primary'},
-                                {'label': '修剪', 'value': 'trim', 'color': 'secondary'},
-                                {'label': '重置', 'value': 'reset', 'color': 'warning'}
-                            ]
-                        )
-                    ]
+                                {'label': '修剪', 'value': 'trim',   'color': 'secondary'},
+                                {'label': '重置', 'value': 'reset',  'color': 'warning'},
+                            ],
+                        ),
+                    ],
                 )
-            # 处理请求
-            if data:
-                # 延时后重新渲染表单区域
-                # run_js("setTimeout(() => { PyWebIO.reload_scope('form_scope'); }, 50)")
-                if data['action'] == 'trim':
-                    # 处理缩进整理
-                    data['code'] = trim_code(data['code'])
-                elif data['action'] == 'reset':
-                    # 清空 textarea 内容
-                    data['code'] = ""
-                else:
-                    self._dbg_data = data
-                    # 打开新的URL
-                    await open_url(self.getAddr() + "/debug/output")
-                # 递归地重新显示表单
-                await tornado.gen.sleep(0.2)
-                await show_form(data)
 
-        self.dLog("{}::_debug BEG".format(self.__class__.__name__))
+                if data:
+                    if data['action'] == 'trim':
+                        data['code'] = trim_code(data['code'])
+                    elif data['action'] == 'reset':
+                        data['code'] = ""
+                    else:
+                        self._dbg_data = data
+                        await open_url(self.getAddr() + "/debug/output")
+                    await tornado.gen.sleep(0.2)
+                    await show_form(data)
+
         set_env(title="调试接口", output_animation=False)
-
-        # 显示表单
         put_scope("form_scope")
-        await show_form({'code':'put_text("Hello world!")\n','func':'UI'})
-        self.dLog("{}::_debug END".format(self.__class__.__name__))
+        await show_form({'code': '', 'func': 'View'})
+
+        # 首次渲染后立即同步一次（show_form 阻塞前触发，setTimeout 会等 DOM 就绪）
+        _sync_hint('View')
 
 
     def __init__(self, **kwargs):
