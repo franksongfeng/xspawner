@@ -102,9 +102,9 @@ class Spawner(XSpawner): # NOQA
             return False
 
         # wait child service ready
-        child_addr = self.getAddr(child_config.port)
+        child_addr = self.getLocalAddr(child_config.port)
         loop = self._ioloop.asyncio_loop
-        ok = await loop.run_in_executor(None, wait_port_sync, child_config.port, child_config.host, 120)
+        ok = await loop.run_in_executor(None, wait_port_sync, child_config.port)
         if not ok:
             self.eLog(f"child {child_addr} did not become ready in 120s")
             return False
@@ -143,7 +143,7 @@ class Spawner(XSpawner): # NOQA
 
         if model:
             # close sub systemd service
-            child_addr = self.getAddr(model.port)
+            child_addr = self.getLocalAddr(model.port)
             grand_children = await self.postJson(f"{child_addr}/get_children", {})
             if grand_children:
                 for grand_child in grand_children:

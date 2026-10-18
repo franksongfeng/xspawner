@@ -18,7 +18,6 @@ import datetime
 import json
 from decimal import Decimal
 import os
-import json
 import traceback
 import tempfile
 
@@ -49,7 +48,7 @@ class Supervisor(Spawner): # NOQA
             if not child:
                 toast(f'服务 {srv_id} 不存在', color='error')
                 return
-            child_addr = self.getAddr(child.port)
+            child_addr = self.getLocalAddr(child.port)
             try:
                 data = await self.postJson(f"{child_addr}/get_config", {})
             except Exception as e:
@@ -146,7 +145,8 @@ class Supervisor(Spawner): # NOQA
             child = await self.getConfig(child_id)
             if not child:
                 continue
-            child_addr = self.getAddr(child.port)
+            public_child_addr = self.getAddr(child.port)
+            child_addr = self.getLocalAddr(child.port)
             try:
                 info = await self.postJson(f"{child_addr}/get_info", {})
             except Exception as e:
@@ -160,7 +160,7 @@ class Supervisor(Spawner): # NOQA
                 "vsn":  info.get("vsn", "-"),
                 "pid":  info.get("pid", "-"),
                 "time": info.get("start_time", "-"),
-                "addr": child_addr,
+                "addr": public_child_addr,
             })
 
         # ---- 构造表格 ----
@@ -387,7 +387,7 @@ class Supervisor(Spawner): # NOQA
 
         if res:
             # set environment variables for unittest
-            os.environ["SERVER"] = self.getAddr(srvport)
+            os.environ["SERVER"] = self.getLocalAddr(srvport)
 
             # check unittest
             if not await self._test_child(None, child_config):
@@ -444,7 +444,7 @@ class Supervisor(Spawner): # NOQA
             return
 
         srvname = elm.id
-        srvaddr = self.getAddr(elm.port)
+        srvaddr = self.getLocalAddr(elm.port)
 
         res = await self.postJson(f"{srvaddr}/get_info", {})
         if not res or not isinstance(res, dict):
