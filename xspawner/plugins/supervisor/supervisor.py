@@ -26,8 +26,45 @@ import tempfile
 # Constants and Variables and Classes
 ##############################################################################
 
+CSS = """
 
-CSS = read_text_file("xspawner/plugins/supervisor/static/common.css")
+.markdown-table-container {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin: 15px 0;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.05);
+    background: white;
+}
+.markdown-table-title {
+    padding: 12px 15px;
+    margin: 0;
+    border-bottom: 1px solid #eee;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    background-color: #f8f9fa;
+}
+.markdown-table-container table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+}
+.markdown-table-container th {
+    padding: 12px 15px;
+    text-align: left;
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #eee;
+    color: #666;
+}
+.markdown-table-container td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    color: #444;
+}
+.markdown-table-container tr:last-child td {
+    border-bottom: none;
+}
+"""
 
 
 class Supervisor(Spawner): # NOQA
@@ -605,9 +642,6 @@ class Supervisor(Spawner): # NOQA
         set_env(title="调试接口", output_animation=False)
         put_scope("form_scope")
         await show_form({'code': '', 'func': 'View'})
-
-        # 首次渲染后立即同步一次（show_form 阻塞前触发，setTimeout 会等 DOM 就绪）
-        _sync_hint('View')
 
 
     def __init__(self, **kwargs):
