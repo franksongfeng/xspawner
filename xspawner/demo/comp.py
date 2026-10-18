@@ -113,17 +113,6 @@ class CMMS(Spawner):  # NOQA
                         for subklass, aliases in sorted(subs.items()):
                             key = (klass, subklass)
                             with put_collapse(subklass, open=(key in self.expanded)):
-                                put_buttons(
-                                    [
-                                        {"label": "+ 创建", "value": "create",
-                                         "color": "primary"},
-                                        {"label": "- 删除", "value": "delete",
-                                         "color": "danger", "outline": True},
-                                    ],
-                                    small=True,
-                                    onclick=lambda v, k=klass, s=subklass:
-                                        self._on_action(v, k, s),
-                                ).style("margin: 4px 0;")
                                 for alias in sorted(aliases):
                                     is_sel = self.selected == (klass, subklass, alias)
                                     put_button(
@@ -135,76 +124,7 @@ class CMMS(Spawner):  # NOQA
                                         small=True,
                                     ).style("margin-left: 10px;")
 
-    async def _on_action(self, action, klass, subklass):
-        if action == "create":
-            await self._create(klass, subklass)
-        elif action == "delete":
-            await self._delete(klass, subklass)
-
-    async def _create(self, klass, subklass):
-        data = await input_group(
-            f"创建 - {klass} / {subklass}",
-            [
-                input("Alias", name="alias", required=True),
-                input("C",     name="c",     required=True),
-                input("L",     name="l",     required=True),
-                input("R1",    name="r1",    required=True),
-                input("R2",    name="r2",    required=True),
-                actions(name="action", buttons=[
-                    {"label": "确定", "value": "ok", "color": "primary"},
-                    {"label": "取消", "value": "cancel"},
-                ]),
-            ],
-        )
-        if data["action"] != "ok":
-            return
-        self.data.append({
-            "Klass": klass, "Subklass": subklass,
-            "Alias": data["alias"], "C": data["c"],
-            "L": data["l"], "R1": data["r1"], "R2": data["r2"],
-        })
-        self.expanded.add((klass, subklass))
-        self._render_tree()
-        with use_scope("content", clear=True):
-            put_markdown(f"已添加 **{klass} / {subklass} / {data['alias']}**")
-        toast("创建成功", color="success")
-
-    async def _delete(self, klass, subklass):
-        aliases = sorted({
-            d["Alias"] for d in self.data
-            if (d["Klass"], d["Subklass"]) == (klass, subklass)
-        })
-        if not aliases:
-            toast("无可删除的 Alias", color="warning")
-            return
-        data = await input_group(
-            f"删除 - {klass} / {subklass}",
-            [
-                select("Alias", name="alias", options=aliases, required=True),
-                actions(name="action", buttons=[
-                    {"label": "确定", "value": "ok", "color": "danger"},
-                    {"label": "取消", "value": "cancel"},
-                ]),
-            ],
-        )
-        if data["action"] != "ok":
-            return
-        alias = data["alias"]
-        self.data = [
-            d for d in self.data
-            if not (d["Klass"] == klass
-                    and d["Subklass"] == subklass
-                    and d["Alias"] == alias)
-        ]
-        if self.selected == (klass, subklass, alias):
-            self.selected = None
-        self.expanded.add((klass, subklass))
-        self._render_tree()
-        with use_scope("content", clear=True):
-            put_markdown(f"已删除 **{klass} / {subklass} / {alias}**")
-        toast("删除成功", color="success")
-
-    # ── 选中 Alias ────────────────────────────────────────
+    # ── 选中 Alias（浏览） ────────────────────────────────
     def _select(self, klass, subklass, alias):
         self.selected = (klass, subklass, alias)
         self.expanded.add((klass, subklass))
@@ -233,7 +153,6 @@ class CMMS(Spawner):  # NOQA
             put_markdown(
                 "### 帮助\n\n"
                 "1. 左侧树中展开 `Klass`、`Subklass`，点击 `Alias` 查看详情。\n"
-                "2. 每个 `Subklass` 展开后，顶部有 **+ 创建** 与 **- 删除** 按钮。\n"
             )
 
     def _switch_nav(self, target):
@@ -243,6 +162,7 @@ class CMMS(Spawner):  # NOQA
             self._show_home()
         elif target == "help":
             self._show_help()
+
 
 
 def getContent():
