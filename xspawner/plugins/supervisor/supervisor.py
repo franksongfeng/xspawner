@@ -13,7 +13,6 @@ from xspawner.spawner import * # NOQA
 from xspawner.utilities.misc import * # NOQA
 from xspawner.constants import * # NOQA
 import tornado.gen
-import tornado.process
 
 import datetime
 import json
