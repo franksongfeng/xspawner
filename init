@@ -80,8 +80,8 @@ echo
 
 id=$(read_default "id" "xspawner")
 plugin=$(read_default "plugin" "supervisor")
-host=$(read_default "host" "localhost")
-port=$(read_default "port" "7790")
+host=$(read_default "host" "127.0.0.1")
+port=$(read_default "port" "8000")
 access=$(read_default "access" "0.0.0.0")
 parent=$(read_default "parent" "")
 

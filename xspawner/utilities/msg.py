@@ -41,7 +41,7 @@ def _is_loopback_url(url: str) -> bool:
         return False
     if not host:
         return False
-    if host == "localhost":
+    if host == "127.0.0.1":
         return True
     try:
         return ipaddress.ip_address(host).is_loopback

@@ -312,7 +312,7 @@ class XSpawner(Spawnable):
         # start http server
         app = tornado.web.Application(
             handlers=handlers,
-            default_host="localhost"
+            default_host="127.0.0.1"
         )
         if config.ssl and config.certfile and config.keyfile:
             self._server = tornado.httpserver.HTTPServer(
@@ -640,7 +640,7 @@ class XSpawner(Spawnable):
     def isChildClass(cls, kls):
         return issubclass(kls, cls) and kls is not cls
 
-    async def testServer(self, port, host="localhost", use_ssl=False):
+    async def testServer(self, port, host="127.0.0.1", use_ssl=False):
         self.iLog("testServer BEG {} {} {}".format(port, host, use_ssl))
         tcp_client = tornado.tcpclient.TCPClient()
         try:

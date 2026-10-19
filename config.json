@@ -1,7 +1,7 @@
 {
   "id": "xspawner",
   "plugin": "supervisor",
-  "host": "localhost",
+  "host": "127.0.0.1",
   "port": 8000,
   "access": "0.0.0.0",
   "parent": "",
