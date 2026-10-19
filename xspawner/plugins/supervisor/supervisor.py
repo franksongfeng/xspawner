@@ -7,6 +7,7 @@ from pywebio.output import *
 from pywebio.pin import *
 from pywebio.session import *
 from pywebio.utils import *
+from xspawner.service import get_service_status_text_async
 from xspawner.xspawner import * #NOQA
 from xspawner.spawner import * # NOQA
 from xspawner.utilities.misc import * # NOQA
@@ -101,46 +102,11 @@ class Supervisor(Spawner): # NOQA
             put_code(json_str, language='json')
 
 
-    # ---------------- 辅助：异步执行 systemctl status（协程版） ----------------
-    async def _run_status_text(self, srv_id, lines: int = 20,
-                               timeout: int = 5) -> str:
-        """
-        用 tornado.process.Subprocess 异步执行 `systemctl status <id>`，
-        完全基于 Tornado 事件循环，不占用任何线程。
-
-        为避免 systemctl 在某些环境下挂住不退出，命令前置 `timeout` 工具，
-        强杀超时；并在 finally 中显式回收子进程，避免残留。
-        """
-        proc = tornado.process.Subprocess(
-            ["timeout", str(timeout),
-             "systemctl", "status", srv_id,
-             "-n", str(lines), "--no-pager"],
-            stdout=tornado.process.Subprocess.STREAM,
-            stderr=tornado.process.Subprocess.STREAM,
-        )
-        try:
-            # 并发读两个流，避免某一端缓冲区满导致死锁
-            out_b, err_b = await tornado.gen.multi([
-                proc.stdout.read_until_close(),
-                proc.stderr.read_until_close(),
-            ])
-        finally:
-            # 确保子进程被回收，避免僵尸/残留
-            try:
-                await proc.wait_for_exit()
-            except Exception:
-                pass
-        out = (out_b or b"").decode("utf-8", errors="replace")
-        err = (err_b or b"").decode("utf-8", errors="replace")
-        # systemctl status 在服务未运行时退出码非 0，但 stdout 仍有内容
-        return out or err
-
-
     # ---------------- 辅助：状态弹窗 ----------------
     async def _show_status_popup(self, srv_id):
-        """点击"状态"列按钮时弹出该服务的 systemctl status 文本。"""
+        """点击"状态"列按钮时弹出该服务的 status 文本。"""
         try:
-            text = await self._run_status_text(srv_id, lines=20)
+            text = await get_service_status_text_async(srv_id, lines=20)
         except Exception as e:
             self.eLog(f"get status for {srv_id} failed: {e}")
             text = f"获取状态失败: {e}"
