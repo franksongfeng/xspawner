@@ -240,7 +240,7 @@ def start_background_process(command):
 
 def is_port_used(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(('localhost', port)) == 0
+        return s.connect_ex(('127.0.0.1', port)) == 0
 
 def sha256_encrypt(input_str):
     # create an sha256 object
