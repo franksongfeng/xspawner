@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y \
     systemd-sysv \
     python3-pip \
     python3-dev \
+    python3-venv \
     curl \
     wget \
     net-tools \
