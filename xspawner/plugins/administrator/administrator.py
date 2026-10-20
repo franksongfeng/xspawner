@@ -186,7 +186,7 @@ class Administrator(Spawner): # NOQA
 
             # 主服务的标识后面加星
             is_main = (idx == 0)                # 第一行是主服务
-            id_display = f'{_esc(srv_id)} ★' if is_main else _esc(srv_id)
+            id_display = f'{_esc(srv_id)}' if is_main else _esc(srv_id)
 
             table.append([
                 put_html(id_display),
