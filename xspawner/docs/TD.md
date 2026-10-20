@@ -26,7 +26,7 @@ classDiagram
         clean_plugin
     }
 
-    class Supervisor {
+    class Administrator {
         /
         create
         delete
@@ -38,7 +38,7 @@ classDiagram
     
     XSpawner <|-- Spawner
 
-    Spawner <|-- Supervisor
+    Spawner <|-- Administrator
 
     Spawner <|-- Manager
 ```
@@ -46,7 +46,7 @@ classDiagram
 - **Spawnable**: 应用或者服务的基础接口
 - **XSpawner**: 实现了Spawnable的接口，系统启动入口类
 - **Spawner**: 具有了服务管理功能，是所有插件的基类
-- **Supervisor**: 可视化管理插件
+- **Administrator**: 可视化管理插件
 
 ## 系统架构
 
@@ -82,7 +82,7 @@ flowchart TD
 直接命令行启动形式
 
 ```bash
-sudo /usr/bin/python3 -u -m xspawner --name xspawner --plugin supervisor --host xspawner.com --port 8000 --access 0.0.0.0 --log --severity debug --ssl --certfile /etc/ssl/certs/xspawner.com.crt --keyfile /etc/ssl/private/xspawner.com.key
+sudo /usr/bin/python3 -u -m xspawner --name xspawner --plugin administrator --host xspawner.com --port 8000 --access 0.0.0.0 --log --severity debug --ssl --certfile /etc/ssl/certs/xspawner.com.crt --keyfile /etc/ssl/private/xspawner.com.key
 ```
 
 #### 服务管理
@@ -123,7 +123,7 @@ config.json内容如下
 ```json
 {
     "id": "xspawner",
-    "plugin": "supervisor",
+    "plugin": "administrator",
     "host": "xspawner.com",
     "port": 8000,
     "access": "0.0.0.0",
@@ -141,7 +141,7 @@ config.json内容如下
 ```ini
 [DEFAULT]
 id=xspawner
-plugin=supervisor
+plugin=administrator
 host=xspawner.com
 port=8000
 access=0.0.0.0
@@ -398,7 +398,7 @@ Type=simple
 WorkingDirectory=/opt/xspawner
 ExecStart=/usr/bin/python3 -u -m xspawner \\
     --id xspawner \\
-    --plugin supervisor \\
+    --plugin administrator \\
     --host ${HOST} \\
     --port ${PORT} \\
     --access ${ACCESS} \\

@@ -20,7 +20,7 @@ if __name__ == '__main__':
         # parse arguments
         parser = argparse.ArgumentParser(description="Commandline arguments")
         parser.add_argument("--id", type=str, required=True, help="Instance identification")
-        parser.add_argument("--plugin", type=str, default="supervisor", help="Application module")
+        parser.add_argument("--plugin", type=str, default="administrator", help="Application module")
         parser.add_argument("--host", type=str, required=True, help="Host access address")
         parser.add_argument("--port", type=int, required=True, help="Listening port")
         parser.add_argument("--access", type=str, default="0.0.0.0", help="Allowable access source")

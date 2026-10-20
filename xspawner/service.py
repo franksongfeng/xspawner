@@ -68,7 +68,7 @@ def split_libs(libs: str) -> list:
     """
     按英文逗号分割 libs，去除每项首尾空白，过滤空串。
 
-    统一入口，保证 service.py（systemd 安装）与 supervisor.py（UI 预校验）
+    统一入口，保证 service.py（systemd 安装）与 administrator.py（UI 预校验）
     对 libs 的解析口径一致。
     """
     text = (libs or "").strip()

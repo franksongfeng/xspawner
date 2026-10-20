@@ -254,7 +254,7 @@ class Spawner(XSpawner): # NOQA
 
         srvapp = data["plugin"]
 
-        if srvapp == "spawner" or srvapp == "supervisor":
+        if srvapp == "spawner" or srvapp == "administrator":
             self.wLog("refuse to clean spawner itself")
             return False
 

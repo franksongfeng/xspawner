@@ -79,7 +79,7 @@ echo "Press Enter to accept the default shown in [brackets]."
 echo
 
 id=$(read_default "id" "xspawner")
-plugin=$(read_default "plugin" "supervisor")
+plugin=$(read_default "plugin" "administrator")
 host=$(read_default "host" "127.0.0.1")
 port=$(read_default "port" "8000")
 access=$(read_default "access" "0.0.0.0")

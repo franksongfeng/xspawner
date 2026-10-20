@@ -93,7 +93,7 @@ RUN find /opt/xspawner -type f -name "*.py" -exec chmod 644 {} \;
 # Start systemed service
 CMD exec python3 -u -m xspawner \
     --id xspawner \
-    --plugin supervisor \
+    --plugin administrator \
     --host ${HOST} \
     --port ${PORT} \
     --access 0.0.0.0 \
