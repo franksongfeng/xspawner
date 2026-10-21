@@ -492,30 +492,23 @@ class Administrator(Spawner): # NOQA
                 return
 
             code = self._dbg_data["code"]
-            func = self._dbg_data["func"]
 
-            if func == "Eval":
-                # 捕获 print 输出
-                output_buffer = io.StringIO()
-                try:
-                    with contextlib.redirect_stdout(output_buffer):
-                        exec(code, globals(), locals())
-                except Exception as e:
-                    e_str = "Exception: {}\n{}".format(str(e), traceback.format_exc())
-                    self.eLog(e_str)
-                    put_error("出错")
-                    put_code(e_str, language='text')
-                    return
+            # 同一份代码：既渲染 PyWebIO 元素，又捕获 print 输出
+            output_buffer = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(output_buffer):
+                    exec(code, globals(), locals())
+            except Exception as e:
+                e_str = "Exception: {}\n{}".format(str(e), traceback.format_exc())
+                self.eLog(e_str)
+                put_error("出错")
+                put_code(e_str, language='text')
+                return
 
-                printed = output_buffer.getvalue()
-                if printed:
-                    put_markdown("***\n输出")
-                    put_code(printed, language='text')
-                else:
-                    put_markdown("***\n(无 print 输出)")
-            else:
-                # View 模式：保持原有行为，直接执行代码
-                exec(code, globals(), locals())
+            printed = output_buffer.getvalue()
+            if printed:
+                put_markdown("***\n输出")
+                put_code(printed, language='text')
 
             self.iLog("_debug_output END")
 
@@ -525,54 +518,9 @@ class Administrator(Spawner): # NOQA
             put_error("出错")
             put_code(e_str, language='text')
 
-
     @UiHandler.route("/debug")
     @config(theme="yeti")
     async def _debug(self):
-
-        HINTS = {
-            "View": "渲染 PyWebIO 元素",
-            "Eval": "收集 print 语句的输出",
-        }
-
-        # ── 同步提示到 radio 选项组的右侧 ──────────────────
-        def _sync_hint(value):
-            hint = HINTS.get(value, "")
-            # 用 setTimeout 推迟执行，确保 input_group 的 DOM 已渲染
-            run_js(f'''
-                setTimeout(function() {{
-                    var radio = document.querySelector('input[name="func"]');
-                    if (!radio) return;
-
-                    // 向上找"包含多个 radio 的容器"，即选项组
-                    var group = radio.parentElement;
-                    while (group && group.querySelectorAll('input[type="radio"]').length < 2) {{
-                        group = group.parentElement;
-                        if (!group || group === document.body) return;
-                    }}
-
-                    // 让选项组和提示同行
-                    group.style.display = 'inline-flex';
-                    group.style.alignItems = 'center';
-                    group.style.gap = '4px';
-
-                    // 找到/创建提示节点（作为 group 的最后一个子元素 → 即选项右边）
-                    var hint = group.querySelector('.func-hint');
-                    if (!hint) {{
-                        hint = document.createElement('span');
-                        hint.className = 'func-hint';
-                        hint.style.marginLeft = '12px';
-                        hint.style.color = '#888';
-                        hint.style.fontSize = '13px';
-                        hint.style.whiteSpace = 'nowrap';
-                        group.appendChild(hint);
-                    }}
-                    hint.textContent = {json.dumps(hint)};   // ← 注意：变量名与外层形参重名，见下方说明
-                }}, 30);
-            ''')
-
-        def on_func_change(value):
-            _sync_hint(value)
 
         async def show_form(init_data):
             async def open_url(url):
@@ -582,19 +530,11 @@ class Administrator(Spawner): # NOQA
                 data = await input_group(
                     "调试接口",
                     [
-                        radio(
-                            name="func",
-                            options=[("界面", "View"), ("求解", "Eval")],
-                            inline=True,
-                            value=init_data["func"],
-                            onchange=on_func_change,
-                            required=True,
-                        ),
                         textarea(
                             label='代码',
                             name='code',
                             value=init_data["code"],
-                            help_text="支持拖拽文件到代码块",
+                            help_text="渲染 PyWebIO 元素；显示 print 输出 · 支持拖拽文件到代码块",
                             rows=25,
                             code={
                                 "mode": "python",
@@ -627,7 +567,7 @@ class Administrator(Spawner): # NOQA
 
         set_env(title="调试接口", output_animation=False)
         put_scope("form_scope")
-        await show_form({'code': '', 'func': 'View'})
+        await show_form({'code': ''})
 
 
     def __init__(self, **kwargs):
