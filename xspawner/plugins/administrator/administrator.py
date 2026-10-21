@@ -14,6 +14,8 @@ from xspawner.utilities.misc import * # NOQA
 from xspawner.constants import * # NOQA
 import tornado.gen
 
+import io
+import contextlib
 import datetime
 import json
 from decimal import Decimal
@@ -488,14 +490,33 @@ class Administrator(Spawner): # NOQA
             if not hasattr(self, "_dbg_data"):
                 put_error("没有调试数据")
                 return
-            exec(self._dbg_data["code"], globals(), locals())
-            if self._dbg_data["func"] == "Eval":
-                ldata = locals().copy()
-                del ldata["self"]
-                if ldata:
-                    self.iLog("local vars: {}".format(str(ldata)))
-                    put_markdown("***\n变量值")
-                    put_code(get_first_level_json(ldata), language='json')
+
+            code = self._dbg_data["code"]
+            func = self._dbg_data["func"]
+
+            if func == "Eval":
+                # 捕获 print 输出
+                output_buffer = io.StringIO()
+                try:
+                    with contextlib.redirect_stdout(output_buffer):
+                        exec(code, globals(), locals())
+                except Exception as e:
+                    e_str = "Exception: {}\n{}".format(str(e), traceback.format_exc())
+                    self.eLog(e_str)
+                    put_error("出错")
+                    put_code(e_str, language='text')
+                    return
+
+                printed = output_buffer.getvalue()
+                if printed:
+                    put_markdown("***\n输出")
+                    put_code(printed, language='text')
+                else:
+                    put_markdown("***\n(无 print 输出)")
+            else:
+                # View 模式：保持原有行为，直接执行代码
+                exec(code, globals(), locals())
+
             self.iLog("_debug_output END")
 
         except Exception as e:
@@ -511,7 +532,7 @@ class Administrator(Spawner): # NOQA
 
         HINTS = {
             "View": "渲染 PyWebIO 元素",
-            "Eval": "输出变量的值 JSON",
+            "Eval": "收集 print 语句的输出",
         }
 
         # ── 同步提示到 radio 选项组的右侧 ──────────────────
