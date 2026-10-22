@@ -16,6 +16,8 @@ import tornado.gen
 
 import io
 import contextlib
+import ast
+import inspect
 import datetime
 import json
 from decimal import Decimal
@@ -484,7 +486,7 @@ class Administrator(Spawner): # NOQA
 
     @UiHandler.route("/debug/output")
     @config(theme="yeti")
-    def _dbg_output(self):
+    async def _dbg_output(self):
         try:
             self.iLog("_debug_output BEG")
             if not hasattr(self, "_dbg_data"):
@@ -497,7 +499,16 @@ class Administrator(Spawner): # NOQA
             output_buffer = io.StringIO()
             try:
                 with contextlib.redirect_stdout(output_buffer):
-                    exec(code, globals(), locals())
+                    # 用 PyCF_ALLOW_TOP_LEVEL_AWAIT 编译，允许代码块出现
+                    # 顶层 await / async 语法；若编译结果返回 coroutine，
+                    # 就在同一个协程上下文里 await 它。
+                    compiled = compile(
+                        code, "<debug>", "exec",
+                        flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT,
+                    )
+                    result = eval(compiled, globals(), locals())
+                    if inspect.iscoroutine(result):
+                        await result
             except Exception as e:
                 e_str = "Exception: {}\n{}".format(str(e), traceback.format_exc())
                 self.eLog(e_str)
@@ -534,7 +545,8 @@ class Administrator(Spawner): # NOQA
                             label='代码',
                             name='code',
                             value=init_data["code"],
-                            help_text="渲染 PyWebIO 元素；显示 print 输出 · 支持拖拽文件到代码块",
+                            help_text="渲染 PyWebIO 元素；支持顶层 await / async 代码；"
+                                      "显示 print 输出 · 支持拖拽文件到代码块",
                             rows=25,
                             code={
                                 "mode": "python",
