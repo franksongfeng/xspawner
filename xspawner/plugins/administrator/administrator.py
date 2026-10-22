@@ -498,15 +498,23 @@ class Administrator(Spawner): # NOQA
             # 同一份代码：既渲染 PyWebIO 元素，又捕获 print 输出
             output_buffer = io.StringIO()
             try:
+                # 构造统一的执行命名空间：
+                #   - 用 dict(globals()) 而不是直接 globals()，避免多次调试累积污染 administrator 模块的全局命名空间
+                #   - 以 administrator 模块的 globals 为基础（保证 put_text / put_code /
+                #     tornado 等已导入的名字可用，保持调试体验）
+                #   - 让 eval 的 globals 与 locals 指向同一个 dict，这样顶层
+                #     import / def 的绑定与函数体 LOAD_GLOBAL 查的是同一处，
+                #     避免 "顶层 import 在函数里 NameError"
+                #   - 可选：把 self 也放进去，方便调试时直接调用实例方法
+                ns = dict(globals())
+                ns["self"] = self
+
                 with contextlib.redirect_stdout(output_buffer):
-                    # 用 PyCF_ALLOW_TOP_LEVEL_AWAIT 编译，允许代码块出现
-                    # 顶层 await / async 语法；若编译结果返回 coroutine，
-                    # 就在同一个协程上下文里 await 它。
                     compiled = compile(
                         code, "<debug>", "exec",
                         flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT,
                     )
-                    result = eval(compiled, globals(), locals())
+                    result = eval(compiled, ns, ns)
                     if inspect.iscoroutine(result):
                         await result
             except Exception as e:
@@ -546,7 +554,7 @@ class Administrator(Spawner): # NOQA
                             name='code',
                             value=init_data["code"],
                             help_text="渲染 PyWebIO 元素；支持顶层 await / async 代码；"
-                                      "显示 print 输出 · 支持拖拽文件到代码块",
+                                      "显示 print 输出；提供 self 调用 · 支持拖拽文件到代码块",
                             rows=25,
                             code={
                                 "mode": "python",
