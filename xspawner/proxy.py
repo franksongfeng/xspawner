@@ -45,14 +45,14 @@ def _route_obj(srv_id: str, port: int) -> dict:
 
 
 # ── 底层 HTTP 封装 ──────────────────────────────────────────
-async def _fetch(method: str, url: str, body: bytes = None):
+async def _fetch(method: str, url: str, body: bytes = None, timeout: float = 5.0):
     headers = {"Content-Type": "application/json"} if body is not None else {}
     req = HTTPRequest(
         url,
         method=method,
         headers=headers,
         body=body,
-        request_timeout=5,
+        request_timeout=timeout,
         raise_error=False,
     )
     return await AsyncHTTPClient().fetch(req)
@@ -112,6 +112,23 @@ async def _walk_routes(routes, inherit_paths=None, inherit_strip=None):
             })
 
     return out
+
+
+async def caddy_is_running(timeout: float = 3.0) -> bool:
+    """
+    检测 Caddy 是否在运行（Admin API 可达即为运行）。
+
+    - 返回 True：Caddy 进程存活 + Admin API 正常响应
+    - 返回 False：进程未启动、Admin API 不可达、超时、或返回非 2xx
+
+    注意：连接失败时 tornado 的 fetch 仍会抛异常（raise_error=False 只对 4xx/5xx 生效），
+    必须 try/except 捕获，不能只看返回值。
+    """
+    try:
+        resp = await _fetch("GET", f"{CADDY_ADMIN}/config/", timeout=timeout)
+        return 200 <= resp.code < 300
+    except Exception:
+        return False
 
 
 async def caddy_list_proxies(only_forge: bool = False) -> list:
