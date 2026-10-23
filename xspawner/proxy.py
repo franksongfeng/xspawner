@@ -6,14 +6,14 @@ from tornado.locks import Lock
 
 CADDY_ADMIN  = "http://127.0.0.1:2019"
 CADDY_SERVER = "srv0"               # 与 Caddyfile 中 :80 server 自动名一致
-CADDY_PREFIX = "/service"
+CADDY_PREFIX = "/forge"
 
 _lock = Lock()                      # tornado.locks.Lock，支持 async with
 
 
 # ── 路由构造 ────────────────────────────────────────────────
 def _rid(srv_id: str) -> str:
-    """路由在 Caddy 内的唯一 @id，便于精确删除/去重。"""
+    """路由在 Caddy 内的唯一 @id，带 xspawner- 前缀便于识别与批量清理。"""
     return f"xspawner-{srv_id}"
 
 
