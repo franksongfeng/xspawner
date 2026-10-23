@@ -11,10 +11,10 @@ http://192.168.77.17 {
     # 任何没有安装并信任 Caddy 根证书的客户端，都会在 TLS 握手阶段收到安全警告或被浏览器直接拒绝访问。
     # 需要将 Caddy 的根证书导入到客户端操作系统的“受信任的根证书颁发机构”中。
     # 根证书路径通常在 /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
-    tls internal
+    # tls internal
 
-    # # 静态注入 admin → 127.0.0.1:8000
-    # # 跳转：裸路径 → 带尾斜杠（308 保持方法不变）
+    # 静态注入 admin → 127.0.0.1:8000
+    # 跳转：裸路径 → 带尾斜杠（308 保持方法不变）
     # redir /forge/admin /forge/admin/ 308
     # handle_path /forge/admin/* {
     #     reverse_proxy 127.0.0.1:8000
