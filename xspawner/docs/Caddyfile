@@ -9,6 +9,11 @@
 https://192.168.77.17 {
     tls internal
 
+    # # admin → 127.0.0.1:8000
+    # handle_path /forge/admin/* {
+    #     reverse_proxy 127.0.0.1:8000
+    # }
+
     # 动态注入的 /forge/{id}/* 插在这里之前
     # 未匹配的路径一律 404
     handle {
