@@ -281,12 +281,8 @@ class XSpawner(Spawnable):
         # core queue
         self._ioloop = tornado.ioloop.IOLoop.current()
 
-        # save config in local db
-        self._ioloop.add_callback(self.init_db)
-
         # create request queue
         self._req_queue = tornado.queues.Queue(256)
-        self._ioloop.add_callback(self.loop)
 
 
         # start logger
@@ -426,6 +422,8 @@ class XSpawner(Spawnable):
 
     def start(self):
         self.iLog("start BEG")
+        self._ioloop.add_callback(self.loop)
+        self._ioloop.add_callback(self.init_db)
         self._server.listen(self._config.port, address=self._config.access)
         self.iLog("listening to port {}...".format(self._config.port))
         self._ioloop.start()
