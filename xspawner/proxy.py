@@ -26,8 +26,9 @@ def _patterns(srv_id: str):
     return [p, f"{p}/*"]            # 同时匹配有无尾斜杠
 
 
-def _routes_url() -> str:
-    return f"{CADDY_ADMIN}/config/apps/http/servers/{CADDY_SERVER}/routes"
+def _routes_url(server_name: str = None) -> str:
+    name = server_name or CADDY_SERVER
+    return f"{CADDY_ADMIN}/config/apps/http/servers/{name}/routes"
 
 
 def _route_obj(srv_id: str, port: int) -> dict:
