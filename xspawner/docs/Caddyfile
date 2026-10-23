@@ -7,6 +7,10 @@
 
 # 内网：IP + /forge 前缀，剥离后转发
 https://192.168.77.17 {
+    # Caddy 使用内部 CA 签发证书。
+    # 任何没有安装并信任 Caddy 根证书的客户端，都会在 TLS 握手阶段收到安全警告或被浏览器直接拒绝访问。
+    # 需要将 Caddy 的根证书导入到客户端操作系统的“受信任的根证书颁发机构”中。
+    # 根证书路径通常在 /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
     tls internal
 
     # 静态注入
