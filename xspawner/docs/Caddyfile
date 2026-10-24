@@ -5,25 +5,26 @@
 }
 
 
-# 内网：IP + /forge 前缀，剥离后转发
-http://192.168.77.17 {
-    # Caddy 使用内部 CA 签发证书:
-    # 任何没有安装并信任 Caddy 根证书的客户端，都会在 TLS 握手阶段收到安全警告或被浏览器直接拒绝访问。
-    # 需要将 Caddy 的根证书导入到客户端操作系统的“受信任的根证书颁发机构”中。
-    # 根证书路径通常在 /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
+https://example.com {
+    # 如果 example.com 使用自申请的公网免费证书，不要加 tls 命令
+    # 如果 example.com 有公网可验证的证书
+    # tls /path/to/your/certificate.crt /path/to/your/private.key
+    # 如果 example.com 没有公网可验证的证书，用 internal CA
     # tls internal
 
+    # 所有单段裸路径 → 补尾斜杠（308 保持方法不变）
+    @need_slash path_regexp need_slash ^/([^/]+)$
+    redir @need_slash /{re.need_slash.1}/ 308
+
     # 静态注入 admin → 127.0.0.1:8000
-    # 跳转：裸路径 → 带尾斜杠（308 保持方法不变）
-    # redir /forge/admin /forge/admin/ 308
-    # handle_path /forge/admin/* {
+    # handle_path /admin/* {
     #     reverse_proxy 127.0.0.1:8000
     # }
 
-    # 动态注入的 /forge/{app_id}/* 插在这里之前
+    # 动态注入的 /{app_id}/* 插在这里之前
 
     # 如果子服务 access 为 0.0.0.0 的话，
-    # 未注入的子服务仍可以直连端口 http://192.168.77.17:{port}
+    # 未注入的子服务仍可以直连端口 http://example.com:{port}
     
     # 未匹配的路径一律 404
     handle {

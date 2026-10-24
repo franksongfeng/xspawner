@@ -1,9 +1,9 @@
 {
   "id": "admin",
   "plugin": "administrator",
-  "host": "127.0.0.1",
+  "host": "example.com",
   "port": 8000,
-  "access": "0.0.0.0",
+  "access": "127.0.0.1",
   "parent": "",
   "log": true,
   "severity": "debug",

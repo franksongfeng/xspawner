@@ -1,13 +1,18 @@
-# /etc/caddy/Caddyfile
 {
     admin 127.0.0.1:2019
 }
 
-xspawner.com {
-    # 屏蔽下条语句, Caddy 全自动申请证书
-    # tls <certfile> <keyfile>
-    root * /usr/share/caddy
-    file_server
 
-    # 不写任何 /service/* 规则，全部由 Admin API 动态注入到 routes 头部
+https://xspawner.com {
+
+    # 所有单段裸路径 → 补尾斜杠（308 保持方法不变）
+    @need_slash path_regexp need_slash ^/([^/]+)$
+    redir @need_slash /{re.need_slash.1}/ 308
+
+    # 动态注入的 /forge/{app_id}/* 插在这里之前
+
+    # 未匹配的路径一律 404
+    handle {
+        respond "Not Found" 404
+    }
 }
