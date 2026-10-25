@@ -18,6 +18,7 @@ import pywebio.platform.tornado
 
 import time
 import os
+import sys
 import json
 import psutil
 import importlib
@@ -288,6 +289,8 @@ class XSpawner(Spawnable):
         print("__init__ BEG {} {}".format(config, kwargs))
         self._config = config
 
+        self._fatal = False
+
         # core queue
         self._ioloop = tornado.ioloop.IOLoop.current()
 
@@ -432,32 +435,52 @@ class XSpawner(Spawnable):
 
     def start(self):
         self.iLog("start BEG")
+        self._fatal = False
         self._ioloop.add_callback(self.loop)
         self._ioloop.add_callback(self.init_db)
         self._ioloop.add_callback(self.add_route)
-        self._server.listen(self._config.port, address=self._config.access)
-        self.iLog("listening to port {}...".format(self._config.port))
-        self._ioloop.start()
-        self.iLog("ioloop is running ...")
-        self._ioloop.close()
+        try:
+            self._server.listen(self._config.port, address=self._config.access)
+            self.iLog("listening to port {}...".format(self._config.port))
+        except Exception:
+            self.eLog(traceback.format_exc())
+            sys.exit(1)
+        try:
+            self._ioloop.start()
+            self.iLog("ioloop stopped")
+        except Exception:
+            self.eLog(traceback.format_exc())
+            self._fatal = True
+        finally:
+            try:
+                self._ioloop.close()
+            except Exception:
+                self.eLog(traceback.format_exc())
+        if self._fatal:
+            self.cLog("start END fatal, sys.exit(1)")
+            sys.exit(1)
         self.iLog("start END")
 
     def stop(self):
         self.iLog("stop BEG")
         self.cLog("This instance {}:{} is stopping ...".format(self.__class__, self._config.port))
-        self._ioloop.add_callback(self.del_route)
-        self._server.stop()
-        self._ioloop.stop()
+
+        async def _shutdown():
+            try:
+                await self.del_route()
+            finally:
+                self._server.stop()
+                self._ioloop.stop()
+
+        self._ioloop.add_callback(_shutdown)
         self.iLog("stop END")
 
     def getAddr(self):
-        use_ssl = self._config.ssl
-        use_proxy = (self._config.access == "127.0.0.1") and (not self._config.ssl)
         host_addr = "{}://{}".format(
-            "https" if use_ssl or use_proxy else "http",
+            "https" if self._config.ssl or self._proxied() else "http",
             self._config.host
         )
-        if use_proxy:
+        if self._proxied():
             return "{}/xspawner/{}".format(host_addr, self._config.id)
         else:
             return "{}:{}".format(host_addr, self._config.port)
@@ -465,8 +488,7 @@ class XSpawner(Spawnable):
     def getLocalAddr(self, port=None):
         return "{}:{}".format(
             self.getLocalHostAddr(),
-            port if port else self._config.port)
-
+            port if port is not None else self._config.port)
 
     def getPid(self):
         return os.getpid()
@@ -484,12 +506,18 @@ class XSpawner(Spawnable):
             self.iLog("init_db END")
         except Exception as e:
             self.eLog(f"init_db raise {e}")
-            self.cLog("init_db failed, service will be degraded!")
-            self.stop()
+            self.cLog("init_db failed, no db => fatal")
+            self._fatal = True
+            self._server.stop()
+            self._ioloop.stop()
+
+    def _proxied(self) -> bool:
+        """同步判断是否经 caddy 暴露（不探测 caddy 是否在跑）。"""
+        return self._config.access == "127.0.0.1" and not self._config.ssl
 
     async def use_proxy(self):
         self.iLog("use_proxy BEG")
-        res = (self._config.access == "127.0.0.1") and (not self._config.ssl) and await caddy_is_running()
+        res = self._proxied() and await caddy_is_running()
         self.iLog(f"use_proxy END {res}")
         return res
 
@@ -501,7 +529,7 @@ class XSpawner(Spawnable):
                 ok = await caddy_add_route(caddy_server, self._config.id, self._config.port)
                 self.iLog("caddy add route {}:{} {}".format(self._config.id, self._config.port, ok))
             else:
-                self.eLog("failed to find caddy server {} {}".format(self._config.host, caddy_server))
+                self.eLog("failed to find caddy server for host {}".format(self._config.host))
         self.iLog("add_route END")
 
     async def del_route(self):
@@ -512,7 +540,7 @@ class XSpawner(Spawnable):
                 ok = await caddy_del_route(caddy_server, self._config.id)
                 self.iLog("caddy del route {} {}".format(self._config.id, ok))
             else:
-                self.eLog("failed to find caddy server {} {}".format(self._config.host, caddy_server))
+                self.eLog("failed to find caddy server for host {}".format(self._config.host))
         self.iLog("del_route END")
 
     async def getValues(self) -> dict:
