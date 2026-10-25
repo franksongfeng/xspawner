@@ -153,7 +153,7 @@ async def _fetch(method: str, url: str, body: bytes = None, timeout: float = 5.0
     return await AsyncHTTPClient().fetch(req, raise_error=False)
 
 
-async def _get_routes(server_name: str = None):
+async def _get_routes(server_name):
     resp = await _fetch("GET", _routes_url(server_name))
     if resp.code >= 400:
         raise RuntimeError(f"GET routes failed: {resp.code}")
@@ -333,7 +333,7 @@ async def caddy_add_route(server_name: str, srv_id: str, port: int) -> bool:
             # 3) 插到最前，确保先于 file_server 命中
             routes.insert(0, _route_obj(server_name, srv_id, port))
 
-            # 4) 整体 PUT
+            # 4) 整体 PATCH
             resp = await _fetch(
                 "PATCH", _routes_url(server_name),
                 body=json.dumps(routes).encode("utf-8"),
