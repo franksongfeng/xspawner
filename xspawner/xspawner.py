@@ -451,7 +451,8 @@ class XSpawner(Spawnable):
         self.iLog("stop END")
 
     def getAddr(self):
-        if self.use_proxy:
+        use_proxy = (self._config.access == "127.0.0.1") and (not self._config.ssl)
+        if use_proxy:
             return "{}/xspawner/{}".format(self.getHostAddr(), self._config.id)
         else:
             return "{}:{}".format(self.getHostAddr(), self._config.port)
@@ -483,20 +484,21 @@ class XSpawner(Spawnable):
 
     async def use_proxy(self):
         self.iLog("add_route BEG")
-        return (self._config.access == "127.0.0.1") and await caddy_is_running()
-        self.iLog("add_route END")
+        res = (self._config.access == "127.0.0.1") and (not self._config.ssl) and await caddy_is_running()
+        self.iLog(f"add_route END {res}")
+        return res
 
     async def add_route(self):
 
         self.iLog("add_route BEG")
-        if self.use_proxy():
+        if await self.use_proxy():
             ok = await caddy_add_route(self._config.id, self._config.port)
             self.iLog("caddy add route {}:{} {}".format(self._config.id, self._config.port, ok))
         self.iLog("add_route END")
 
     async def del_route(self):
         self.iLog("del_route BEG")
-        if self.use_proxy():
+        if await self.use_proxy():
             ok = await caddy_del_route(self._config.id)
             self.iLog("caddy del route {} {}".format(self._config.id, ok))
         self.iLog("del_route END")
@@ -769,8 +771,10 @@ class XSpawner(Spawnable):
         return info
 
     def getHostAddr(self):
+        use_ssl = self._config.ssl
+        use_proxy = (self._config.access == "127.0.0.1") and (not self._config.ssl)
         return "{}://{}".format(
-            "https" if self._config.ssl or self.use_proxy() else "http",
+            "https" if use_ssl or use_proxy else "http",
             self._config.host
         )
 
