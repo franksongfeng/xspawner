@@ -53,9 +53,8 @@ async def _fetch(method: str, url: str, body: bytes = None, timeout: float = 5.0
         headers=headers,
         body=body,
         request_timeout=timeout,
-        raise_error=False,
     )
-    return await AsyncHTTPClient().fetch(req)
+    return await AsyncHTTPClient().fetch(req, raise_error=False)
 
 
 async def _get_routes(server_name: str = None):
@@ -128,6 +127,7 @@ async def caddy_is_running(timeout: float = 3.0) -> bool:
         resp = await _fetch("GET", f"{CADDY_ADMIN}/config/", timeout=timeout)
         return 200 <= resp.code < 300
     except Exception:
+        traceback.print_exc()
         return False
 
 
@@ -152,6 +152,7 @@ async def caddy_list_proxies(only_forge: bool = False) -> list:
             return result
         servers = json.loads(resp.body or b"{}") or {}
     except Exception:
+        traceback.print_exc()
         return result
 
     for name, cfg in servers.items():
@@ -159,11 +160,13 @@ async def caddy_list_proxies(only_forge: bool = False) -> list:
         try:
             routes = await _get_routes(name)
         except Exception:
+            traceback.print_exc()
             continue
 
         try:
             items = await _walk_routes(routes)
         except Exception:
+            traceback.print_exc()
             continue
 
         for it in items:
@@ -236,11 +239,15 @@ async def caddy_add_route(srv_id: str, port: int) -> bool:
 
             # 4) 整体 PUT
             resp = await _fetch(
-                "PUT", _routes_url(),
+                "PATCH", _routes_url(),
                 body=json.dumps(routes).encode("utf-8"),
             )
+            if not (200 <= resp.code < 300):
+                print(f"[caddy] PATCH {resp.code}: "
+                      f"{(resp.body or b'').decode('utf-8', 'replace')[:1500]}", flush=True)
             return 200 <= resp.code < 300
         except Exception:
+            traceback.print_exc()
             return False
 
 
@@ -251,6 +258,7 @@ async def caddy_del_route(srv_id: str) -> bool:
             resp = await _fetch("DELETE", f"{CADDY_ADMIN}/id/{_rid(srv_id)}")
             return resp.code in (200, 404)   # 404 = 本来就没有，视为成功
         except Exception:
+            traceback.print_exc()
             return False
 
 
@@ -269,9 +277,10 @@ async def caddy_bootstrap(children: dict) -> bool:
                 routes.insert(0, _route_obj(sid, port))
 
             resp = await _fetch(
-                "PUT", _routes_url(),
+                "PATCH", _routes_url(),
                 body=json.dumps(routes).encode("utf-8"),
             )
             return 200 <= resp.code < 300
         except Exception:
+            traceback.print_exc()
             return False

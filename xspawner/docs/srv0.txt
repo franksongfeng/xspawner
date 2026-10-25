@@ -1,0 +1,69 @@
+{
+  "srv0": {
+    "listen": [
+      ":443"
+    ],
+    "routes": [
+      {
+        "@id": "forge-admin",
+        "handle": [
+          {
+            "handler": "rewrite",
+            "strip_path_prefix": "/forge/admin"
+          },
+          {
+            "handler": "reverse_proxy",
+            "upstreams": [
+              {
+                "dial": "127.0.0.1:8000"
+              }
+            ]
+          }
+        ],
+        "match": [
+          {
+            "path": [
+              "/forge/admin",
+              "/forge/admin/*"
+            ]
+          }
+        ]
+      },
+      {
+        "handle": [
+          {
+            "handler": "subroute",
+            "routes": [
+              {
+                "handle": [
+                  {
+                    "handler": "subroute",
+                    "routes": [
+                      {
+                        "handle": [
+                          {
+                            "body": "Not Found",
+                            "handler": "static_response",
+                            "status_code": 404
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "match": [
+          {
+            "host": [
+              "xspawner.com"
+            ]
+          }
+        ],
+        "terminal": true
+      }
+    ]
+  }
+}
