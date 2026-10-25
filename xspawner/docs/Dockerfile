@@ -46,6 +46,7 @@ RUN apt-get install -y caddy
 RUN pip3 install --no-cache-dir --upgrade pip \
     && pip3 install --no-cache-dir \
     tornado==6.4.1 \
+    pycurl==7.45.7 \
     pywebio==1.8.3 \
     requests==2.22.0 \
     ipaddress==1.0.23 \
@@ -55,7 +56,7 @@ RUN pip3 install --no-cache-dir --upgrade pip \
     aiomysql==0.2.0 \
     asyncpg==0.30.0 \
     pyinstaller==6.22.3 \
-    && python3 -c "import tornado; import pywebio; import requests; import bokeh; import tortoise; print('All Python packages installed successfully')"
+    && python3 -c "import tornado; import pywebio; import pycurl; import requests; import bokeh; import tortoise; print('All Python packages installed successfully)"
 
 
 ENV HOST=xspawner.com

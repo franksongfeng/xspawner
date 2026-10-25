@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 import json
+import traceback
 
 from tornado.httpclient import AsyncHTTPClient, HTTPRequest
 from tornado.locks import Lock
+
+# 强制使用 CurlAsyncHTTPClient，解决 SimpleAsyncHTTPClient 的 chunked/trailer 兼容性问题
+AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
 
 CADDY_ADMIN  = "http://127.0.0.1:2019"
 CADDY_SERVER = "srv0"               # 与 Caddyfile 中 :80 server 自动名一致
