@@ -12,16 +12,13 @@ https://example.com {
     # 如果 example.com 没有公网可验证的证书，用 internal CA
     # tls internal
 
-    # 所有单段裸路径 → 补尾斜杠（308 保持方法不变）
-    @need_slash path_regexp need_slash ^/([^/]+)$
-    redir @need_slash /{re.need_slash.1}/ 308
-
-    # 静态注入 admin → 127.0.0.1:8000
-    # handle_path /admin/* {
+    # 静态注入 /forge/admin → 127.0.0.1:8000
+    # redir /forge/admin /forge/admin/ 308
+    # handle_path /forge/admin/* {
     #     reverse_proxy 127.0.0.1:8000
     # }
 
-    # 动态注入的 /{app_id}/* 插在这里之前
+    # 动态注入的 /forge/{app_id}/* 插在这里之前
 
     # 如果子服务 access 为 0.0.0.0 的话，
     # 未注入的子服务仍可以直连端口 http://example.com:{port}

@@ -5,9 +5,6 @@
 
 https://xspawner.com {
 
-    # 所有单段裸路径 → 补尾斜杠（308 保持方法不变）
-    @need_slash path_regexp need_slash ^/([^/]+)$
-    redir @need_slash /{re.need_slash.1}/ 308
 
     # 动态注入的 /forge/{app_id}/* 插在这里之前
 
