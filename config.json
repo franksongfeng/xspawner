@@ -1,9 +1,9 @@
 {
   "id": "admin",
   "plugin": "administrator",
-  "host": "example.com",
+  "host": "xspawner.com",
   "port": 8000,
-  "access": "127.0.0.1",
+  "access": "0.0.0.0",
   "parent": "",
   "log": true,
   "severity": "debug",

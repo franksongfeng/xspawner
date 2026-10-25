@@ -6,7 +6,7 @@
 https://xspawner.com {
 
 
-    # 动态注入的 /forge/{app_id}/* 插在这里之前
+    # 动态注入的 /xspawner/{app_id}/* 插在这里之前
 
     # 未匹配的路径一律 404
     handle {

@@ -6,15 +6,15 @@ from tornado.locks import Lock
 
 CADDY_ADMIN  = "http://127.0.0.1:2019"
 CADDY_SERVER = "srv0"               # 与 Caddyfile 中 :80 server 自动名一致
-CADDY_PREFIX = "/forge"
+CADDY_PREFIX = "/xspawner"
 
 _lock = Lock()                      # tornado.locks.Lock，支持 async with
 
 
 # ── 路由构造 ────────────────────────────────────────────────
 def _rid(srv_id: str) -> str:
-    """路由在 Caddy 内的唯一 @id，带 forge- 前缀便于识别与批量清理。"""
-    return f"forge-{srv_id}"
+    """路由在 Caddy 内的唯一 @id，带 xspawner- 前缀便于识别与批量清理。"""
+    return f"xspawner-{srv_id}"
 
 
 def _prefix(srv_id: str) -> str:
@@ -131,11 +131,11 @@ async def caddy_is_running(timeout: float = 3.0) -> bool:
         return False
 
 
-async def caddy_list_proxies(only_forge: bool = False) -> list:
+async def caddy_list_proxies(only_xspawner: bool = False) -> list:
     """
     列出 Caddy 中全部反向代理路由。
 
-    :param only_forge: 仅返回 @id 以 forge- 开头的条目
+    :param only_xspawner: 仅返回 @id 以 xspawner- 开头的条目
     :return: list[dict] 每项含：
         server   所属 server 名（如 srv0）
         listen   监听地址列表（如 [":443"]）
@@ -172,7 +172,7 @@ async def caddy_list_proxies(only_forge: bool = False) -> list:
         for it in items:
             it["server"] = name
             it["listen"] = listen
-            if only_forge and not str(it.get("id") or "").startswith("forge-"):
+            if only_xspawner and not str(it.get("id") or "").startswith("xspawner-"):
                 continue
             result.append(it)
 
@@ -272,7 +272,7 @@ async def caddy_bootstrap(children: dict) -> bool:
         try:
             routes = await _get_routes()
             routes = [x for x in routes
-                      if not str(x.get("@id", "")).startswith("forge-")]
+                      if not str(x.get("@id", "")).startswith("xspawner-")]
             for sid, port in children.items():
                 routes.insert(0, _route_obj(sid, port))
 

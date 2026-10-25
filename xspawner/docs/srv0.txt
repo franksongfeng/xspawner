@@ -5,11 +5,11 @@
     ],
     "routes": [
       {
-        "@id": "forge-admin",
+        "@id": "xspawner-admin",
         "handle": [
           {
             "handler": "rewrite",
-            "strip_path_prefix": "/forge/admin"
+            "strip_path_prefix": "/xspawner/admin"
           },
           {
             "handler": "reverse_proxy",
@@ -23,8 +23,8 @@
         "match": [
           {
             "path": [
-              "/forge/admin",
-              "/forge/admin/*"
+              "/xspawner/admin",
+              "/xspawner/admin/*"
             ]
           }
         ]
