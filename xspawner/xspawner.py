@@ -18,7 +18,6 @@ import pywebio.platform.tornado
 
 import time
 import os
-import sys
 import json
 import psutil
 import importlib
@@ -289,8 +288,6 @@ class XSpawner(Spawnable):
         print("__init__ BEG {} {}".format(config, kwargs))
         self._config = config
 
-        self._fatal = False
-
         # core queue
         self._ioloop = tornado.ioloop.IOLoop.current()
 
@@ -435,26 +432,14 @@ class XSpawner(Spawnable):
 
     def start(self):
         self.iLog("start BEG")
-        self._fatal = False
         self._ioloop.add_callback(self.loop)
         self._ioloop.add_callback(self.init_db)
         self._ioloop.add_callback(self.add_route)
         self._server.listen(self._config.port, address=self._config.access)
         self.iLog("listening to port {}...".format(self._config.port))
-        try:
-            self._ioloop.start()
-            self.iLog("ioloop stopped")
-        except Exception:
-            self.eLog(traceback.format_exc())
-            self._fatal = True
-        finally:
-            try:
-                self._ioloop.close()
-            except Exception:
-                self.eLog(traceback.format_exc())
-        if self._fatal:                 # ← 必须有
-            self.cLog("start END fatal, sys.exit(1)")
-            sys.exit(1)
+        self._ioloop.start()
+        self.iLog("ioloop is running ...")
+        self._ioloop.close()
         self.iLog("start END")
 
     def stop(self):
@@ -466,11 +451,16 @@ class XSpawner(Spawnable):
         self.iLog("stop END")
 
     def getAddr(self):
+        use_ssl = self._config.ssl
         use_proxy = (self._config.access == "127.0.0.1") and (not self._config.ssl)
+        host_addr = "{}://{}".format(
+            "https" if use_ssl or use_proxy else "http",
+            self._config.host
+        )
         if use_proxy:
-            return "{}/xspawner/{}".format(self.getHostAddr(), self._config.id)
+            return "{}/xspawner/{}".format(host_addr, self._config.id)
         else:
-            return "{}:{}".format(self.getHostAddr(), self._config.port)
+            return "{}:{}".format(host_addr, self._config.port)
 
     def getLocalAddr(self, port=None):
         return "{}:{}".format(
@@ -495,29 +485,34 @@ class XSpawner(Spawnable):
         except Exception as e:
             self.eLog(f"init_db raise {e}")
             self.cLog("init_db failed, service will be degraded!")
-            self._fatal = True          # ← 不是 self.stop()
-            self._server.stop()
-            self._ioloop.stop()
+            self.stop()
 
     async def use_proxy(self):
-        self.iLog("add_route BEG")
+        self.iLog("use_proxy BEG")
         res = (self._config.access == "127.0.0.1") and (not self._config.ssl) and await caddy_is_running()
-        self.iLog(f"add_route END {res}")
+        self.iLog(f"use_proxy END {res}")
         return res
 
     async def add_route(self):
-
         self.iLog("add_route BEG")
         if await self.use_proxy():
-            ok = await caddy_add_route(self._config.id, self._config.port)
-            self.iLog("caddy add route {}:{} {}".format(self._config.id, self._config.port, ok))
+            caddy_server = await caddy_find_server_by_site_address(self._config.host)
+            if caddy_server:
+                ok = await caddy_add_route(caddy_server, self._config.id, self._config.port)
+                self.iLog("caddy add route {}:{} {}".format(self._config.id, self._config.port, ok))
+            else:
+                self.eLog("failed to find caddy server {} {}".format(self._config.host, caddy_server))
         self.iLog("add_route END")
 
     async def del_route(self):
         self.iLog("del_route BEG")
         if await self.use_proxy():
-            ok = await caddy_del_route(self._config.id)
-            self.iLog("caddy del route {} {}".format(self._config.id, ok))
+            caddy_server = await caddy_find_server_by_site_address(self._config.host)
+            if caddy_server:
+                ok = await caddy_del_route(caddy_server, self._config.id)
+                self.iLog("caddy del route {} {}".format(self._config.id, ok))
+            else:
+                self.eLog("failed to find caddy server {} {}".format(self._config.host, caddy_server))
         self.iLog("del_route END")
 
     async def getValues(self) -> dict:
@@ -786,14 +781,6 @@ class XSpawner(Spawnable):
         info["work_dir"] = getWorkDir()
         info["logfile"] = self.getLogFile()
         return info
-
-    def getHostAddr(self):
-        use_ssl = self._config.ssl
-        use_proxy = (self._config.access == "127.0.0.1") and (not self._config.ssl)
-        return "{}://{}".format(
-            "https" if use_ssl or use_proxy else "http",
-            self._config.host
-        )
 
     def getLocalHostAddr(self):
         return "{}://{}".format(

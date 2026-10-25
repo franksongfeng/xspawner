@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import json
 import traceback
+from urllib.parse import urlparse
+from typing import Optional
 
 from tornado.httpclient import AsyncHTTPClient, HTTPRequest
 from tornado.locks import Lock
@@ -9,16 +11,107 @@ from tornado.locks import Lock
 AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
 
 CADDY_ADMIN  = "http://127.0.0.1:2019"
-CADDY_SERVER = "srv0"               # 与 Caddyfile 中 :80 server 自动名一致
 CADDY_PREFIX = "/xspawner"
 
 _lock = Lock()                      # tornado.locks.Lock，支持 async with
 
 
+
+async def caddy_find_server_by_site_address(site_address: str) -> Optional[str]:
+    """
+    根据 Caddyfile 中的站点地址（如 "https://example.com"）查找对应的 server_name。
+
+    :param site_address: 站点地址，可带协议（https://example.com）或纯域名（example.com）
+    :return: server_name（如 "srv0"）；未找到时返回 None
+    """
+    # 1. 解析出域名（host）
+    domain = _extract_domain(site_address)
+    if not domain:
+        return None
+
+    # 2. 拉取全部 server 配置
+    try:
+        resp = await _fetch("GET", f"{CADDY_ADMIN}/config/apps/http/servers")
+        if resp.code >= 400:
+            return None
+        servers = json.loads(resp.body or b"{}") or {}
+    except Exception:
+        traceback.print_exc()
+        return None
+
+    # 3. 遍历每个 server，检查其 routes 中的 host 匹配器
+    for server_name, cfg in servers.items():
+        try:
+            routes = cfg.get("routes") or []
+            if _domain_in_routes(routes, domain):
+                return server_name
+        except Exception:
+            traceback.print_exc()
+            continue
+
+    return None
+
+
+def _extract_domain(site_address: str) -> Optional[str]
+    """
+    从站点地址中提取域名。
+    支持 "https://example.com"、"http://example.com"、"example.com"、":443" 等形式。
+    """
+    site_address = site_address.strip()
+    if not site_address:
+        return None
+
+    # 如果看起来像 URL（含 ://），用 urlparse
+    if "://" in site_address:
+        parsed = urlparse(site_address)
+        return parsed.hostname.lower() if parsed.hostname else None
+
+    # 纯域名或带端口的域名
+    # 去掉可能存在的端口（如 "example.com:8080"）
+    if ":" in site_address:
+        # 纯端口（如 ":443"）表示无域名，返回 None
+        host_part = site_address.split(":", 1)[0]
+        if not host_part:
+            return None
+        return host_part.lower()
+
+    return site_address.lower()
+
+
+def _domain_in_routes(routes: list, domain: str) -> bool:
+    for route in routes or []:
+        for matcher in route.get("match") or []:
+            for host in matcher.get("host") or []:
+                if _host_matches(host, domain):
+                    return True
+        for handler in route.get("handle") or []:
+            if handler.get("handler") == "subroute":
+                if _domain_in_routes(handler.get("routes") or [], domain):
+                    return True
+            elif handler.get("routes"):
+                if _domain_in_routes(handler.get("routes") or [], domain):
+                    return True
+    return False
+
+
+def _host_matches(pattern: str, domain: str) -> bool:
+    pattern, domain = pattern.strip().lower(), domain.strip().lower()
+    if pattern == domain:
+        return True
+    if not pattern or "*" not in pattern:
+        return False
+    if pattern.startswith("*."):
+        suffix = pattern[2:]
+        return domain.endswith("." + suffix) and domain.count(".") == suffix.count(".") + 1
+    if pattern.endswith("*"):
+        return domain.startswith(pattern[:-1])
+    return False
+
+
 # ── 路由构造 ────────────────────────────────────────────────
-def _rid(srv_id: str) -> str:
-    """路由在 Caddy 内的唯一 @id，带 xspawner- 前缀便于识别与批量清理。"""
-    return f"xspawner-{srv_id}"
+def _rid(server_name: str, srv_id: str) -> str:
+    """路由在 Caddy 内的唯一 @id，带 {server_name}- 前缀便于识别与批量清理。"""
+    return f"{server_name}-{srv_id}"
 
 
 def _prefix(srv_id: str) -> str:
@@ -30,14 +123,13 @@ def _patterns(srv_id: str):
     return [p, f"{p}/*"]            # 同时匹配有无尾斜杠
 
 
-def _routes_url(server_name: str = None) -> str:
-    name = server_name or CADDY_SERVER
-    return f"{CADDY_ADMIN}/config/apps/http/servers/{name}/routes"
+def _routes_url(server_name: str) -> str:
+    return f"{CADDY_ADMIN}/config/apps/http/servers/{server_name}/routes"
 
 
-def _route_obj(srv_id: str, port: int) -> dict:
+def _route_obj(server_name: str, srv_id: str, port: int) -> dict:
     return {
-        "@id": _rid(srv_id),
+        "@id": _rid(server_name, srv_id),
         "match": [{"path": _patterns(srv_id)}],
         "handle": [
             {"handler": "rewrite",
@@ -135,11 +227,11 @@ async def caddy_is_running(timeout: float = 3.0) -> bool:
         return False
 
 
-async def caddy_list_proxies(only_xspawner: bool = False) -> list:
+async def caddy_list_proxies(server_name: str) -> list:
     """
-    列出 Caddy 中全部反向代理路由。
+    列出 Caddy 中指定 server 的全部反向代理路由。
 
-    :param only_xspawner: 仅返回 @id 以 xspawner- 开头的条目
+    :param server_name: 要查询的 server 名（如 srv0）
     :return: list[dict] 每项含：
         server   所属 server 名（如 srv0）
         listen   监听地址列表（如 [":443"]）
@@ -151,34 +243,34 @@ async def caddy_list_proxies(only_xspawner: bool = False) -> list:
     result = []
 
     try:
-        resp = await _fetch("GET", f"{CADDY_ADMIN}/config/apps/http/servers")
+        resp = await _fetch(
+            "GET", f"{CADDY_ADMIN}/config/apps/http/servers/{server_name}"
+        )
         if resp.code >= 400:
             return result
-        servers = json.loads(resp.body or b"{}") or {}
+        cfg = json.loads(resp.body or b"{}") or {}
     except Exception:
         traceback.print_exc()
         return result
 
-    for name, cfg in servers.items():
-        listen = list(cfg.get("listen") or [])
-        try:
-            routes = await _get_routes(name)
-        except Exception:
-            traceback.print_exc()
-            continue
+    listen = list(cfg.get("listen") or [])
 
-        try:
-            items = await _walk_routes(routes)
-        except Exception:
-            traceback.print_exc()
-            continue
+    try:
+        routes = await _get_routes(server_name)
+    except Exception:
+        traceback.print_exc()
+        return result
 
-        for it in items:
-            it["server"] = name
-            it["listen"] = listen
-            if only_xspawner and not str(it.get("id") or "").startswith("xspawner-"):
-                continue
-            result.append(it)
+    try:
+        items = await _walk_routes(routes)
+    except Exception:
+        traceback.print_exc()
+        return result
+
+    for it in items:
+        it["server"] = server_name
+        it["listen"] = listen
+        result.append(it)
 
     return result
 
@@ -227,23 +319,23 @@ def format_proxies_text(items: list) -> str:
 
 
 # ── 对外接口（增删改，保持原样）─────────────────────────────
-async def caddy_add_route(srv_id: str, port: int) -> bool:
+async def caddy_add_route(server_name: str, srv_id: str, port: int) -> bool:
     """幂等：先按 @id 删，再插到 routes 头部（优先于 file_server）。"""
     async with _lock:
         try:
             # 1) 幂等清理，404 忽略
-            await _fetch("DELETE", f"{CADDY_ADMIN}/id/{_rid(srv_id)}")
+            await _fetch("DELETE", f"{CADDY_ADMIN}/id/{_rid(server_name, srv_id)}")
 
             # 2) 读现有 routes 并剔除同名条目
-            routes = await _get_routes()
-            routes = [x for x in routes if x.get("@id") != _rid(srv_id)]
+            routes = await _get_routes(server_name)
+            routes = [x for x in routes if x.get("@id") != _rid(server_name, srv_id)]
 
             # 3) 插到最前，确保先于 file_server 命中
-            routes.insert(0, _route_obj(srv_id, port))
+            routes.insert(0, _route_obj(server_name, srv_id, port))
 
             # 4) 整体 PUT
             resp = await _fetch(
-                "PATCH", _routes_url(),
+                "PATCH", _routes_url(server_name),
                 body=json.dumps(routes).encode("utf-8"),
             )
             if not (200 <= resp.code < 300):
@@ -255,18 +347,18 @@ async def caddy_add_route(srv_id: str, port: int) -> bool:
             return False
 
 
-async def caddy_del_route(srv_id: str) -> bool:
+async def caddy_del_route(server_name: str, srv_id: str) -> bool:
     """按 @id 精确删除，不做索引运算，天然并发安全。"""
     async with _lock:
         try:
-            resp = await _fetch("DELETE", f"{CADDY_ADMIN}/id/{_rid(srv_id)}")
+            resp = await _fetch("DELETE", f"{CADDY_ADMIN}/id/{_rid(server_name, srv_id)}")
             return resp.code in (200, 404)   # 404 = 本来就没有，视为成功
         except Exception:
             traceback.print_exc()
             return False
 
 
-async def caddy_bootstrap(children: dict) -> bool:
+async def caddy_bootstrap(server_name: str, children: dict) -> bool:
     """
     Caddy 重启 / caddy reload 后动态路由会丢失，
     启动时用当前子服务列表整体重放一次。
@@ -274,14 +366,14 @@ async def caddy_bootstrap(children: dict) -> bool:
     """
     async with _lock:
         try:
-            routes = await _get_routes()
+            routes = await _get_routes(server_name)
             routes = [x for x in routes
                       if not str(x.get("@id", "")).startswith("xspawner-")]
             for sid, port in children.items():
-                routes.insert(0, _route_obj(sid, port))
+                routes.insert(0, _route_obj(server_name, sid, port))
 
             resp = await _fetch(
-                "PATCH", _routes_url(),
+                "PATCH", _routes_url(server_name),
                 body=json.dumps(routes).encode("utf-8"),
             )
             return 200 <= resp.code < 300
