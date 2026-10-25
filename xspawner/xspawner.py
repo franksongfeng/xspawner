@@ -18,6 +18,7 @@ import pywebio.platform.tornado
 
 import time
 import os
+import sys
 import json
 import psutil
 import importlib
@@ -288,6 +289,8 @@ class XSpawner(Spawnable):
         print("__init__ BEG {} {}".format(config, kwargs))
         self._config = config
 
+        self._fatal = False
+
         # core queue
         self._ioloop = tornado.ioloop.IOLoop.current()
 
@@ -432,14 +435,26 @@ class XSpawner(Spawnable):
 
     def start(self):
         self.iLog("start BEG")
+        self._fatal = False
         self._ioloop.add_callback(self.loop)
         self._ioloop.add_callback(self.init_db)
         self._ioloop.add_callback(self.add_route)
         self._server.listen(self._config.port, address=self._config.access)
         self.iLog("listening to port {}...".format(self._config.port))
-        self._ioloop.start()
-        self.iLog("ioloop is running ...")
-        self._ioloop.close()
+        try:
+            self._ioloop.start()
+            self.iLog("ioloop stopped")
+        except Exception:
+            self.eLog(traceback.format_exc())
+            self._fatal = True
+        finally:
+            try:
+                self._ioloop.close()
+            except Exception:
+                self.eLog(traceback.format_exc())
+        if self._fatal:                 # ← 必须有
+            self.cLog("start END fatal, sys.exit(1)")
+            sys.exit(1)
         self.iLog("start END")
 
     def stop(self):
@@ -480,7 +495,9 @@ class XSpawner(Spawnable):
         except Exception as e:
             self.eLog(f"init_db raise {e}")
             self.cLog("init_db failed, service will be degraded!")
-            self.stop()
+            self._fatal = True          # ← 不是 self.stop()
+            self._server.stop()
+            self._ioloop.stop()
 
     async def use_proxy(self):
         self.iLog("add_route BEG")
