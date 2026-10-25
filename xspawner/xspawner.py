@@ -39,6 +39,7 @@ from .utilities.client import * # NOQA
 from .utilities.msg import * # NOQA
 from .utilities.misc import * # NOQA
 from .constants import * # NOQA
+from .proxy import * #NOQA
 from .orm import * #NOQA
 
 
@@ -223,13 +224,22 @@ class Spawnable(object):
     def getPid(self):
         raise NotImplementedError
 
-    def getAddr(self, port):
+    def getAddr(self):
         raise NotImplementedError
 
     def getLocalAddr(self, port):
         raise NotImplementedError
 
     async def init_db(self):
+        raise NotImplementedError
+
+    async def use_proxy(self):
+        raise NotImplementedError
+
+    async def add_route(self):
+        raise NotImplementedError
+
+    async def del_route(self):
         raise NotImplementedError
 
     async def getValues(self):
@@ -424,6 +434,7 @@ class XSpawner(Spawnable):
         self.iLog("start BEG")
         self._ioloop.add_callback(self.loop)
         self._ioloop.add_callback(self.init_db)
+        self._ioloop.add_callback(self.add_route)
         self._server.listen(self._config.port, address=self._config.access)
         self.iLog("listening to port {}...".format(self._config.port))
         self._ioloop.start()
@@ -434,14 +445,16 @@ class XSpawner(Spawnable):
     def stop(self):
         self.iLog("stop BEG")
         self.cLog("This instance {}:{} is stopping ...".format(self.__class__, self._config.port))
+        self._ioloop.add_callback(self.del_route)
         self._server.stop()
         self._ioloop.stop()
         self.iLog("stop END")
 
-    def getAddr(self, port=None):
-        return "{}:{}".format(
-            self.getHostAddr(),
-            port if port else self._config.port)
+    def getAddr(self):
+        if self.use_proxy:
+            return "{}/xspawner/{}".format(self.getHostAddr(), self._config.id)
+        else:
+            return "{}:{}".format(self.getHostAddr(), self._config.port)
 
     def getLocalAddr(self, port=None):
         return "{}:{}".format(
@@ -467,6 +480,26 @@ class XSpawner(Spawnable):
             self.eLog(f"init_db raise {e}")
             self.cLog("init_db failed, service will be degraded!")
             self.stop()
+
+    async def use_proxy(self):
+        self.iLog("add_route BEG")
+        return (self._config.access == "127.0.0.1") and await caddy_is_running()
+        self.iLog("add_route END")
+
+    async def add_route(self):
+
+        self.iLog("add_route BEG")
+        if self.use_proxy():
+            ok = await caddy_add_route(self._config.id, self._config.port)
+            self.iLog("caddy add route {}:{} {}".format(self._config.id, self._config.port, ok))
+        self.iLog("add_route END")
+
+    async def del_route(self):
+        self.iLog("del_route BEG")
+        if self.use_proxy():
+            ok = await caddy_del_route(self._config.id)
+            self.iLog("caddy del route {} {}".format(self._config.id, ok))
+        self.iLog("del_route END")
 
     async def getValues(self) -> dict:
         self.iLog(f"getValues BEG config={self._config.id}")
@@ -726,6 +759,7 @@ class XSpawner(Spawnable):
 
     def getInfo(self):
         info = self._config._asdict()
+        info["addr"] = self.getAddr()
         info["class"] = self.getClassName()
         info["vsn"] = self.getVersion()
         info["pid"] = self.getPid()
@@ -736,7 +770,7 @@ class XSpawner(Spawnable):
 
     def getHostAddr(self):
         return "{}://{}".format(
-            "https" if self._config.ssl else "http",
+            "https" if self._config.ssl or self.use_proxy() else "http",
             self._config.host
         )
 

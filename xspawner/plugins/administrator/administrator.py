@@ -151,7 +151,6 @@ class Administrator(Spawner): # NOQA
             child = await self.getConfig(child_id)
             if not child:
                 continue
-            public_child_addr = self.getAddr(child.port)
             child_addr = self.getLocalAddr(child.port)
             try:
                 info = await self.postJson(f"{child_addr}/get_info", {})
@@ -166,7 +165,7 @@ class Administrator(Spawner): # NOQA
                 "vsn":  info.get("vsn", "-"),
                 "pid":  info.get("pid", "-"),
                 "time": info.get("start_time", "-"),
-                "addr": public_child_addr,
+                "addr": info.get("addr", "-"),
             })
 
         # ---- 构造表格 ----
@@ -188,7 +187,6 @@ class Administrator(Spawner): # NOQA
             srv_id = r["id"]
             addr_url = "{}/".format(r["addr"])
 
-            # 主服务的标识后面加星
             is_main = (idx == 0)                # 第一行是主服务
             id_display = f'{_esc(srv_id)}' if is_main else _esc(srv_id)
 
