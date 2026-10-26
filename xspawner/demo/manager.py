@@ -2,32 +2,39 @@
 # Copyright © 2025 Song Feng.
 # manager.py
 
-from xspawner.spawner import Spawner          # NOQA
-from xspawner.xspawner import UiHandler       # NOQA
+##############################################################################
+# Libraries
+##############################################################################
 
+import json
+import html
+import traceback
+
+import tornado.gen
 from pywebio import *                          # NOQA
 from pywebio.input import *                    # NOQA
 from pywebio.output import *                   # NOQA
 from pywebio.pin import *                      # NOQA
 from pywebio.session import *                  # NOQA
 
-import json
-import traceback
-import tornado.gen
+from xspawner.spawner import Spawner          # NOQA
+from xspawner.xspawner import UiHandler       # NOQA
 
+
+##############################################################################
+# Constants and Variables
+##############################################################################
 
 # 在 m_state 表中存储 spec 的保留键。
 SPEC_KEY = '__spec__'
 
+# HTML 转义
+_esc = lambda s: html.escape(str(s), quote=True)
 
-def _esc(s):
-    """HTML 转义"""
-    return (str(s)
-            .replace('&', '&amp;')
-            .replace('<', '&lt;')
-            .replace('>', '&gt;')
-            .replace('"', '&quot;'))
 
+##############################################################################
+# Classes
+##############################################################################
 
 class Manager(Spawner):
 

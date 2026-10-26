@@ -1,21 +1,11 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 
-import tornado.ioloop
-import tornado.iostream
-import tornado.gen
-import tornado.queues
-import tornado.concurrent
-import tornado.web
-import tornado.locks
-import tornado.httpserver
-import tornado.httpclient
-import tornado.httputil
-import tornado.tcpclient
-from tortoise.exceptions import DoesNotExist
+##############################################################################
+# Libraries
+##############################################################################
 
-import pywebio.platform.tornado
-
+# Standard Libraries
 import time
 import os
 import sys
@@ -35,17 +25,33 @@ from urllib.parse import urlparse
 from typing import Optional, List, Dict
 from collections import UserDict
 
+# Third Libraries
+import tornado.ioloop
+import tornado.iostream
+import tornado.gen
+import tornado.queues
+import tornado.concurrent
+import tornado.web
+import tornado.locks
+import tornado.httpserver
+import tornado.httpclient
+import tornado.httputil
+import tornado.tcpclient
+from tortoise.exceptions import DoesNotExist
+import pywebio.platform.tornado
+
+# Self Libraries
 from .utilities.log import * # NOQA
 from .utilities.client import * # NOQA
 from .utilities.msg import * # NOQA
 from .utilities.misc import * # NOQA
 from .constants import * # NOQA
-from .proxy import * #NOQA
 from .orm import * #NOQA
+from .proxy import _prefix, caddy_is_running, caddy_find_server_by_site_address, caddy_add_route, caddy_del_route
 
-
-INTERNAL_HANDLERS = ["PingPongHandler", "HomePageHandler", "ResourceHandler"]
-CUSTOMED_HANDLERS = ["ApiHandler", "UiHandler"]
+##############################################################################
+# Classes
+##############################################################################
 
 class PingPongHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("GET",)
@@ -481,7 +487,7 @@ class XSpawner(Spawnable):
             self._config.host
         )
         if self._proxied():
-            return "{}/xspawner/{}".format(host_addr, self._config.id)
+            return "{}{}".format(host_addr, _prefix(self._config.id))
         else:
             return "{}:{}".format(host_addr, self._config.port)
 
@@ -815,43 +821,3 @@ class XSpawner(Spawnable):
             "https" if self._config.ssl else "http",
             "127.0.0.1"
         )
-
-
-def search_for_class_in_file(fpath, class_name):
-    print("search_for_class_in_file BEG {}".format(fpath))
-    if get_file_type(fpath) == "text/x-python":
-        mod_name = path_to_pkg(fpath)
-        srv_cls = get_similar_cls(mod_name, class_name, 1)
-        if srv_cls:
-            print("search_for_class_in_file END {}".format(srv_cls))
-            return srv_cls
-    print("search_for_class_in_file END {}".format(None))
-
-def search_for_class_in_package(fpath, class_name):
-    print("search_for_class_in_package BEG {}".format(fpath))
-    if get_file_type(fpath) == "application/zip":
-        with zipfile.ZipFile(fpath, 'r') as zip_ref:
-            zip_ref.testzip()
-
-            # ── 校验所有条目都在 PLUGIN_DIR 内 ─────────────
-            root = os.path.realpath(PLUGIN_DIR)
-            for entry in zip_ref.namelist():
-                tgt = os.path.realpath(os.path.join(PLUGIN_DIR, entry))
-                if not tgt.startswith(root + os.sep):
-                    print("zip entry escapes: {}".format(entry))
-                    print("search_for_class_in_package END {}".format(None))
-                    return None
-
-            # ── 找到顶层包的 __init__.py 后整体解压 ────────
-            for entry in zip_ref.namelist():
-                print("entry {}".format(entry))
-                if len(entry.split("/")) == 2 and os.path.basename(entry) == "__init__.py":
-                    print("zip contains {}".format(entry))
-                    zip_ref.extractall(PLUGIN_DIR)
-                    print("{} is unzipped .".format(fpath))
-                    pkg_name, _ = entry.split("/")
-                    srv_cls = get_similar_cls(f"{PLUGIN_PKG}.{pkg_name}", class_name, 1)
-                    if srv_cls:
-                        print("search_for_class_in_package END {}".format(srv_cls))
-                        return srv_cls
-    print("search_for_class_in_package END {}".format(None))

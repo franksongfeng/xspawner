@@ -1,20 +1,34 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+# Copyright © 2025 Song Feng.
+
+##############################################################################
+# Libraries
+##############################################################################
+
 import os
 import sys
 import subprocess
-import psutil
 import shutil
 import json
 import re
 import time
 import shlex
-import requests
 import urllib3
+from typing import Optional, Dict, List, Any
+
+import psutil
+import requests
 import tornado.gen
 import tornado.process
 
-from typing import Optional, Dict, List, Any
 from xspawner.constants import Config, LOCAL_DB, LOG_FILE
 from xspawner.utilities.log import Log
+
+
+##############################################################################
+# Constants and Variables and Functions
+##############################################################################
 
 # 屏蔽“内部自调用关闭证书校验”时 urllib3 的 InsecureRequestWarning。
 # 仅影响 verify=False 的调用，外部调用不受影响。

@@ -1,3 +1,11 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+# Copyright © 2025 Song Feng.
+
+##############################################################################
+# Libraries
+##############################################################################
+
 import inspect
 import re
 import os
@@ -5,14 +13,21 @@ import shutil
 import datetime
 import subprocess
 import tempfile
-import aiomysql
-import asyncpg
 from typing import Optional
 from contextlib import asynccontextmanager
+
+import aiomysql
+import asyncpg
 from tortoise.transactions import in_transaction
 from tortoise import Tortoise, fields, models
 from urllib.parse import quote_plus, unquote_plus
+
 from xspawner.constants import Config
+
+
+##############################################################################
+# Constants and Variables and Functions
+##############################################################################
 
 def caller_module(idx=1):
     # stack[0]    caller_module() 自己

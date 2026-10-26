@@ -1,18 +1,9 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 
-from pywebio import *
-from pywebio.input import *
-from pywebio.output import *
-from pywebio.pin import *
-from pywebio.session import *
-from pywebio.utils import *
-from xspawner.service import get_service_status_text_async
-from xspawner.xspawner import * #NOQA
-from xspawner.spawner import * # NOQA
-from xspawner.utilities.misc import * # NOQA
-from xspawner.constants import * # NOQA
-import tornado.gen
+##############################################################################
+# Libraries
+##############################################################################
 
 import io
 import contextlib
@@ -20,18 +11,32 @@ import ast
 import inspect
 import datetime
 import json
+import html
 from decimal import Decimal
 import os
 import traceback
 import tempfile
 
+from pywebio import *
+from pywebio.input import *
+from pywebio.output import *
+from pywebio.pin import *
+from pywebio.session import *
+from pywebio.utils import *
+import tornado.gen
+
+from xspawner.service import get_service_status_text_async
+from xspawner.xspawner import * #NOQA
+from xspawner.spawner import * # NOQA
+from xspawner.utilities.misc import * # NOQA
+from xspawner.constants import * # NOQA
+
 
 ##############################################################################
-# Constants and Variables and Classes
+# Constants
 ##############################################################################
 
 CSS = """
-
 .markdown-table-container {
     border: 1px solid #ddd;
     border-radius: 4px;
@@ -70,6 +75,13 @@ CSS = """
 }
 """
 
+# HTML 转义
+_esc = lambda s: html.escape(str(s), quote=True)
+
+
+##############################################################################
+# Classes
+##############################################################################
 
 class Administrator(Spawner): # NOQA
 
@@ -592,78 +604,46 @@ class Administrator(Spawner): # NOQA
         super().__init__(**kwargs)
 
 
+##############################################################################
+# Functions
+##############################################################################
 
-def get_first_level_json(data, pretty=True):
-    """
-    返回字典第一级属性的 JSON 字符串。
+def search_for_class_in_file(fpath, class_name):
+    print("search_for_class_in_file BEG {}".format(fpath))
+    if get_file_type(fpath) == "text/x-python":
+        mod_name = path_to_pkg(fpath)
+        srv_cls = get_similar_cls(mod_name, class_name, 1)
+        if srv_cls:
+            print("search_for_class_in_file END {}".format(srv_cls))
+            return srv_cls
+    print("search_for_class_in_file END {}".format(None))
 
-    对特殊类型做降级处理：
-      - datetime / date / time  → ISO 字符串
-      - Decimal                 → float
-      - list / tuple / dict     → 递归简化
-      - 其他（函数、模块、对象）→ str(value)，失败则退化为 <类型名>
+def search_for_class_in_package(fpath, class_name):
+    print("search_for_class_in_package BEG {}".format(fpath))
+    if get_file_type(fpath) == "application/zip":
+        with zipfile.ZipFile(fpath, 'r') as zip_ref:
+            zip_ref.testzip()
 
-    参数:
-        data:   字典数据
-        pretty: 是否美化输出（缩进 2 空格）
+            # ── 校验所有条目都在 PLUGIN_DIR 内 ─────────────
+            root = os.path.realpath(PLUGIN_DIR)
+            for entry in zip_ref.namelist():
+                tgt = os.path.realpath(os.path.join(PLUGIN_DIR, entry))
+                if not tgt.startswith(root + os.sep):
+                    print("zip entry escapes: {}".format(entry))
+                    print("search_for_class_in_package END {}".format(None))
+                    return None
 
-    返回:
-        JSON 字符串；若 data 非 dict，返回带 error 字段的 JSON
-    """
-    if not isinstance(data, dict):
-        return json.dumps(
-            {"error": f"input must be dict, got {type(data).__name__}"},
-            indent=2 if pretty else None,
-            ensure_ascii=False,
-        )
+            # ── 找到顶层包的 __init__.py 后整体解压 ────────
+            for entry in zip_ref.namelist():
+                print("entry {}".format(entry))
+                if len(entry.split("/")) == 2 and os.path.basename(entry) == "__init__.py":
+                    print("zip contains {}".format(entry))
+                    zip_ref.extractall(PLUGIN_DIR)
+                    print("{} is unzipped .".format(fpath))
+                    pkg_name, _ = entry.split("/")
+                    srv_cls = get_similar_cls(f"{PLUGIN_PKG}.{pkg_name}", class_name, 1)
+                    if srv_cls:
+                        print("search_for_class_in_package END {}".format(srv_cls))
+                        return srv_cls
+    print("search_for_class_in_package END {}".format(None))
 
-    result = {str(k): _simplify(v) for k, v in data.items()}
-    return json.dumps(
-        result,
-        indent=2 if pretty else None,
-        ensure_ascii=False,
-        default=str,
-    )
-
-
-def _simplify(value):
-    """把单个值简化为可 JSON 序列化的形式。"""
-    # 基本类型（含 None）原样返回
-    if value is None or isinstance(value, (bool, int, float, str)):
-        return value
-
-    # 时间类型 → ISO 字符串
-    if isinstance(value, (datetime.datetime, datetime.date, datetime.time)):
-        return value.isoformat()
-
-    # Decimal → float
-    if isinstance(value, Decimal):
-        return float(value)
-
-    # 容器类型：递归简化；深度异常时退化为类型名
-    if isinstance(value, (list, tuple)):
-        try:
-            return [_simplify(v) for v in value]
-        except Exception:
-            return f"<{type(value).__name__} len={len(value)}>"
-
-    if isinstance(value, dict):
-        try:
-            return {str(k): _simplify(v) for k, v in value.items()}
-        except Exception:
-            return f"<dict len={len(value)}>"
-
-    # 其他类型（函数、模块、自定义对象等）：尝试 str
-    try:
-        return str(value)
-    except Exception:
-        return f"<{type(value).__name__}>"
-
-
-def _esc(s):
-    """HTML 转义"""
-    return (str(s)
-            .replace('&', '&amp;')
-            .replace('<', '&lt;')
-            .replace('>', '&gt;')
-            .replace('"', '&quot;'))

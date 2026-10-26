@@ -1,17 +1,26 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 
+##############################################################################
+# Libraries
+##############################################################################
+
+import traceback
+from collections import defaultdict
+
+import tornado.gen
 from pywebio import config
 from pywebio.input import *
 from pywebio.output import *
 from pywebio.session import *
+
 from xspawner.spawner import Spawner
 from xspawner.xspawner import UiHandler
 
-import tornado.gen
-import traceback
-from collections import defaultdict
 
+##############################################################################
+# Constants
+##############################################################################
 
 CSS = """
 html, body { height: 100%; margin: 0; padding: 0; }
@@ -38,6 +47,9 @@ body { display: flex; flex-direction: column; }
 }
 """
 
+##############################################################################
+# Classes
+##############################################################################
 
 class CMMS(Spawner):  # NOQA
 
@@ -164,6 +176,9 @@ class CMMS(Spawner):  # NOQA
             self._show_help()
 
 
+##############################################################################
+# Functions
+##############################################################################
 
 def getContent():
     return [

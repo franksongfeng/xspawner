@@ -12,13 +12,13 @@ https://example.com {
     # 如果 example.com 没有公网可验证的证书，用 internal CA
     # tls internal
 
-    # 静态注入 /xspawner/admin → 127.0.0.1:8000
-    # redir /xspawner/admin /xspawner/admin/ 308
-    # handle_path /xspawner/admin/* {
+    # 静态注入 /services/admin → 127.0.0.1:8000
+    # redir /services/admin /services/admin/ 308
+    # handle_path /services/admin/* {
     #     reverse_proxy 127.0.0.1:8000
     # }
 
-    # 动态注入的 /xspawner/{app_id}/* 插在这里之前
+    # 动态注入的 /services/{app_id}/* 插在这里之前
 
     # 如果子服务 access 为 0.0.0.0 的话，
     # 未注入的子服务仍可以直连端口 http://example.com:{port}

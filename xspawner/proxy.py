@@ -1,4 +1,11 @@
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
+# Copyright © 2025 Song Feng.
+
+##############################################################################
+# Libraries
+##############################################################################
+
 import json
 import traceback
 from urllib.parse import urlparse
@@ -7,14 +14,18 @@ from typing import Optional
 from tornado.httpclient import AsyncHTTPClient, HTTPRequest
 from tornado.locks import Lock
 
+
+##############################################################################
+# Constants and Variables and Functions
+##############################################################################
+
 # 强制使用 CurlAsyncHTTPClient，解决 SimpleAsyncHTTPClient 的 chunked/trailer 兼容性问题
 AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
 
 CADDY_ADMIN  = "http://127.0.0.1:2019"
-CADDY_PREFIX = "/xspawner"
+CADDY_PREFIX = "/services"
 
 _lock = Lock()                      # tornado.locks.Lock，支持 async with
-
 
 
 async def caddy_find_server_by_site_address(site_address: str) -> Optional[str]:
