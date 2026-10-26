@@ -154,7 +154,7 @@ class Administrator(Spawner): # NOQA
             "vsn":  self.getVersion(),
             "pid":  self.getPid(),
             "time": self.getPidTime(),
-            "addr": self.getAddr(),
+            "addr": await self.getAddr(),
         })
 
         # 子服务依次追加
@@ -224,7 +224,7 @@ class Administrator(Spawner): # NOQA
         put_table(table)
 
         put_html(tab_title.format("操作"))
-        addr = self.getAddr()
+        addr = await self.getAddr()
         funcs = [
             {"name": "创建服务", "url": "{}/create".format(addr)},
             {"name": "销毁服务", "url": "{}/delete".format(addr)},
@@ -552,7 +552,7 @@ class Administrator(Spawner): # NOQA
     async def _debug(self):
 
         async def show_form(init_data):
-            async def open_url(url):
+            def open_url(url):
                 run_js('window.open(url)', url=url)
 
             with use_scope("form_scope", clear=True):
@@ -591,7 +591,7 @@ class Administrator(Spawner): # NOQA
                         data['code'] = ""
                     else:
                         self._dbg_data = data
-                        await open_url(self.getAddr() + "/debug/output")
+                        open_url(await self.getAddr() + "/debug/output")
                     await tornado.gen.sleep(0.2)
                     await show_form(data)
 

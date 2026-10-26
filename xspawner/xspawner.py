@@ -231,16 +231,16 @@ class Spawnable(object):
     def getPid(self):
         raise NotImplementedError
 
-    def getAddr(self):
+    async def getAddr(self):
         raise NotImplementedError
 
     def getLocalAddr(self, port):
         raise NotImplementedError
 
-    async def init_db(self):
+    def use_caddy(self):
         raise NotImplementedError
 
-    async def use_proxy(self):
+    async def init_db(self):
         raise NotImplementedError
 
     async def add_route(self):
@@ -262,6 +262,9 @@ class Spawnable(object):
         raise NotImplementedError
 
     async def getConfigs(self):
+        raise NotImplementedError
+
+    async def getRootConfig(self):
         raise NotImplementedError
 
     async def getConfig(self, id):
@@ -481,19 +484,25 @@ class XSpawner(Spawnable):
         self._ioloop.add_callback(_shutdown)
         self.iLog("stop END")
 
-    def getAddr(self):
+    async def getAddr(self):
         host_addr = "{}://{}".format(
-            "https" if self._config.ssl or self._proxied() else "http",
+            "https" if self._proxied() else "http",
             self._config.host
         )
         if self._proxied():
-            return "{}{}".format(host_addr, _prefix(self._config.id))
+            scheme = "https"
+            if self.use_caddy():
+                return "{}://{}{}".format(scheme, self._config.host, _prefix(self._config.id))
+            else:
+                return "{}://{}:{}".format(scheme, self._config.host, self._config.port)
         else:
-            return "{}:{}".format(host_addr, self._config.port)
+            scheme = "http"
+            return "{}://{}:{}".format(scheme, self._config.host, self._config.port)
+
 
     def getLocalAddr(self, port=None):
-        return "{}:{}".format(
-            self.getLocalHostAddr(),
+        return "{}://127.0.0.1:{}".format(
+            "https" if self._proxied() and not self.use_caddy() else "http",
             port if port is not None else self._config.port)
 
     def getPid(self):
@@ -518,35 +527,40 @@ class XSpawner(Spawnable):
             self._ioloop.stop()
 
     def _proxied(self) -> bool:
-        """同步判断是否经 caddy 暴露（不探测 caddy 是否在跑）。"""
-        return self._config.access == "127.0.0.1" and not self._config.ssl
+        return self._config.ssl
 
-    async def use_proxy(self):
-        self.iLog("use_proxy BEG")
-        res = self._proxied() and await caddy_is_running()
-        self.iLog(f"use_proxy END {res}")
+    def use_caddy(self):
+        self.iLog("use_caddy BEG")
+        res = self._proxied() and (not self._config.certfile) and (not self._config.keyfile)
+        self.iLog(f"use_caddy END {res}")
         return res
 
     async def add_route(self):
         self.iLog("add_route BEG")
-        if await self.use_proxy():
-            caddy_server = await caddy_find_server_by_site_address(self._config.host)
-            if caddy_server:
-                ok = await caddy_add_route(caddy_server, self._config.id, self._config.port)
-                self.iLog("caddy add route {}:{} {}".format(self._config.id, self._config.port, ok))
+        if self.use_caddy():
+            if await caddy_is_running():
+                caddy_server = await caddy_find_server_by_site_address(self._config.host)
+                if caddy_server:
+                    ok = await caddy_add_route(caddy_server, self._config.id, self._config.port)
+                    self.iLog("caddy add route {}:{} {}".format(self._config.id, self._config.port, ok))
+                else:
+                    self.eLog("failed to find caddy server for host {}".format(self._config.host))
             else:
-                self.eLog("failed to find caddy server for host {}".format(self._config.host))
+                raise Exception("Caddy is out of work!")
         self.iLog("add_route END")
 
     async def del_route(self):
         self.iLog("del_route BEG")
-        if await self.use_proxy():
-            caddy_server = await caddy_find_server_by_site_address(self._config.host)
-            if caddy_server:
-                ok = await caddy_del_route(caddy_server, self._config.id)
-                self.iLog("caddy del route {} {}".format(self._config.id, ok))
+        if self.use_caddy():
+            if await caddy_is_running():
+                caddy_server = await caddy_find_server_by_site_address(self._config.host)
+                if caddy_server:
+                    ok = await caddy_del_route(caddy_server, self._config.id)
+                    self.iLog("caddy del route {} {}".format(self._config.id, ok))
+                else:
+                    self.eLog("failed to find caddy server for host {}".format(self._config.host))
             else:
-                self.eLog("failed to find caddy server for host {}".format(self._config.host))
+                raise Exception("Caddy is out of work!")
         self.iLog("del_route END")
 
     async def getValues(self) -> dict:
@@ -632,6 +646,31 @@ class XSpawner(Spawnable):
         except Exception as e:
             self.eLog(f'getConfigs EXP {e}')
             return None
+
+
+    async def getRootConfig(self) -> Optional[Config]:
+        """
+        沿 parent 链向上查找，返回服务集群根节点的 Config。
+
+        - 当前实例本身就是根（parent 为空）时，返回 self._config
+        - 链上某个 parent 在 DB 中不存在时，返回 None（并记 error 日志）
+        - 出现环（A→B→A）时，返回 None（并记 error 日志）
+        """
+        cur = self._config
+        seen = {cur.id}
+        while cur.parent:
+            nxt = await self.getConfig(cur.parent)
+            if not nxt:
+                self.eLog("getRootConfig: parent '{}' of '{}' not found".format(
+                    cur.parent, cur.id))
+                return None
+            if nxt.id in seen:
+                self.eLog("getRootConfig: cycle detected at '{}'".format(nxt.id))
+                return None
+            seen.add(nxt.id)
+            cur = nxt
+        return cur
+
 
     async def getConfig(self, id: str) -> Optional[Config]:
         self.iLog(f"getConfig BEG {id}")
@@ -805,9 +844,9 @@ class XSpawner(Spawnable):
                 return vsn_mod.__version__
         return "undefined"
 
-    def getInfo(self):
+    async def getInfo(self):
         info = self._config._asdict()
-        info["addr"] = self.getAddr()
+        info["addr"] = await self.getAddr()
         info["class"] = self.getClassName()
         info["vsn"] = self.getVersion()
         info["pid"] = self.getPid()
@@ -815,9 +854,3 @@ class XSpawner(Spawnable):
         info["work_dir"] = getWorkDir()
         info["logfile"] = self.getLogFile()
         return info
-
-    def getLocalHostAddr(self):
-        return "{}://{}".format(
-            "https" if self._config.ssl else "http",
-            "127.0.0.1"
-        )

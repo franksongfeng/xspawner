@@ -385,7 +385,7 @@ class Spawner(XSpawner): # NOQA
 
     @ApiHandler.route("/get_info")
     async def _get_info(self, headers: dict, data: dict):
-        return self.getInfo()
+        return await self.getInfo()
 
 
     def __init__(self, **kwargs):
