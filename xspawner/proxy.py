@@ -52,7 +52,7 @@ async def caddy_find_server_by_site_address(site_address: str) -> Optional[str]:
     return None
 
 
-def _extract_domain(site_address: str) -> Optional[str]
+def _extract_domain(site_address: str) -> Optional[str]:
     """
     从站点地址中提取域名。
     支持 "https://example.com"、"http://example.com"、"example.com"、":443" 等形式。
