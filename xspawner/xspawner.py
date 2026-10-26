@@ -588,7 +588,7 @@ class XSpawner(Spawnable):
         try:
             model = await StateModel.get_or_none(
                 key=key,
-                cfg_id=self._config.id
+                config_id=self._config.id
             )
             if model:
                 model.value = value
