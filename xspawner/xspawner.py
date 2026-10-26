@@ -171,6 +171,66 @@ class UiHandler:
         return decorator
 
 
+class ProxyHandler(tornado.web.RequestHandler):
+    SUPPORTED_METHODS = ("GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS")
+
+    async def _proxy(self, method):
+        gServer = XSpawner.getServer()
+        if not gServer._proxied():
+            self.set_status(404)
+            self.write("Not Found")
+            return
+        srv_id = self.path_args[0]
+        rest = self.path_args[1] or ""
+        child = await gServer.getConfig(srv_id)
+        if not child:
+            self.set_status(404)
+            self.write("Not Found")
+            return
+        scheme = self.request.protocol
+        upstream = "{}://127.0.0.1:{}/{}".format(scheme, child.port, rest)
+        if self.request.query:
+            upstream += "?" + self.request.query
+        headers = {k: v for k, v in self.request.headers.items()
+                   if k.lower() not in ("host", "content-length")}
+        headers["X-Forwarded-For"] = self.request.remote_ip
+        headers["X-Forwarded-Proto"] = self.request.protocol
+        headers["X-Forwarded-Host"] = self.request.host
+        try:
+            resp = await tornado.httpclient.AsyncHTTPClient().fetch(
+                upstream, method=method, headers=headers,
+                body=self.request.body or None,
+                follow_redirects=False, raise_error=False,
+                validate_cert=False, request_timeout=60)
+        except Exception as e:
+            gServer.eLog("proxy {} {} failed: {}".format(method, srv_id, e))
+            self.set_status(502)
+            self.write("Bad Gateway")
+            return
+        self.set_status(resp.code)
+        for k, v in resp.headers.items():
+            if k.lower() in ("content-length", "transfer-encoding", "connection"):
+                continue
+            self.set_header(k, v)
+        if resp.body:
+            self.write(resp.body)
+        self.finish()
+
+    async def get(self, srv_id, rest):
+        await self._proxy("GET")
+    async def post(self, srv_id, rest):
+        await self._proxy("POST")
+    async def put(self, srv_id, rest):
+        await self._proxy("PUT")
+    async def delete(self, srv_id, rest):
+        await self._proxy("DELETE")
+    async def patch(self, srv_id, rest):
+        await self._proxy("PATCH")
+    async def head(self, srv_id, rest):
+        await self._proxy("HEAD")
+    async def options(self, srv_id, rest):
+        await self._proxy("OPTIONS")
+
 
 class State(UserDict):
     SerializableTypes = (str, int, float, bool, type(None))
@@ -207,62 +267,6 @@ class State(UserDict):
             raise TypeError(
                 f"{type(value)} is not JSON serializable, just allow {self.SerializableTypes}"
             )
-
-
-
-class ProxyHandler(tornado.web.RequestHandler):
-    SUPPORTED_METHODS = ("GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS")
-
-    async def _proxy(self, method):
-        gServer = XSpawner.getServer()
-        if not gServer._proxied():
-            self.set_status(404); self.write("Not Found"); return
-        srv_id = self.path_args[0]
-        rest = self.path_args[1] or ""
-        child = await gServer.getConfig(srv_id)
-        if not child:
-            self.set_status(404); self.write("Not Found"); return
-        scheme = self.request.protocol
-        upstream = "{}://127.0.0.1:{}/{}".format(scheme, child.port, rest)
-        if self.request.query:
-            upstream += "?" + self.request.query
-        headers = {k: v for k, v in self.request.headers.items()
-                   if k.lower() not in ("host", "content-length")}
-        headers["X-Forwarded-For"] = self.request.remote_ip
-        headers["X-Forwarded-Proto"] = self.request.protocol
-        headers["X-Forwarded-Host"] = self.request.host
-        try:
-            resp = await tornado.httpclient.AsyncHTTPClient().fetch(
-                upstream, method=method, headers=headers,
-                body=self.request.body or None,
-                follow_redirects=False, raise_error=False,
-                validate_cert=False, request_timeout=60)
-        except Exception as e:
-            gServer.eLog("proxy {} {} failed: {}".format(method, srv_id, e))
-            self.set_status(502); self.write("Bad Gateway"); return
-        self.set_status(resp.code)
-        for k, v in resp.headers.items():
-            if k.lower() in ("content-length", "transfer-encoding", "connection"):
-                continue
-            self.set_header(k, v)
-        if resp.body:
-            self.write(resp.body)
-        self.finish()
-
-    async def get(self, srv_id, rest):
-        await self._proxy("GET")
-    async def post(self, srv_id, rest):
-        await self._proxy("POST")
-    async def put(self, srv_id, rest):
-        await self._proxy("PUT")
-    async def delete(self, srv_id, rest):
-        await self._proxy("DELETE")
-    async def patch(self, srv_id, rest):
-        await self._proxy("PATCH")
-    async def head(self, srv_id, rest):
-        await self._proxy("HEAD")
-    async def options(self, srv_id, rest):
-        await self._proxy("OPTIONS")
 
 
 class SrvJSONEncoder(json.JSONEncoder):
