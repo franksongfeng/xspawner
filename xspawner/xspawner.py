@@ -176,10 +176,7 @@ class ProxyHandler(tornado.web.RequestHandler):
 
     async def _proxy(self, method):
         gServer = XSpawner.getServer()
-        if not gServer._proxied():
-            self.set_status(404)
-            self.write("Not Found")
-            return
+        gServer.iLog(f"ProxyHandler._proxy BEG {method} {self.path_args} proxied={gServer._proxied()} use_caddy={gServer.use_caddy()}")
         srv_id = self.path_args[0]
         rest = self.path_args[1] or ""
         child = await gServer.getConfig(srv_id)
@@ -215,6 +212,7 @@ class ProxyHandler(tornado.web.RequestHandler):
         if resp.body:
             self.write(resp.body)
         self.finish()
+        gServer.iLog(f"ProxyHandler._proxy END {resp.body}")
 
     async def get(self, srv_id, rest):
         await self._proxy("GET")
@@ -547,33 +545,37 @@ class XSpawner(Spawnable):
         self.iLog("stop END")
 
     async def getAddr(self):
-        host_addr = "{}://{}".format(
-            "https" if self._proxied() else "http",
-            self._config.host
-        )
-        if self._proxied():
-            scheme = "https"
-            if self.use_caddy():
-                return "{}://{}{}".format(scheme, self._config.host, _prefix(self._config.id))
-            else:
-                if self._config.parent:
-                    root = await self.getRootConfig()
-                    if root:
-                        return "{}://{}:{}{}".format(scheme, self._config.host, root.port, _prefix(self._config.id))
-                    else:
-                        raise Exception("No root service found! from {}".format(self._config.id))
-                else:
-                    # administrator self
-                    return "{}://{}:{}".format(scheme, self._config.host, self._config.port)
+        self.iLog("getAddr BEG")
+        root = await self.getRootConfig()
+        if not root:
+            self.cLog("No root config found! from {}".format(self._config.id))
+            raise Exception("No root config found! from {}".format(self._config.id))
+        self.iLog(f"root: {root}")
+        scheme = "https" if self._proxied() else "http"
+        host_addr = "{}://{}".format(scheme, self._config.host)
+        if self.use_caddy():
+            # addr like https://HOST/services/ID
+            addr = "{}{}".format(host_addr, _prefix(self._config.id))
         else:
-            scheme = "http"
-            return "{}://{}:{}".format(scheme, self._config.host, self._config.port)
-
+            if self._proxied():
+                # addr like https://HOST:ROOT_PORT/services/ID
+                addr = "{}:{}{}".format(host_addr, root.port, _prefix(self._config.id))
+            else:    
+                if self._config.parent:
+                    addr = "{}:{}{}".format(host_addr, root.port, _prefix(self._config.id))
+                else:
+                    # root service
+                    addr = "{}:{}".format(host_addr, root.port)
+        return addr
+        self.iLog(f"getAddr END {addr}")
 
     def getLocalAddr(self, port=None):
-        return "{}://127.0.0.1:{}".format(
+        self.iLog(f"getLocalAddr BEG {port}")
+        addr = "{}://127.0.0.1:{}".format(
             "https" if self._proxied() and not self.use_caddy() else "http",
             port if port is not None else self._config.port)
+        self.iLog(f"getLocalAddr END")
+        return addr
 
     def getPid(self):
         return os.getpid()
@@ -726,19 +728,20 @@ class XSpawner(Spawnable):
         - 链上某个 parent 在 DB 中不存在时，返回 None（并记 error 日志）
         - 出现环（A→B→A）时，返回 None（并记 error 日志）
         """
+        self.iLog("getRootConfig BEG")
         cur = self._config
         seen = {cur.id}
         while cur.parent:
             nxt = await self.getConfig(cur.parent)
             if not nxt:
-                self.eLog("getRootConfig: parent '{}' of '{}' not found".format(
-                    cur.parent, cur.id))
+                self.eLog("getRootConfig EXP: parent '{}' of '{}' not found".format(cur.parent, cur.id))
                 return None
             if nxt.id in seen:
-                self.eLog("getRootConfig: cycle detected at '{}'".format(nxt.id))
+                self.eLog("getRootConfig EXP: cycle detected at '{}'".format(nxt.id))
                 return None
             seen.add(nxt.id)
             cur = nxt
+        self.iLog(f"getRootConfig END {cur}")
         return cur
 
 
@@ -810,7 +813,7 @@ class XSpawner(Spawnable):
             self.iLog(f"getChildren END {ids}")
             return ids
         except Exception as e:
-            self.eLog(f'getChildren EXP {e}')
+            self.eLog(f'getChildren EXP: {e}')
             return []
 
 
