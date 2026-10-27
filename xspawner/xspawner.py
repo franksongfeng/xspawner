@@ -182,7 +182,7 @@ class ProxyHandler(tornado.web.RequestHandler):
         child = await gServer.getConfig(srv_id)
         if not child:
             self.set_status(404)
-            self.write("Not Found")
+            self.write("Not Found Config of {srv_id}")
             return
         scheme = self.request.protocol
         upstream = "{}://127.0.0.1:{}/{}".format(scheme, child.port, rest)
