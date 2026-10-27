@@ -4,6 +4,7 @@
 
 
 SYSTEM_ID = "xspawner"
+WORKING_DIR = "/opt/xspawner"
 PLUGIN_PKG = f"{SYSTEM_ID}.plugins"
 PLUGIN_DIR = f"{SYSTEM_ID}/plugins"
 RES_DIR_TEMP = PLUGIN_DIR + "/{}/static"

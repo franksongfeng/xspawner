@@ -22,7 +22,7 @@ import requests
 import tornado.gen
 import tornado.process
 
-from xspawner.constants import Config, LOCAL_DB, LOG_FILE
+from xspawner.constants import Config, WORKING_DIR, LOCAL_DB, LOG_FILE
 from xspawner.utilities.log import Log
 
 
@@ -34,7 +34,6 @@ from xspawner.utilities.log import Log
 # 仅影响 verify=False 的调用，外部调用不受影响。
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-WORKING_DIR = "/opt/xspawner"
 SERVICE_DIR = "/etc/systemd/system"
 SERVICE_TMPL = """
 [Unit]
@@ -489,9 +488,10 @@ if __name__ == "__main__":
 
             cfg = Config(**data)
 
-            # 内部自调用用（避免 NAT 回环；HTTPS 时关闭证书校验）
-            local_url = get_local_url(cfg.port, cfg.ssl)
-            local_verify = get_local_verify(cfg.ssl)
+            # 内部自调用用（避免 NAT 回环；当内部 HTTPS 时关闭证书校验）
+            local_ssl = cfg.ssl and cfg.certfile and cfg.keyfile
+            local_url = get_local_url(cfg.port, local_ssl)
+            local_verify = get_local_verify(local_ssl)
 
             srv_id = cfg.id
             sts = get_service_status(srv_id)
