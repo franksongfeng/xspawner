@@ -171,12 +171,16 @@ class UiHandler:
         return decorator
 
 
+# ProxyHandler的使用方法：在 handlers 中添加 (r"/services/([^/]+)/?(.*)", ProxyHandler)
+# 注意： ProxyHandler 只能处理普通 HTTP 请求, 不适合 SSE /WebSocket 类长连接端点, 
+# 此类长连接页面要么直接访问，要么让真正的反向代理（Caddy/Nginx）做透明转发。
+
 class ProxyHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS")
 
     async def _proxy(self, method):
         gServer = XSpawner.getServer()
-        gServer.iLog(f"ProxyHandler._proxy BEG {method} {self.path_args} https={gServer._config.ssl} use_caddy={gServer.use_caddy()}")
+        gServer.iLog(f"ProxyHandler._proxy BEG {method} {self.path_args} use_caddy={gServer.use_caddy()}")
         srv_id = self.path_args[0]
         rest = self.path_args[1] or ""
         child = await gServer.getConfig(srv_id)
@@ -244,7 +248,7 @@ class Spawnable(object):
     def getPid(self):
         raise NotImplementedError
 
-    async def getAddr(self):
+    def getAddr(self):
         raise NotImplementedError
 
     def getLocalAddr(self, port):
@@ -338,8 +342,7 @@ class XSpawner(Spawnable):
         handlers.extend([
             (r"/", HomePageHandler),
             (r"/static/(.*)", ResourceHandler, {"path": RES_DIR_TEMP.format(config.plugin)}),
-            (r"/ping", PingPongHandler),
-            (r"/services/([^/]+)/?(.*)", ProxyHandler)
+            (r"/ping", PingPongHandler)
         ])
         # start http server
         app = tornado.web.Application(
@@ -498,30 +501,17 @@ class XSpawner(Spawnable):
         self._ioloop.add_callback(_shutdown)
         self.iLog("stop END")
 
-    async def getAddr(self):
+    def getAddr(self):
         self.iLog("getAddr BEG")
-        root = await self.getRootConfig()
-        if not root:
-            self.cLog("No root config found! from {}".format(self._config.id))
-            raise Exception("No root config found! from {}".format(self._config.id))
-        self.iLog(f"root: {root}")
         scheme = "https" if self._config.ssl else "http"
         host_addr = "{}://{}".format(scheme, self._config.host)
         if self.use_caddy():
             # addr like https://HOST/services/ID
             addr = "{}{}".format(host_addr, _prefix(self._config.id))
         else:
-            if self._config.ssl:
-                # addr like https://HOST:ROOT_PORT/services/ID
-                addr = "{}:{}{}".format(host_addr, root.port, _prefix(self._config.id))
-            else:    
-                if self._config.parent:
-                    addr = "{}:{}{}".format(host_addr, root.port, _prefix(self._config.id))
-                else:
-                    # root service
-                    addr = "{}:{}".format(host_addr, root.port)
-        return addr
+            addr = "{}:{}".format(host_addr, self._config.port)
         self.iLog(f"getAddr END {addr}")
+        return addr
 
     def getLocalAddr(self, port=None):
         self.iLog(f"getLocalAddr BEG {port}")
@@ -868,9 +858,9 @@ class XSpawner(Spawnable):
                 return vsn_mod.__version__
         return "undefined"
 
-    async def getInfo(self):
+    def getInfo(self):
         info = self._config._asdict()
-        info["addr"] = await self.getAddr()
+        info["addr"] = self.getAddr()
         info["class"] = self.getClassName()
         info["vsn"] = self.getVersion()
         info["pid"] = self.getPid()
