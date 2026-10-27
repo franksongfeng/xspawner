@@ -212,7 +212,7 @@ class ProxyHandler(tornado.web.RequestHandler):
         if resp.body:
             self.write(resp.body)
         self.finish()
-        gServer.iLog(f"ProxyHandler._proxy END {resp.body}")
+        gServer.iLog("ProxyHandler._proxy END")
 
     async def get(self, srv_id, rest):
         await self._proxy("GET")
