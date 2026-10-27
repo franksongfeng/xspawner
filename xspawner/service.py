@@ -510,7 +510,7 @@ if __name__ == "__main__":
                     print(f"Service {srv_id} is started, and its "
                           f"descendants will be started in turn.")
                     logs = get_service_logs(srv_id)
-                    logger.info(f"Systemed service logs for {srv_id}:\n{logs}")
+                    print(f"Systemed logs for service {srv_id}:\n{logs}")
 
                     # 内部调用一律走 local_url + local_verify
                     child_ids = requests.post(
@@ -537,7 +537,7 @@ if __name__ == "__main__":
                     sys.exit(1)
                 close_service(srv_id)
                 logs = get_service_logs(srv_id)
-                logger.info(f"Systemed service logs for {srv_id}:\n{logs}")
+                print(f"Systemed logs for service {srv_id}:\n{logs}")
                 logger.info(f"Service {srv_id} and its descendants are stopped.")
                 print(f"Service {srv_id} and its descendants are stopped.")
 
@@ -621,7 +621,7 @@ if __name__ == "__main__":
 
                 if close_service(srv_id):
                     logs = get_service_logs(srv_id)
-                    logger.info(f"Systemed service logs for {srv_id}:\n{logs}")
+                    print(f"Systemed logs for service {srv_id}:\n{logs}")
                     if not wait_for_service_stopped(srv_id, timeout=30):
                         logger.warning(f"Warning: service {srv_id} still "
                                        f"not fully stopped, "
