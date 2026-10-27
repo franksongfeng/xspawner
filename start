@@ -2,9 +2,6 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 
-mkdir -p \
-    /var/log/xspawner
-
 # open xspawner service
 python3 -m xspawner.service start ./config.json
 

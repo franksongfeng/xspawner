@@ -305,7 +305,7 @@ ENV HOST=xspawner.com \
     SEVERITY=info
 
 # ── 目录与代码 ─────────────────────────────────────────────────────────
-RUN mkdir -p /var/log/xspawner /opt/xspawner /etc/ssl/private /etc/caddy
+RUN mkdir -p /opt/xspawner /etc/ssl/certs /etc/ssl/private /etc/caddy
 
 WORKDIR /opt/xspawner
 
@@ -455,8 +455,7 @@ docker run -d --name xspawner \
     -p 80:80 -p 443:443 \
     -v xspawner-cert:/etc/ssl/certs \
     -v xspawner-key:/etc/ssl/private \
-    -v xspawner-caddy:/data \
-    -v xspawner-log:/var/log/xspawner \
+    -v xspawner-caddy:/etc/caddy \
     xspawner:latest
 ```
 

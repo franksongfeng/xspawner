@@ -82,7 +82,6 @@ EXPOSE 8000-9000
 
 # Create necessary directories and account
 RUN mkdir -p \
-    /var/log/xspawner \
     /opt/xspawner
 
 # Set working directory
