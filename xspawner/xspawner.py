@@ -176,7 +176,7 @@ class ProxyHandler(tornado.web.RequestHandler):
 
     async def _proxy(self, method):
         gServer = XSpawner.getServer()
-        gServer.iLog(f"ProxyHandler._proxy BEG {method} {self.path_args} proxied={gServer._proxied()} use_caddy={gServer.use_caddy()}")
+        gServer.iLog(f"ProxyHandler._proxy BEG {method} {self.path_args} https={gServer._config.ssl} use_caddy={gServer.use_caddy()}")
         srv_id = self.path_args[0]
         rest = self.path_args[1] or ""
         child = await gServer.getConfig(srv_id)
@@ -551,13 +551,13 @@ class XSpawner(Spawnable):
             self.cLog("No root config found! from {}".format(self._config.id))
             raise Exception("No root config found! from {}".format(self._config.id))
         self.iLog(f"root: {root}")
-        scheme = "https" if self._proxied() else "http"
+        scheme = "https" if self._config.ssl else "http"
         host_addr = "{}://{}".format(scheme, self._config.host)
         if self.use_caddy():
             # addr like https://HOST/services/ID
             addr = "{}{}".format(host_addr, _prefix(self._config.id))
         else:
-            if self._proxied():
+            if self._config.ssl:
                 # addr like https://HOST:ROOT_PORT/services/ID
                 addr = "{}:{}{}".format(host_addr, root.port, _prefix(self._config.id))
             else:    
@@ -572,7 +572,7 @@ class XSpawner(Spawnable):
     def getLocalAddr(self, port=None):
         self.iLog(f"getLocalAddr BEG {port}")
         addr = "{}://127.0.0.1:{}".format(
-            "https" if self._proxied() and not self.use_caddy() else "http",
+            "https" if self._config.ssl and not self.use_caddy() else "http",
             port if port is not None else self._config.port)
         self.iLog(f"getLocalAddr END")
         return addr
@@ -598,12 +598,9 @@ class XSpawner(Spawnable):
             self._server.stop()
             self._ioloop.stop()
 
-    def _proxied(self) -> bool:
-        return self._config.ssl
-
     def use_caddy(self):
         self.iLog("use_caddy BEG")
-        res = self._proxied() and (not self._config.certfile) and (not self._config.keyfile)
+        res = self._config.ssl and (not self._config.certfile) and (not self._config.keyfile)
         self.iLog(f"use_caddy END {res}")
         return res
 
