@@ -508,8 +508,8 @@ if __name__ == "__main__":
                                      f"become ready in time")
                         sys.exit(1)
                     print(f"Service {srv_id} is started, and its "
-                          f"descendants will be started in turn.")
-                    logs = get_service_logs(srv_id)
+                          f"descendants will be started in turn.\n")
+                    logs = get_service_logs(srv_id, 10)
                     print(f"Systemed logs for service {srv_id}:\n{logs}")
 
                     # 内部调用一律走 local_url + local_verify
@@ -533,10 +533,10 @@ if __name__ == "__main__":
                 logger.info(f"stop {srv_id} ...")
                 if sts.get("ActiveState") != "active":
                     logger.warning(f"Warning: service {srv_id} is not running!")
-                    print(f"Service {srv_id} is not running!")
+                    print(f"Service {srv_id} is not running!\n")
                     sys.exit(1)
                 close_service(srv_id)
-                logs = get_service_logs(srv_id)
+                logs = get_service_logs(srv_id, 10)
                 print(f"Systemed logs for service {srv_id}:\n{logs}")
                 logger.info(f"Service {srv_id} and its descendants are stopped.")
                 print(f"Service {srv_id} and its descendants are stopped.")
@@ -620,7 +620,7 @@ if __name__ == "__main__":
                     verify=local_verify)
 
                 if close_service(srv_id):
-                    logs = get_service_logs(srv_id)
+                    logs = get_service_logs(srv_id, 10)
                     print(f"Systemed logs for service {srv_id}:\n{logs}")
                     if not wait_for_service_stopped(srv_id, timeout=30):
                         logger.warning(f"Warning: service {srv_id} still "
