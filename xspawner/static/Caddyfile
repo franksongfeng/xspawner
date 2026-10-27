@@ -3,7 +3,7 @@
 }
 
 
-https://xspawner.com {
+https://example.com {
 
 
     # 动态注入的 /services/{srv_id}/* 插在这里之前
