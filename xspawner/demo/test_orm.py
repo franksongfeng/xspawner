@@ -21,7 +21,7 @@ class Tab123(models.Model):
     w  = fields.BooleanField(null=True)
 
 
-class TestOrm(Spawner):
+class TestORM(Spawner):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
