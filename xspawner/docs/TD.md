@@ -192,11 +192,11 @@ keyfile=/etc/ssl/private/xspawner.com.key
 >
 > ssl/certfile/keyfile的不同设置决定了web服务的不同形式：不同的访问地址，以及是否使用caddy代理。
 >
-> | ssl  | certfile | keyfile | access    | host | 意义                                         | （外部）访问地址       | 本机访问地址           |
-> | ---- | -------- | ------- | --------- | ---- | -------------------------------------------- | ---------------------- | ---------------------- |
-> | 假   | 空       | 空      | 0.0.0.0   | IP   | 局域网HTTP服务                               | http://IP:PORT         | http://127.0.0.1:PORT  |
-> | 真   | 真       | 真      | 0.0.0.0   | IP   | 局域网HTTPS服务                              | https://IP:PORT        | https://127.0.0.1:PORT |
-> | 真   | 空       | 空      | 127.0.0.1 | DN   | 广域网HTTPS服务及反向代理<br />（使用caddy） | https://DN/services/ID | http://127.0.0.1:PORT  |
+> | ssl  | certfile | keyfile | access    | host | 意义                                                         | （外部）访问地址       | 本机访问地址           |
+> | ---- | -------- | ------- | --------- | ---- | ------------------------------------------------------------ | ---------------------- | ---------------------- |
+> | 假   | 空       | 空      | 0.0.0.0   | IP   | 局域网HTTP服务                                               | http://IP:PORT         | http://127.0.0.1:PORT  |
+> | 真   | 真       | 真      | 0.0.0.0   | IP   | 局域网HTTPS服务（专有证书）                                  | https://IP:PORT        | https://127.0.0.1:PORT |
+> | 真   | 空       | 空      | 127.0.0.1 | DN   | 广域网HTTPS服务<br />（caddy申请免费证书并反向代理服务路由） | https://DN/services/ID | http://127.0.0.1:PORT  |
 >
 > 自有证书一般存放在
 >
@@ -208,7 +208,7 @@ keyfile=/etc/ssl/private/xspawner.com.key
 > Caddy支持自动向Let's Encript 申请免费证书，分发的免费证书的存储路径可能如下
 >
 > ```
-> /var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/xspawner.com/
+> /var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/{DN}/
 > ```
 >
 > Caddy的典型配置（在真实域名 + 公网可达场景下）
@@ -218,7 +218,7 @@ keyfile=/etc/ssl/private/xspawner.com.key
 >  admin 127.0.0.1:2019
 > }
 > 
-> xspawner.com {
+> {DN} {
 >  # tls <certfile> <keyfile>
 >  root * /usr/share/caddy
 >  file_server
