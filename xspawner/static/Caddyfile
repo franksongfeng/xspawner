@@ -5,8 +5,13 @@
 
 https://example.com {
 
+    # 根路径精确跳转到 /service/main
+    redir / /service/main 302
 
     # 动态注入的 /services/{srv_id}/* 插在这里之前
+
+    # 未匹配的路径反代到特定端口服务
+    # reverse_proxy 127.0.0.1:10000
 
     # 未匹配的路径一律 404
     handle {

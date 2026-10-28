@@ -44,9 +44,9 @@ classDiagram
 ```
 
 - **Spawnable**: 应用或者服务的基础接口
-- **XSpawner**: 实现了Spawnable的接口，系统启动入口类
-- **Spawner**: 具有了服务管理功能，是所有插件的基类
-- **Administrator**: 可视化管理插件
+- **XSpawner**: 实现了Web请求调度核心功能
+- **Spawner**: 具有了子服务管理功能，是所有插件的基类
+- **Administrator**: 子服务管理插件
 
 ## 系统架构
 
@@ -132,11 +132,13 @@ config.json内容如下
     "severity": "debug",
     "ssl": true,
     "certfile": "/etc/ssl/certs/xspawner.com.crt",
-    "keyfile": "/etc/ssl/private/xspawner.com.key"
+    "keyfile": "/etc/ssl/private/xspawner.com.key",
+    "libs": "",
+    "additional": ""
 }
 ```
 
-或可采用另一种配置文件格式: xspawner.ini
+未来将同时支持INI格式配置文件: config.ini
 
 ```ini
 [DEFAULT]
@@ -146,6 +148,8 @@ host=xspawner.com
 port=8000
 access=0.0.0.0
 parent=
+libs=
+additional=
 
 [log]
 severity=debug
@@ -445,10 +449,15 @@ sudo apt-get install -y caddy
 }
 
 
-{具体的域名} {
+https://example.com {
 
+    # 根路径精确跳转到 /service/main
+    redir / /service/main 302
 
     # 动态注入的 /services/{srv_id}/* 插在这里之前
+
+    # 未匹配的路径反代到特定端口服务
+    # reverse_proxy 127.0.0.1:10000
 
     # 未匹配的路径一律 404
     handle {
