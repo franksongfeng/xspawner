@@ -22,7 +22,7 @@ import requests
 import tornado.gen
 import tornado.process
 
-from xspawner.constants import Config, WORKING_DIR, LOCAL_DB, LOG_FILE
+from xspawner.constants import Config, LOCAL_DB, LOG_FILE, SUITE_ID
 from xspawner.utilities.log import Log
 
 
@@ -30,14 +30,12 @@ from xspawner.utilities.log import Log
 # Constants and Variables and Functions
 ##############################################################################
 
-# 屏蔽“内部自调用关闭证书校验”时 urllib3 的 InsecureRequestWarning。
-# 仅影响 verify=False 的调用，外部调用不受影响。
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 SERVICE_DIR = "/etc/systemd/system"
 SERVICE_TMPL = """
 [Unit]
-Description={} service
+Description={}
 After={}
 Requires={}
 PartOf={}
@@ -63,7 +61,6 @@ StandardError=journal
 WantedBy=multi-user.target
 """
 
-# 包名 + extras + 版本约束；拒绝以 '-' 开头的 pip 选项注入
 PIP_PKG_RE = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9_.\-]*"
     r"(?:\[[A-Za-z0-9_.\-,]+\])?"
@@ -116,13 +113,23 @@ def get_local_verify(use_ssl: bool) -> bool:
     return not use_ssl
 
 
+def unit_name(srv_id: str) -> str:
+    return f"{SUITE_ID}-{srv_id}"
+
+
 logger = Log("service", "file", LOG_FILE, "info")
 
 
-def get_service_status(service_name: str) -> Dict[str, Any]:
+# ---------------------------------------------------------------------------
+# 所有对外接口：参数为逻辑 id；内部 unit_name 转换
+# ---------------------------------------------------------------------------
+
+def get_service_status(srv_id: str) -> Dict[str, Any]:
+    """srv_id 是逻辑 id（如 'admin'），内部转成 'xspawner-admin'。"""
+    unit = unit_name(srv_id)
     try:
         result = subprocess.run(
-            ["systemctl", "show", service_name, "--no-page"],
+            ["systemctl", "show", unit, "--no-page"],
             capture_output=True,
             text=True,
             check=False
@@ -134,19 +141,19 @@ def get_service_status(service_name: str) -> Dict[str, Any]:
                 key, value = line.split('=', 1)
                 status[key] = value
         return status
-
     except Exception as e:
         logger.error(f"Failed to get service status: {e}")
-        return {'name': service_name, 'error': str(e)}
+        return {'name': unit, 'error': str(e)}
 
 
-def get_service_status_text(service_name: str, lines: int = 10) -> str:
+def get_service_status_text(srv_id: str, lines: int = 10) -> str:
     """
     获取 `systemctl status <id>` 的完整文本输出（人类可读）。
     """
+    unit = unit_name(srv_id)
     try:
         result = subprocess.run(
-            ["systemctl", "status", service_name,
+            ["systemctl", "status", unit,
              "-n", str(lines), "--no-pager"],
             capture_output=True, text=True, check=False,
         )
@@ -156,19 +163,17 @@ def get_service_status_text(service_name: str, lines: int = 10) -> str:
         return ""
 
 
-# ---------------- 异步执行 systemctl status（协程版） ----------------
-async def get_service_status_text_async(service_name, lines: int = 20,
-                           timeout: int = 5) -> str:
+async def get_service_status_text_async(srv_id, lines: int = 20,
+                                        timeout: int = 5) -> str:
     """
-    用 tornado.process.Subprocess 异步执行 `systemctl status <id>`，
-    完全基于 Tornado 事件循环，不占用任何线程。
-
+    异步获取 systemctl status 文本，完全基于 Tornado 事件循环，不占用任何线程。
     为避免 systemctl 在某些环境下挂住不退出，命令前置 `timeout` 工具，
     强杀超时；并在 finally 中显式回收子进程，避免残留。
     """
+    unit = unit_name(srv_id)
     proc = tornado.process.Subprocess(
         ["timeout", str(timeout),
-         "systemctl", "status", service_name,
+         "systemctl", "status", unit,
          "-n", str(lines), "--no-pager"],
         stdout=tornado.process.Subprocess.STREAM,
         stderr=tornado.process.Subprocess.STREAM,
@@ -210,38 +215,41 @@ def _run_systemctl(command: List[str]) -> bool:
 
 
 def reload_systemd() -> bool:
-    """重新加载 systemd"""
+    """重新读取整个 systemd 的配置"""
     return _run_systemctl(["daemon-reload"])
 
 
-def reload_service(service_name: str) -> bool:
-    """重新加载 systemd"""
-    return _run_systemctl(["reload", service_name])
+def reload_service(srv_id: str) -> bool:
+    """重新加载服务"""
+    return _run_systemctl(["reload", unit_name(srv_id)])
 
-
-def start_service(service_name: str) -> bool:
+def start_service(srv_id: str) -> bool:
     """启动服务"""
-    return _run_systemctl(["start", service_name])
+    return _run_systemctl(["start", unit_name(srv_id)])
 
-
-def stop_service(service_name: str) -> bool:
+def stop_service(srv_id: str) -> bool:
     """停止服务"""
-    return _run_systemctl(["stop", service_name])
+    return _run_systemctl(["stop", unit_name(srv_id)])
 
-
-def enable_service(service_name: str) -> bool:
+def enable_service(srv_id: str) -> bool:
     """启用服务开机自启"""
-    return _run_systemctl(["enable", service_name])
+    return _run_systemctl(["enable", unit_name(srv_id)])
 
-
-def disable_service(service_name: str) -> bool:
+def disable_service(srv_id: str) -> bool:
     """禁用服务开机自启"""
-    return _run_systemctl(["disable", service_name])
+    return _run_systemctl(["disable", unit_name(srv_id)])
 
+def restart_service(srv_id: str) -> bool:
+    return _run_systemctl(["restart", unit_name(srv_id)])
+
+
+# ---------------------------------------------------------------------------
+# 命令行构造：用 sys.executable 保证子进程跑在本 venv 里
+# ---------------------------------------------------------------------------
 
 def get_exec_cmd(config: Config) -> str:
     cmd_parts = [
-        "/usr/bin/python3", "-u", "-m", "xspawner",
+        sys.executable, "-u", "-m", "xspawner",
         "--id", shlex.quote(config.id),
         "--plugin", shlex.quote(config.plugin),
         "--host", shlex.quote(config.host),
@@ -276,8 +284,7 @@ def _build_pip_install_pre(config: Config) -> str:
     """
     构造 ExecStartPre 行：在 systemd 启动服务进程前安装 libs。
     """
-    libs = (getattr(config, "libs", "") or "")
-    pkgs = split_libs(libs)
+    pkgs = split_libs(getattr(config, "libs", "") or "")
     if not pkgs:
         return ""
 
@@ -286,87 +293,117 @@ def _build_pip_install_pre(config: Config) -> str:
             raise ValueError(f"Invalid pip package spec in libs: {pkg!r}")
 
     cmd = " ".join([
-        "/usr/bin/python3", "-m", "pip", "install",
+        sys.executable, "-m", "pip", "install",
         "--no-input", "--disable-pip-version-check",
     ] + pkgs)
     return "ExecStartPre={}\n".format(cmd)
 
 
+# ---------------------------------------------------------------------------
+# systemd unit 文件生成
+# ---------------------------------------------------------------------------
+
 def generate_service_file(config: Config) -> str:
-    """生成 systemd service 文件内容"""
+    """
+    生成 systemd service 文件内容。
+    注意 config.id / config.parent 都是逻辑 id，本函数内翻译为
+    带 SUITE_ID 前缀的单元名，写入 Description / After / Requires / PartOf。
+    """
     cmd = get_exec_cmd(config)
     pip_pre = _build_pip_install_pre(config)
 
     if config.parent:
-        prior_service = f"{config.parent}.service"
+        prior_service = f"{unit_name(config.parent)}.service"
     else:
         prior_service = 'network.target'
+
+    description = f"{unit_name(config.id)} ({config.host}:{config.port})"
+
+    work_dir = os.getcwd()
+
     service_content = SERVICE_TMPL.format(
-        config.id, prior_service, prior_service, prior_service,
-        WORKING_DIR, pip_pre, cmd
+        description, prior_service, prior_service, prior_service,
+        work_dir, pip_pre, cmd
     )
 
     return service_content
 
+def _unit_belongs_to(service_path: str, config: Config) -> bool:
+    """防御：unit 已存在时，校验 host/port/WorkingDirectory 是否与本 Config 一致。"""
+    try:
+        with open(service_path) as f:
+            content = f.read()
+    except Exception:
+        return False
+    m = re.search(r'^ExecStart=.*$', content, re.MULTILINE)
+    if not m:
+        return False
+    line = m.group(0)
+    host_ok = (f"--host {config.host}" in line) or \
+              (f"--host {shlex.quote(config.host)}" in line)
+    port_ok = f"--port {config.port}" in line
+    work_dir = os.getcwd()
+    wd_ok   = f"WorkingDirectory={work_dir}" in content
+    return host_ok and port_ok and wd_ok
+
 
 def open_service(config: Config) -> bool:
-    """写入 systemd service 文件"""
     logger.info(f"open_service BEG {config}")
-    service_name = config.id
+    service_name = unit_name(config.id)
+    service_path = f"{SERVICE_DIR}/{service_name}.service"
+
+    # 防御：已存在但不属于本 Config 时拒绝覆盖
+    if os.path.exists(service_path) and not _unit_belongs_to(service_path, config):
+        logger.error(
+            f"Unit {service_name}.service exists with different host/port; "
+            f"refusing to overwrite."
+        )
+        return False
+
     try:
         os.makedirs(SERVICE_DIR, exist_ok=True)
-
-        service_content = generate_service_file(config)
-
         service_path = f"{SERVICE_DIR}/{service_name}.service"
         with open(service_path, 'w') as f:
+            service_content = generate_service_file(config)
             f.write(service_content)
         logger.info(f"Wrote service file {service_path};")
 
-        # 如果服务已在运行，先停掉（幂等）
-        sts = get_service_status(service_name)
+        sts = get_service_status(config.id)
         if sts.get("ActiveState") == "active" and sts.get("LoadState") == "loaded":
-            if not stop_service(service_name):
-                logger.warning(f"Failed to stop existing {service_name}; "
-                               f"continuing")
+            if not stop_service(config.id):
+                logger.warning(f"Failed to stop existing {service_name}; continuing")
 
         if not reload_systemd():
             logger.error("Failed to reload systemd!")
             return False
-
-        if not enable_service(service_name):
+        if not enable_service(config.id):
             logger.error(f"Failed to enable {service_name} service!")
             return False
-
-        if not start_service(service_name):
+        if not start_service(config.id):
             logger.error(f"Failed to start {service_name} service!")
             return False
 
         logger.info(f"Started {service_name} service successfully.")
         logger.info(f"open_service END true")
         return True
-
     except Exception as e:
         logger.error(f"Exception occurred when starting service: {e}")
         return False
 
 
-def close_service(service_name: str) -> bool:
+def close_service(srv_id: str) -> bool:
     """移除 systemd service 文件"""
-    logger.info(f"close_service BEG {service_name}")
+    unit = unit_name(srv_id)
+    logger.info(f"close_service BEG {unit}")
     try:
-        service_path = f"{SERVICE_DIR}/{service_name}.service"
-
-        stop_service(service_name)
-        logger.info(f"Stopped service {service_name}")
-
-        disable_service(service_name)
-        logger.info(f"Disabled service {service_name}")
-
+        service_path = f"{SERVICE_DIR}/{unit}.service"
+        stop_service(srv_id)
+        logger.info(f"Stopped service {unit}")
+        disable_service(srv_id)
+        logger.info(f"Disabled service {unit}")
         if os.path.exists(service_path):
             os.unlink(service_path)
-            logger.info(f"Deleted service file {service_name}")
-
+            logger.info(f"Deleted service file {unit}")
         rt = reload_systemd()
         logger.info(f"close_service END {rt}")
         return rt
@@ -375,35 +412,31 @@ def close_service(service_name: str) -> bool:
         return False
 
 
-def reset_service(service_name: str) -> bool:
+def reset_service(srv_id: str) -> bool:
     """重置服务（停止、禁用、重新加载）"""
-    logger.info(f"reset_service BEG {service_name}")
+    logger.info(f"reset_service BEG {unit_name(srv_id)}")
     try:
-        stop_service(service_name)
-        disable_service(service_name)
+        stop_service(srv_id)
+        disable_service(srv_id)
         reload_systemd()
         logger.info(f"reset_service END true")
         return True
     except Exception as e:
-        logger.info(f"Failed to reset service {service_name}: {e}")
+        logger.info(f"Failed to reset service {unit_name(srv_id)}: {e}")
         return False
 
 
-def restart_service(service_name: str) -> bool:
-    """重启服务"""
-    return _run_systemctl(["restart", service_name])
-
-
-def get_service_logs(service_name: str, lines: int = 50) -> Optional[str]:
+def get_service_logs(srv_id: str, lines: int = 50) -> Optional[str]:
     """获取服务日志"""
+    unit = unit_name(srv_id)
     try:
         result = subprocess.run(
-            ["journalctl", "-u", service_name, "-n", str(lines), "--no-pager"],
+            ["journalctl", "-u", unit, "-n", str(lines), "--no-pager"],
             capture_output=True,
             text=True,
             check=False
         )
-        logger.info(f"Get service logs {service_name}")
+        logger.info(f"Get service logs {unit}")
         return result.stdout
     except Exception as e:
         logger.error(f"Failed to get service logs: {e}")
@@ -421,8 +454,6 @@ def wait_for_service_ready(srv_url: str, timeout: int = 60,
                            interval: float = 0.5,
                            verify: bool = True) -> bool:
     """
-    轮询 /ping 直到服务就绪或超时。
-
     建议传入 127.0.0.1 基地址（见 get_local_url），避免依赖云厂商 NAT
     hairpin（从服务器自身访问公网 IP）。
     HTTPS 场景下传入 verify=False，否则会因证书 SAN 不含 127.0.0.1 失败。
@@ -447,21 +478,22 @@ def wait_for_service_ready(srv_url: str, timeout: int = 60,
     return False
 
 
-def wait_for_service_stopped(service_name: str, timeout: int = 30,
+def wait_for_service_stopped(srv_id: str, timeout: int = 30,
                              interval: float = 0.5) -> bool:
     """轮询 systemctl is-active，直到服务不再 active 或超时"""
+    unit = unit_name(srv_id)
     deadline = time.time() + timeout
     while time.time() < deadline:
         result = subprocess.run(
-            ["systemctl", "is-active", service_name],
+            ["systemctl", "is-active", unit],
             capture_output=True, text=True, check=False
         )
         state = result.stdout.strip()
         if state not in ("active", "activating", "deactivating"):
-            logger.info(f"Service {service_name} is stopped (state={state})")
+            logger.info(f"Service {unit} is stopped (state={state})")
             return True
         time.sleep(interval)
-    logger.error(f"Service {service_name} still active after {timeout}s")
+    logger.error(f"Service {unit} still active after {timeout}s")
     return False
 
 
@@ -489,7 +521,7 @@ if __name__ == "__main__":
             cfg = Config(**data)
 
             # 内部自调用用（避免 NAT 回环；当内部 HTTPS 时关闭证书校验）
-            local_ssl = cfg.ssl and cfg.certfile and cfg.keyfile
+            local_ssl = bool(cfg.ssl and cfg.certfile and cfg.keyfile)
             local_url = get_local_url(cfg.port, local_ssl)
             local_verify = get_local_verify(local_ssl)
 
@@ -511,7 +543,6 @@ if __name__ == "__main__":
                     logs = get_service_logs(srv_id, 10)
                     print(f"Systemed logs for service {srv_id}:\n{logs}")
 
-                    # 内部调用一律走 local_url + local_verify
                     child_ids = requests.post(
                         f"{local_url}/get_children", json={},
                         verify=local_verify).json()
@@ -571,19 +602,20 @@ if __name__ == "__main__":
                     f"{local_url}/get_children", json={},
                     verify=local_verify).json()
 
-                # ---- 破坏性操作前确认 ----
                 print("")
                 print("=" * 64)
                 print("  WARNING: 'drop' is a DESTRUCTIVE operation! "
                       "Ensure data is backed up.")
                 print("=" * 64)
                 print(f"  Service id  : {srv_id}")
+                print(f"  Systemd unit: {unit_name(srv_id)}")
+                print(f"  Database    : {LOCAL_DB}")
                 print(f"  Children    : {child_ids if child_ids else '(none)'}")
                 print("")
                 print("This will:")
                 print("  1. Stop every child service listed above")
                 print("  2. Stop and remove this service's systemd unit")
-                print(f"  3. DELETE the shared database")
+                print(f"  3. DELETE this suite's database: {LOCAL_DB}")
                 print("")
                 print(f"Type the service id '{srv_id}' to confirm, "
                       f"anything else aborts:")
@@ -593,30 +625,24 @@ if __name__ == "__main__":
                     print("\nAborted.")
                     logger.warning(f"drop {srv_id} aborted (no confirmation)")
                     sys.exit(1)
-
                 if answer != srv_id:
                     print(f"Aborted: confirmation '{answer}' does not "
                           f"match '{srv_id}'.")
-                    logger.warning(f"drop {srv_id} aborted "
-                                   f"(confirmation mismatch)")
+                    logger.warning(f"drop {srv_id} aborted (confirmation mismatch)")
                     sys.exit(1)
-                # ---- ---- ---- ---- ----
 
                 for child_id in child_ids:
                     requests.post(
                         f"{local_url}/stop_child",
-                        json={"id": child_id},
-                        verify=local_verify)
+                        json={"id": child_id}, verify=local_verify)
                     if not wait_for_service_stopped(child_id, timeout=30):
                         logger.warning(f"Warning: service {child_id} "
                                        f"still not fully stopped")
                     print(f"Service {child_id} is stopped.")
 
-                # drop database
                 requests.post(
                     f"{local_url}/drop_db",
-                    json={"conn": f"sqlite://{LOCAL_DB}"},
-                    verify=local_verify)
+                    json={"conn": f"sqlite://{LOCAL_DB}"}, verify=local_verify)
 
                 if close_service(srv_id):
                     logs = get_service_logs(srv_id, 10)
@@ -626,8 +652,7 @@ if __name__ == "__main__":
                                        f"not fully stopped, "
                                        f"database may be locked")
                     print(f"Service {srv_id} is stopped.")
-                    logger.info(f"Service {srv_id} and its descendants "
-                                f"are dropped.")
+                    logger.info(f"Service {srv_id} and its descendants are dropped.")
                     print(f"Service {srv_id} and its descendants are dropped.")
                 else:
                     logger.error(f"Error: failed to stop service {srv_id}!")

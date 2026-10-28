@@ -2,16 +2,17 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 
+from collections import namedtuple
 
-SYSTEM_ID = "xspawner"
-WORKING_DIR = "/opt/xspawner"
-PLUGIN_PKG = f"{SYSTEM_ID}.plugins"
-PLUGIN_DIR = f"{SYSTEM_ID}/plugins"
+SUITE_ID = "xspawner"
+# WORKING_DIR = f"/opt/{SUITE_ID}"
+SOFTWARE_ID = "xspawner"
+PLUGIN_PKG = f"{SOFTWARE_ID}.plugins"
+PLUGIN_DIR = f"{SOFTWARE_ID}/plugins"
 RES_DIR_TEMP = PLUGIN_DIR + "/{}/static"
-LOG_FILE = f"{SYSTEM_ID}.log"
 PYTHON_MIME_TYPE = "text/x-python"
 ZIP_MIME_TYPE = "application/zip"
-LOCAL_DB = f"{SYSTEM_ID}.db"
+LOCAL_DB = f"{SOFTWARE_ID}.db"
+LOG_FILE = f"{SOFTWARE_ID}.log"
 
-from collections import namedtuple
 Config = namedtuple('Config', ['id', 'plugin', 'host', 'port', 'access', 'parent', 'log', 'severity', 'ssl', 'certfile', 'keyfile', 'libs', 'additional'])

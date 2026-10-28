@@ -120,9 +120,25 @@ def _host_matches(pattern: str, domain: str) -> bool:
 
 
 # ── 路由构造 ────────────────────────────────────────────────
-def _rid(server_name: str, srv_id: str) -> str:
-    """路由在 Caddy 内的唯一 @id，带 {server_name}- 前缀便于识别与批量清理。"""
-    return f"{server_name}-{srv_id}"
+# ---------------------------------------------------------------------------
+# 逻辑 id → systemd 单元名
+#
+# 对外 API（get_service_status / start_service / close_service / ...）一律
+# 接收“逻辑 id”（config.id），本模块内部再翻译为 {SUITE_ID}-{id}。
+# 这样 administrator.py / spawner.py 不需要知道 SUITE_ID 的存在。
+# ---------------------------------------------------------------------------
+
+def _rid(srv_host: str, srv_id: str) -> str:
+    """
+    路由在 Caddy 内的唯一 @id。
+
+    格式：{srv_host}-{srv_id}
+    - Caddy 的 @id 是全局命名空间，只需全局唯一
+    - 用 host 做前缀，语义稳定：
+      host 由配置决定，跨 Caddyfile 变更保持稳定
+    - 约束：同一 host 下 srv_id 必须唯一（由 DB 保证）
+    """
+    return f"{srv_host}-{srv_id}"
 
 
 def _prefix(srv_id: str) -> str:
@@ -138,9 +154,9 @@ def _routes_url(server_name: str) -> str:
     return f"{CADDY_ADMIN}/config/apps/http/servers/{server_name}/routes"
 
 
-def _route_obj(server_name: str, srv_id: str, port: int) -> dict:
+def _route_obj(srv_host: str, srv_id: str, port: int) -> dict:
     return {
-        "@id": _rid(server_name, srv_id),
+        "@id": _rid(srv_host, srv_id),
         "match": [{"path": _patterns(srv_id)}],
         "handle": [
             {"handler": "rewrite",
@@ -330,19 +346,26 @@ def format_proxies_text(items: list) -> str:
 
 
 # ── 对外接口（增删改，保持原样）─────────────────────────────
-async def caddy_add_route(server_name: str, srv_id: str, port: int) -> bool:
-    """幂等：先按 @id 删，再插到 routes 头部（优先于 file_server）。"""
+async def caddy_add_route(srv_host: str, srv_id: str, port: int) -> bool:
+    """幂等：先按 @id 删，再插到 routes 头部。"""
     async with _lock:
         try:
+            server_name = await caddy_find_server_by_site_address(srv_host)
+            if not server_name:
+                print(f"[caddy] no server found for host {srv_host}", flush=True)
+                return False
+
+            rid = _rid(srv_host, srv_id)
+
             # 1) 幂等清理，404 忽略
-            await _fetch("DELETE", f"{CADDY_ADMIN}/id/{_rid(server_name, srv_id)}")
+            await _fetch("DELETE", f"{CADDY_ADMIN}/id/{rid}")
 
             # 2) 读现有 routes 并剔除同名条目
             routes = await _get_routes(server_name)
-            routes = [x for x in routes if x.get("@id") != _rid(server_name, srv_id)]
+            routes = [x for x in routes if x.get("@id") != rid]
 
-            # 3) 插到最前，确保先于 file_server 命中
-            routes.insert(0, _route_obj(server_name, srv_id, port))
+            # 3) 插到最前
+            routes.insert(0, _route_obj(srv_host, srv_id, port))
 
             # 4) 整体 PATCH
             resp = await _fetch(
@@ -358,18 +381,18 @@ async def caddy_add_route(server_name: str, srv_id: str, port: int) -> bool:
             return False
 
 
-async def caddy_del_route(server_name: str, srv_id: str) -> bool:
+async def caddy_del_route(srv_host: str, srv_id: str) -> bool:
     """按 @id 精确删除，不做索引运算，天然并发安全。"""
     async with _lock:
         try:
-            resp = await _fetch("DELETE", f"{CADDY_ADMIN}/id/{_rid(server_name, srv_id)}")
+            resp = await _fetch("DELETE", f"{CADDY_ADMIN}/id/{_rid(srv_host, srv_id)}")
             return resp.code in (200, 404)   # 404 = 本来就没有，视为成功
         except Exception:
             traceback.print_exc()
             return False
 
 
-async def caddy_bootstrap(server_name: str, children: dict) -> bool:
+async def caddy_bootstrap(srv_host: str, children: dict) -> bool:
     """
     Caddy 重启 / caddy reload 后动态路由会丢失，
     启动时用当前子服务列表整体重放一次。
@@ -377,11 +400,17 @@ async def caddy_bootstrap(server_name: str, children: dict) -> bool:
     """
     async with _lock:
         try:
+            server_name = await caddy_find_server_by_site_address(srv_host)
+            if not server_name:
+                print(f"[caddy] no server found for host {srv_host}", flush=True)
+                return False
+
+            prefix = f"{srv_host}-"
             routes = await _get_routes(server_name)
             routes = [x for x in routes
-                      if not str(x.get("@id", "")).startswith("xspawner-")]
+                      if not str(x.get("@id", "")).startswith(prefix)]
             for sid, port in children.items():
-                routes.insert(0, _route_obj(server_name, sid, port))
+                routes.insert(0, _route_obj(srv_host, sid, port))
 
             resp = await _fetch(
                 "PATCH", _routes_url(server_name),

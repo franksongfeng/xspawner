@@ -552,12 +552,8 @@ class XSpawner(Spawnable):
         self.iLog("add_route BEG")
         if self.use_caddy():
             if await caddy_is_running():
-                caddy_server = await caddy_find_server_by_site_address(self._config.host)
-                if caddy_server:
-                    ok = await caddy_add_route(caddy_server, self._config.id, self._config.port)
-                    self.iLog("caddy add route {}:{} {}".format(self._config.id, self._config.port, ok))
-                else:
-                    self.eLog("failed to find caddy server for host {}".format(self._config.host))
+                ok = await caddy_add_route(self._config.host, self._config.id, self._config.port)
+                self.iLog(f"caddy add route {self._config.id}:{self._config.port} {ok}")
             else:
                 raise Exception("Caddy is out of work!")
         self.iLog("add_route END")
@@ -566,12 +562,8 @@ class XSpawner(Spawnable):
         self.iLog("del_route BEG")
         if self.use_caddy():
             if await caddy_is_running():
-                caddy_server = await caddy_find_server_by_site_address(self._config.host)
-                if caddy_server:
-                    ok = await caddy_del_route(caddy_server, self._config.id)
-                    self.iLog("caddy del route {} {}".format(self._config.id, ok))
-                else:
-                    self.eLog("failed to find caddy server for host {}".format(self._config.host))
+                ok = await caddy_del_route(self._config.host, self._config.id)
+                self.iLog(f"caddy del route {self._config.id} {ok}")
             else:
                 raise Exception("Caddy is out of work!")
         self.iLog("del_route END")
