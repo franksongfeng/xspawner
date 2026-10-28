@@ -49,12 +49,12 @@ class TestORM(Spawner):
             self.eLog(f"seed failed: {e}")
 
         # 2) 查询表格
-        rows = await Tab123.all()
+        all_rows = await Tab123.all()
         w_true_rows = await Tab123.filter(w=True).order_by("z")
 
         # 3) 渲染表格
         table = [["id", "x", "y", "z", "w"]]
-        for r in rows:
+        for r in all_rows:
             table.append([
                 str(r.id),
                 r.x,
@@ -64,7 +64,7 @@ class TestORM(Spawner):
             ])
         put_markdown("### Tab123 全部数据")
         put_table(table)
-        put_text(f"共 {len(rows)} 行")
+        put_text(f"共 {len(all_rows)} 行")
 
         table_w = [["id"]]
         for r in w_true_rows:
