@@ -188,13 +188,15 @@ keyfile=/etc/ssl/private/xspawner.com.key
 
 > 参数 ssl 表明服务是否支持SSL安全认证。
 >
-> （如果支持）SSL（公钥和私钥）证书文件的路径通过参数certfile和keyfile指定。
+> 公钥和私钥证书文件的路径通过参数certfile和keyfile指定。
 >
-> | ssl  | certfile | keyfile |                                                              |
-> | ---- | -------- | ------- | ------------------------------------------------------------ |
-> | 假   | 空       | 空      | 纯HTTP服务。适用于仅仅服务内部局域网，安全要求不高。         |
-> | 真   | 真       | 真      | HTTPS服务，独立完成SSL认证。                                 |
-> | 真   | 空       | 空      | HTTP服务，通过caddy自动申请SSL证书，实现动态反向代理，披露HTTPS访问地址。 |
+> ssl/certfile/keyfile的不同设置决定了web服务的不同形式：不同的访问地址，以及是否使用caddy代理。
+>
+> | ssl  | certfile | keyfile | access    | host | 意义                                         | （外部）访问地址       | 本机访问地址           |
+> | ---- | -------- | ------- | --------- | ---- | -------------------------------------------- | ---------------------- | ---------------------- |
+> | 假   | 空       | 空      | 0.0.0.0   | IP   | 局域网HTTP服务                               | http://IP:PORT         | http://127.0.0.1:PORT  |
+> | 真   | 真       | 真      | 0.0.0.0   | IP   | 局域网HTTPS服务                              | https://IP:PORT        | https://127.0.0.1:PORT |
+> | 真   | 空       | 空      | 127.0.0.1 | DN   | 广域网HTTPS服务及反向代理<br />（使用caddy） | https://DN/services/ID | http://127.0.0.1:PORT  |
 >
 > 自有证书一般存放在
 >
@@ -213,13 +215,13 @@ keyfile=/etc/ssl/private/xspawner.com.key
 >
 > ```apl
 > {
->     admin 127.0.0.1:2019
+>  admin 127.0.0.1:2019
 > }
 > 
 > xspawner.com {
->     # tls <certfile> <keyfile>
->     root * /usr/share/caddy
->     file_server
+>  # tls <certfile> <keyfile>
+>  root * /usr/share/caddy
+>  file_server
 > }
 > ```
 >
@@ -231,7 +233,7 @@ keyfile=/etc/ssl/private/xspawner.com.key
 
 服务集群推荐采用容器化部署。
 
-容器内具有 systemd + Caddy + xspawner 三个组件；容器只跑业务，管理走宿主机。
+容器内具有 systemd + caddy + xspawner 三个组件；容器只跑业务，管理走宿主机。
 
 #### 容器配置文件
 
@@ -422,21 +424,36 @@ exec /lib/systemd/systemd --system --unit=multi-user.target
 
 #### 代理配置
 
-/etc/caddy/Caddyfile
+xspawner支持使用代理软件caddy自动申请域名并反向代理路由。
+
+caddy的安装
+
+```bash
+sudo curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+sudo curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt-get update
+sudo apt-get install -y caddy
+```
+
+除了caddy需要安装并运行之外，还需要配置满足：参数 ssl = True 且 certfile 和 keyfile 为空。
+
+缺省的caddy配置文件: /etc/caddy/Caddyfile
 
 ```apl
 {
     admin 127.0.0.1:2019
-    auto_https off
 }
 
-:443 {
-    tls /etc/ssl/certs/xspawner.com.crt /etc/ssl/private/xspawner.com.key
-    reverse_proxy 127.0.0.1:8000
-}
 
-:80 {
-    redir https://{host}{uri} permanent
+{具体的域名} {
+
+
+    # 动态注入的 /services/{srv_id}/* 插在这里之前
+
+    # 未匹配的路径一律 404
+    handle {
+        respond "Not Found" 404
+    }
 }
 ```
 
@@ -445,6 +462,8 @@ exec /lib/systemd/systemd --system --unit=multi-user.target
 
 
 #### 容器启动
+
+如果采用容器化部署，容器启动的命令：
 
 ```bash
 docker build -t xspawner:latest .
@@ -531,6 +550,7 @@ docker exec xspawner systemctl is-active <child_id>
 - 容器化部署单域名服务集群
 - 增加超级管理口令
 - 完善鉴权权限管理
+- 增加rabbitmq消息支持
 - 利用periodic方法检测下级心跳
 - 整合SDD和模型代理Aider
 
