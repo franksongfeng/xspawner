@@ -4,6 +4,7 @@
 
 from collections import namedtuple
 
+# 注意：systemd 服务名称为 {SUITE_ID}-{srv_id}，当面对多个 caddy 域名需要多目录运行 xspawner 系统时，SUITE_ID 取不同值以免混淆。
 SUITE_ID = "xspawner"
 # WORKING_DIR = f"/opt/{SUITE_ID}"
 SOFTWARE_ID = "xspawner"
