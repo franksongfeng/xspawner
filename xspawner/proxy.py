@@ -24,7 +24,7 @@ AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
 
 CADDY_ADMIN  = "http://127.0.0.1:2019"
 CADDY_PREFIX = "/services"
-
+# CADDY route id is like {server_name}-{srv_id}
 _lock = Lock()                      # tornado.locks.Lock，支持 async with
 
 
