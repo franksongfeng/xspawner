@@ -44,7 +44,7 @@ class TestORM(Spawner):
                 Tab123(x="b56", y=35, z=59.0, w=True)
             ])
 
-            self.iLog("cleared m_table and inserted 2 rows")
+            self.iLog("cleared m_table and inserted 4 rows")
         except Exception as e:
             self.eLog(f"seed failed: {e}")
 
