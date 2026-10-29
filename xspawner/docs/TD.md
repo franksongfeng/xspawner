@@ -556,12 +556,12 @@ docker exec xspawner systemctl is-active <child_id>
 
 ### 未来
 
-- 容器化部署单域名服务集群
-- 增加超级管理口令
-- 完善鉴权权限管理
-- 增加rabbitmq消息支持
-- 利用periodic方法检测下级心跳
-- 整合SDD和模型代理Aider
+- Update：增加更换服务
+- Docker：容器化部署单域名服务集群，多容器部署多域名服务
+- AAA：增加管理员口令，完善鉴权和权限
+- MsgHandler
+- DrvHandler(利用periodic方法)
+- AI：SDD和模型代理Aider
 
 
 ### 其它
