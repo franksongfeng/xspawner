@@ -131,7 +131,7 @@ class Spawner(XSpawner): # NOQA
                     return False
                 await tornado.gen.sleep(1)
 
-        sts = get_service_status(data["id"])
+        sts = get_service_status(self._config.host, data["id"])
         pid = int(sts["MainPID"]) if sts["ActiveState"] == "active" else None
         self.iLog(f"service status: {sts}")
 
@@ -164,12 +164,12 @@ class Spawner(XSpawner): # NOQA
                     await tornado.gen.sleep(0.2)
                 await tornado.gen.sleep(0.5)
 
-        sts = get_service_status(child_id)
+        sts = get_service_status(self._config.host, child_id)
         pid = int(sts["MainPID"]) if sts["ActiveState"] == "active" else None
         self.iLog(f"service status: {sts}")
 
         # close systemed service
-        if close_service(child_id):
+        if close_service(self._config.host, child_id):
             if await self.delConfig(child_id):
                 self.iLog(f"successfully rm model {child_id}")
             else:

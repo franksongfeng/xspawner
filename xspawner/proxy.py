@@ -24,7 +24,7 @@ AsyncHTTPClient.configure("tornado.curl_httpclient.CurlAsyncHTTPClient")
 
 CADDY_ADMIN  = "http://127.0.0.1:2019"
 CADDY_PREFIX = "/services"
-# CADDY route id is like {server_name}-{srv_id}
+# CADDY route id is like {srv_host}-{srv_id}
 _lock = Lock()                      # tornado.locks.Lock，支持 async with
 
 
@@ -124,8 +124,6 @@ def _host_matches(pattern: str, domain: str) -> bool:
 # 逻辑 id → systemd 单元名
 #
 # 对外 API（get_service_status / start_service / close_service / ...）一律
-# 接收“逻辑 id”（config.id），本模块内部再翻译为 {SUITE_ID}-{id}。
-# 这样 administrator.py / spawner.py 不需要知道 SUITE_ID 的存在。
 # ---------------------------------------------------------------------------
 
 def _rid(srv_host: str, srv_id: str) -> str:
@@ -251,6 +249,7 @@ async def _walk_routes(routes, inherit_paths=None, inherit_strip=None):
         for up in upstreams:
             out.append({
                 "id":       route.get("@id"),
+                "hosts":    list(hosts),
                 "paths":    list(paths),
                 "strip":    strip,
                 "upstream": up,

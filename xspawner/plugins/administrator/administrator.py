@@ -121,7 +121,7 @@ class Administrator(Spawner): # NOQA
     async def _show_status_popup(self, srv_id):
         """点击"状态"列按钮时弹出该服务的 status 文本。"""
         try:
-            text = await get_service_status_text_async(srv_id, lines=20)
+            text = await get_service_status_text_async(self._config.host, srv_id, lines=20)
         except Exception as e:
             self.eLog(f"get status for {srv_id} failed: {e}")
             text = f"获取状态失败: {e}"

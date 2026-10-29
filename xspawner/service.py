@@ -22,7 +22,7 @@ import requests
 import tornado.gen
 import tornado.process
 
-from xspawner.constants import Config, LOCAL_DB, LOG_FILE, SUITE_ID
+from xspawner.constants import Config, LOCAL_DB, LOG_FILE
 from xspawner.utilities.log import Log
 
 
@@ -66,6 +66,9 @@ PIP_PKG_RE = re.compile(
     r"(?:\[[A-Za-z0-9_.\-,]+\])?"
     r"(?:(?:[<>!=~]=?|===)[A-Za-z0-9_.\-*,]+)*$"
 )
+
+
+logger = Log("service", "file", LOG_FILE, "info")
 
 
 def is_valid_pip_pkg(pkg: str) -> bool:
@@ -113,20 +116,17 @@ def get_local_verify(use_ssl: bool) -> bool:
     return not use_ssl
 
 
-def unit_name(srv_id: str) -> str:
-    return f"{SUITE_ID}-{srv_id}"
-
-
-logger = Log("service", "file", LOG_FILE, "info")
+def unit_name(srv_host: str, srv_id: str) -> str:
+    return f"{srv_host}-{srv_id}"
 
 
 # ---------------------------------------------------------------------------
 # 所有对外接口：参数为逻辑 id；内部 unit_name 转换
 # ---------------------------------------------------------------------------
 
-def get_service_status(srv_id: str) -> Dict[str, Any]:
+def get_service_status(srv_host:str, srv_id: str) -> Dict[str, Any]:
     """srv_id 是逻辑 id（如 'admin'），内部转成 'xspawner-admin'。"""
-    unit = unit_name(srv_id)
+    unit = unit_name(srv_host, srv_id)
     try:
         result = subprocess.run(
             ["systemctl", "show", unit, "--no-page"],
@@ -146,11 +146,11 @@ def get_service_status(srv_id: str) -> Dict[str, Any]:
         return {'name': unit, 'error': str(e)}
 
 
-def get_service_status_text(srv_id: str, lines: int = 10) -> str:
+def get_service_status_text(srv_host: str, srv_id: str, lines: int = 10) -> str:
     """
     获取 `systemctl status <id>` 的完整文本输出（人类可读）。
     """
-    unit = unit_name(srv_id)
+    unit = unit_name(srv_host, srv_id)
     try:
         result = subprocess.run(
             ["systemctl", "status", unit,
@@ -163,14 +163,14 @@ def get_service_status_text(srv_id: str, lines: int = 10) -> str:
         return ""
 
 
-async def get_service_status_text_async(srv_id, lines: int = 20,
+async def get_service_status_text_async(srv_host: str, srv_id: str, lines: int = 20,
                                         timeout: int = 5) -> str:
     """
     异步获取 systemctl status 文本，完全基于 Tornado 事件循环，不占用任何线程。
     为避免 systemctl 在某些环境下挂住不退出，命令前置 `timeout` 工具，
     强杀超时；并在 finally 中显式回收子进程，避免残留。
     """
-    unit = unit_name(srv_id)
+    unit = unit_name(srv_host, srv_id)
     proc = tornado.process.Subprocess(
         ["timeout", str(timeout),
          "systemctl", "status", unit,
@@ -219,28 +219,28 @@ def reload_systemd() -> bool:
     return _run_systemctl(["daemon-reload"])
 
 
-def reload_service(srv_id: str) -> bool:
+def reload_service(srv_host: str, srv_id: str) -> bool:
     """重新加载服务"""
-    return _run_systemctl(["reload", unit_name(srv_id)])
+    return _run_systemctl(["reload", unit_name(srv_host, srv_id)])
 
-def start_service(srv_id: str) -> bool:
+def start_service(srv_host: str, srv_id: str) -> bool:
     """启动服务"""
-    return _run_systemctl(["start", unit_name(srv_id)])
+    return _run_systemctl(["start", unit_name(srv_host, srv_id)])
 
-def stop_service(srv_id: str) -> bool:
+def stop_service(srv_host: str, srv_id: str) -> bool:
     """停止服务"""
-    return _run_systemctl(["stop", unit_name(srv_id)])
+    return _run_systemctl(["stop", unit_name(srv_host, srv_id)])
 
-def enable_service(srv_id: str) -> bool:
+def enable_service(srv_host: str, srv_id: str) -> bool:
     """启用服务开机自启"""
-    return _run_systemctl(["enable", unit_name(srv_id)])
+    return _run_systemctl(["enable", unit_name(srv_host, srv_id)])
 
-def disable_service(srv_id: str) -> bool:
+def disable_service(srv_host: str, srv_id: str) -> bool:
     """禁用服务开机自启"""
-    return _run_systemctl(["disable", unit_name(srv_id)])
+    return _run_systemctl(["disable", unit_name(srv_host, srv_id)])
 
-def restart_service(srv_id: str) -> bool:
-    return _run_systemctl(["restart", unit_name(srv_id)])
+def restart_service(srv_host: str, srv_id: str) -> bool:
+    return _run_systemctl(["restart", unit_name(srv_host, srv_id)])
 
 
 # ---------------------------------------------------------------------------
@@ -307,17 +307,17 @@ def generate_service_file(config: Config) -> str:
     """
     生成 systemd service 文件内容。
     注意 config.id / config.parent 都是逻辑 id，本函数内翻译为
-    带 SUITE_ID 前缀的单元名，写入 Description / After / Requires / PartOf。
+    带 HOST 前缀的单元名，写入 Description / After / Requires / PartOf。
     """
     cmd = get_exec_cmd(config)
     pip_pre = _build_pip_install_pre(config)
 
     if config.parent:
-        prior_service = f"{unit_name(config.parent)}.service"
+        prior_service = f"{unit_name(config.host, config.parent)}.service"
     else:
         prior_service = 'network.target'
 
-    description = f"{unit_name(config.id)} ({config.host}:{config.port})"
+    description = f"{unit_name(config.host, config.id)} ({config.host}:{config.port})"
 
     work_dir = os.getcwd()
 
@@ -349,7 +349,7 @@ def _unit_belongs_to(service_path: str, config: Config) -> bool:
 
 def open_service(config: Config) -> bool:
     logger.info(f"open_service BEG {config}")
-    service_name = unit_name(config.id)
+    service_name = unit_name(config.host, config.id)
     service_path = f"{SERVICE_DIR}/{service_name}.service"
 
     # 防御：已存在但不属于本 Config 时拒绝覆盖
@@ -368,18 +368,18 @@ def open_service(config: Config) -> bool:
             f.write(service_content)
         logger.info(f"Wrote service file {service_path};")
 
-        sts = get_service_status(config.id)
+        sts = get_service_status(config.host, config.id)
         if sts.get("ActiveState") == "active" and sts.get("LoadState") == "loaded":
-            if not stop_service(config.id):
+            if not stop_service(config.host, config.id):
                 logger.warning(f"Failed to stop existing {service_name}; continuing")
 
         if not reload_systemd():
             logger.error("Failed to reload systemd!")
             return False
-        if not enable_service(config.id):
+        if not enable_service(config.host, config.id):
             logger.error(f"Failed to enable {service_name} service!")
             return False
-        if not start_service(config.id):
+        if not start_service(config.host, config.id):
             logger.error(f"Failed to start {service_name} service!")
             return False
 
@@ -391,15 +391,15 @@ def open_service(config: Config) -> bool:
         return False
 
 
-def close_service(srv_id: str) -> bool:
+def close_service(srv_host: str, srv_id: str) -> bool:
     """移除 systemd service 文件"""
-    unit = unit_name(srv_id)
+    unit = unit_name(srv_host, srv_id)
     logger.info(f"close_service BEG {unit}")
     try:
         service_path = f"{SERVICE_DIR}/{unit}.service"
-        stop_service(srv_id)
+        stop_service(srv_host, srv_id)
         logger.info(f"Stopped service {unit}")
-        disable_service(srv_id)
+        disable_service(srv_host, srv_id)
         logger.info(f"Disabled service {unit}")
         if os.path.exists(service_path):
             os.unlink(service_path)
@@ -412,23 +412,23 @@ def close_service(srv_id: str) -> bool:
         return False
 
 
-def reset_service(srv_id: str) -> bool:
+def reset_service(srv_host: str, srv_id: str) -> bool:
     """重置服务（停止、禁用、重新加载）"""
-    logger.info(f"reset_service BEG {unit_name(srv_id)}")
+    logger.info(f"reset_service BEG {unit_name(srv_host, srv_id)}")
     try:
-        stop_service(srv_id)
-        disable_service(srv_id)
+        stop_service(srv_host, srv_id)
+        disable_service(srv_host, srv_id)
         reload_systemd()
         logger.info(f"reset_service END true")
         return True
     except Exception as e:
-        logger.info(f"Failed to reset service {unit_name(srv_id)}: {e}")
+        logger.info(f"Failed to reset service {unit_name(srv_host, srv_id)}: {e}")
         return False
 
 
-def get_service_logs(srv_id: str, lines: int = 50) -> Optional[str]:
+def get_service_logs(srv_host: str, srv_id: str, lines: int = 50) -> Optional[str]:
     """获取服务日志"""
-    unit = unit_name(srv_id)
+    unit = unit_name(srv_host, srv_id)
     try:
         result = subprocess.run(
             ["journalctl", "-u", unit, "-n", str(lines), "--no-pager"],
@@ -478,10 +478,11 @@ def wait_for_service_ready(srv_url: str, timeout: int = 60,
     return False
 
 
-def wait_for_service_stopped(srv_id: str, timeout: int = 30,
+def wait_for_service_stopped(srv_host: str, srv_id: str, timeout: int = 30,
                              interval: float = 0.5) -> bool:
     """轮询 systemctl is-active，直到服务不再 active 或超时"""
-    unit = unit_name(srv_id)
+    logger.info(f"wait_for_service_stopped BEG {timeout}s {interval}s")
+    unit = unit_name(srv_host, srv_id)
     deadline = time.time() + timeout
     while time.time() < deadline:
         result = subprocess.run(
@@ -490,7 +491,7 @@ def wait_for_service_stopped(srv_id: str, timeout: int = 30,
         )
         state = result.stdout.strip()
         if state not in ("active", "activating", "deactivating"):
-            logger.info(f"Service {unit} is stopped (state={state})")
+            logger.info(f"wait_for_service_stopped END Service {unit} is stopped (state={state})")
             return True
         time.sleep(interval)
     logger.error(f"Service {unit} still active after {timeout}s")
@@ -525,8 +526,9 @@ if __name__ == "__main__":
             local_url = get_local_url(cfg.port, local_ssl)
             local_verify = get_local_verify(local_ssl)
 
+            srv_host= cfg.host
             srv_id = cfg.id
-            sts = get_service_status(srv_id)
+            sts = get_service_status(srv_host, srv_id)
             logger.info(f"service status of {srv_id}: {sts}")
 
             if op == 'start':
@@ -540,7 +542,7 @@ if __name__ == "__main__":
                         sys.exit(1)
                     print(f"Service {srv_id} is started, and its "
                           f"descendants will be started in turn.\n")
-                    logs = get_service_logs(srv_id, 10)
+                    logs = get_service_logs(srv_host, srv_id, 10)
                     print(f"Systemed logs for service {srv_id}:\n{logs}")
 
                     child_ids = requests.post(
@@ -565,8 +567,8 @@ if __name__ == "__main__":
                     logger.warning(f"Warning: service {srv_id} is not running!")
                     print(f"Service {srv_id} is not running!\n")
                     sys.exit(1)
-                close_service(srv_id)
-                logs = get_service_logs(srv_id, 10)
+                close_service(srv_host, srv_id)
+                logs = get_service_logs(srv_host, srv_id, 10)
                 print(f"Systemed logs for service {srv_id}:\n{logs}")
                 logger.info(f"Service {srv_id} and its descendants are stopped.")
                 print(f"Service {srv_id} and its descendants are stopped.")
@@ -608,7 +610,7 @@ if __name__ == "__main__":
                       "Ensure data is backed up.")
                 print("=" * 64)
                 print(f"  Service id  : {srv_id}")
-                print(f"  Systemd unit: {unit_name(srv_id)}")
+                print(f"  Systemd unit: {unit_name(srv_host, srv_id)}")
                 print(f"  Database    : {LOCAL_DB}")
                 print(f"  Children    : {child_ids if child_ids else '(none)'}")
                 print("")
@@ -635,7 +637,7 @@ if __name__ == "__main__":
                     requests.post(
                         f"{local_url}/stop_child",
                         json={"id": child_id}, verify=local_verify)
-                    if not wait_for_service_stopped(child_id, timeout=30):
+                    if not wait_for_service_stopped(srv_host, child_id, timeout=30):
                         logger.warning(f"Warning: service {child_id} "
                                        f"still not fully stopped")
                     print(f"Service {child_id} is stopped.")
@@ -644,10 +646,10 @@ if __name__ == "__main__":
                     f"{local_url}/drop_db",
                     json={"conn": f"sqlite://{LOCAL_DB}"}, verify=local_verify)
 
-                if close_service(srv_id):
-                    logs = get_service_logs(srv_id, 10)
+                if close_service(srv_host, srv_id):
+                    logs = get_service_logs(srv_host, srv_id, 10)
                     print(f"Systemed logs for service {srv_id}:\n{logs}")
-                    if not wait_for_service_stopped(srv_id, timeout=30):
+                    if not wait_for_service_stopped(srv_host, srv_id, timeout=30):
                         logger.warning(f"Warning: service {srv_id} still "
                                        f"not fully stopped, "
                                        f"database may be locked")
