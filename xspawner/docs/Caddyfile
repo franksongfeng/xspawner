@@ -6,23 +6,43 @@
 
 
 https://example.com {
-    # 如果 example.com 使用自申请的公网免费证书，不要加 tls 命令
-    # 如果 example.com 有公网可验证的证书
-    # tls /path/to/your/certificate.crt /path/to/your/private.key
-    # 如果 example.com 没有公网可验证的证书，用 internal CA
+
+    # 1. 证书
+
+    # 1.1 如果 example.com 有公网证书，使用 tls 指定 SSL/TLS 证书文件和私钥文件
+    # tls <cert_file> <key_file>
+
+    # 1.2 如果 example.com 没有公网证书，用内部 CA 认证
     # tls internal
 
-    # 静态注入 /services/admin → 127.0.0.1:8000
-    # redir /services/admin /services/admin/ 308
+    # 1.3 不加 tls 命令，使用自申请的公网免费证书
+
+
+    # 2. 路由
+
+    # 2.1 首页跳转
+    # redir / /services/main 302
+
+    # 2.2 带尾斜杠跳转
+    # @add_trailing_slash {
+    #     path_regexp ^/services/([^/]+)$
+    # }
+    # redir @add_trailing_slash /services/{re.1}/ 308
+
+
+    # 2.3 静态注入 /services/admin → 127.0.0.1:<port>
     # handle_path /services/admin/* {
-    #     reverse_proxy 127.0.0.1:8000
+    #     reverse_proxy 127.0.0.1:<port>
     # }
 
-    # 动态注入的 /services/{app_id}/* 插在这里之前
+    # 2.4 动态注入 /services/<app_id>/* （插在这里之前）
 
-    # 如果子服务 access 为 0.0.0.0 的话，
-    # 未注入的子服务仍可以直连端口 http://example.com:{port}
+
+    # 3. 兜底处理
+    # 3.1 将未匹配的请求代理到请求的端口
+    # reverse_proxy * 127.0.0.1:<port>
     
+    # 3.2 不处理
     # 未匹配的路径一律 404
     handle {
         respond "Not Found" 404
