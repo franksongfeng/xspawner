@@ -5,8 +5,7 @@ from pywebio import config
 from pywebio.output import put_table, put_text, put_markdown
 from pywebio.session import set_env
 
-from xspawner.spawner import Spawner        # NOQA
-from xspawner.xspawner import UiHandler      # NOQA
+from xspawner.xspawner import Spawner, UiHandler      # NOQA
 from xspawner.orm import *                   # NOQA
 
 # 一个ORM操作和数据渲染的演示例子，具体ORM用法详见tortoise-orm

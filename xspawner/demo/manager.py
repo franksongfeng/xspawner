@@ -17,8 +17,7 @@ from pywebio.output import *                   # NOQA
 from pywebio.pin import *                      # NOQA
 from pywebio.session import *                  # NOQA
 
-from xspawner.spawner import Spawner          # NOQA
-from xspawner.xspawner import UiHandler       # NOQA
+from xspawner.xspawner import Spawner, UiHandler       # NOQA
 
 
 ##############################################################################
