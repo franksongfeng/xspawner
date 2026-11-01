@@ -13,7 +13,7 @@ import importlib
 
 from . import __version__
 from .constants import *
-from .utilities.misc import get_similar_cls
+from .misc import get_similar_cls
 
 if __name__ == '__main__':
     try:

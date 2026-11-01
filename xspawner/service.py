@@ -23,7 +23,7 @@ import tornado.gen
 import tornado.process
 
 from xspawner.constants import Config, LOCAL_DB, LOG_FILE
-from xspawner.utilities.log import Log
+from xspawner.log import Log
 
 
 ##############################################################################

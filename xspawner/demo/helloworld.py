@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 
-from xspawner.spawner import Spawner # NOQA
-from xspawner.xspawner import ApiHandler #NOQA
+from xspawner.xspawner import Spawner, ApiHandler #NOQA
 
 class Helloworld(Spawner):
     def __init__(self, **kwargs):

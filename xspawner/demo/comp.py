@@ -14,8 +14,7 @@ from pywebio.input import *
 from pywebio.output import *
 from pywebio.session import *
 
-from xspawner.spawner import Spawner
-from xspawner.xspawner import UiHandler
+from xspawner.xspawner import Spawner, UiHandler
 
 
 ##############################################################################

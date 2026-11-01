@@ -121,12 +121,6 @@ def getListPartition(lst, lmt):
         return [lst[i * lmt:(i + 1) * lmt] for i in range(cnt)]
 
 
-def suicide():
-    import os
-    import signal
-    os.kill(os.getpid(), signal.SIGTERM)
-
-
 def makeRootUrl(scheme, host, port):
     return "{}://{}:{}/".format(scheme, host, port)
 

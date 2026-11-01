@@ -1,15 +1,9 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
-from pywebio.input import *
-from pywebio.output import *
-from xspawner.spawner import * # NOQA
-from xspawner.xspawner import * # NOQA
-import os.path
-import datetime
-import json
 
+from xspawner.xspawner import Spawner, ApiHandler  # NOQA
 
-class Yet(Spawner):
+class Loader(Spawner):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -26,11 +20,3 @@ class Yet(Spawner):
         fname = "a.xml"
         return (fdata, fname)
 
-    @UiHandler.route("/submit")
-    def _submit(self):
-        usr = input("请输入你的姓名：", type=TEXT)
-        pwd = input("请输入你的口令：", type=PASSWORD)
-        if len(pwd) > 3:
-            put_text('口令验证通过 - %s:%s' % (usr, pwd))
-        else:
-            put_error('口令验证没通过！')

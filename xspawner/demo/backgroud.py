@@ -8,15 +8,11 @@ from pywebio.pin import *
 from pywebio.session import *
 from pywebio.utils import *
 from xspawner.xspawner import * # NOQA
-from xspawner.spawner import * # NOQA
-from xspawner.utilities.misc import * # NOQA
+from xspawner.misc import * # NOQA
 import tornado.gen
-import requests
-from requests.exceptions import *
-import psutil
 
 
-class ASubmitCB(Spawner):
+class Backgroud(Spawner):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

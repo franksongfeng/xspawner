@@ -32,8 +32,7 @@ Home = "https://github.com/franksongfeng/xspawner"
 # packages = {find = {where = ["xspawner"]}}
 packages = [
     "xspawner",
-    "xspawner.plugins",
-    "xspawner.utilities"
+    "xspawner.plugins"
 ]
 
 [tool.setuptools.package-data]

@@ -6,7 +6,7 @@ import json
 import io
 import os
 import mimetypes
-from .misc import get_file_type, make_multipart_request, parse_reply
+from xspawner.misc import get_file_type, make_multipart_request, parse_reply
 
 class Client:
     def __init__(self, addr):

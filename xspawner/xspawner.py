@@ -20,10 +20,16 @@ import functools
 import itertools
 import zipfile
 import base64
+import uuid
 import ssl
+import unittest
+import shutil
 from urllib.parse import urlparse
 from typing import Optional, List, Dict
 from collections import UserDict
+import ipaddress
+import asyncio
+
 
 # Third Libraries
 import tornado.ioloop
@@ -32,6 +38,7 @@ import tornado.gen
 import tornado.queues
 import tornado.concurrent
 import tornado.web
+import tornado.escape
 import tornado.locks
 import tornado.httpserver
 import tornado.httpclient
@@ -41,13 +48,13 @@ from tortoise.exceptions import DoesNotExist
 import pywebio.platform.tornado
 
 # Self Libraries
-from .utilities.log import * # NOQA
-from .utilities.client import * # NOQA
-from .utilities.msg import * # NOQA
-from .utilities.misc import * # NOQA
-from .constants import * # NOQA
-from .orm import * #NOQA
-from .proxy import _prefix, caddy_is_running, caddy_find_server_by_site_address, caddy_add_route, caddy_del_route
+from xspawner.log import Log # NOQA
+from xspawner.constants import * # NOQA
+from xspawner.orm import open_database, drop_database, config_model_to_tuple, ConfigModel, StateModel #NOQA
+from xspawner.service import open_service, close_service, get_service_status # NOQA
+from xspawner.proxy import _prefix, caddy_is_running, caddy_find_server_by_site_address, caddy_add_route, caddy_del_route  # NOQA
+from xspawner.misc import wait_port_sync, getSSLContext, zip_folder, make_multipart_request, make_multipart_form, make_docs, parse_reply, get_file_type, is_module_available, is_port_used, getWorkDir # NOQA
+
 
 ##############################################################################
 # Classes
@@ -792,6 +799,7 @@ class XSpawner(Spawnable):
     # fname is str
     # fargs is dict of {str:str}
     async def postForm(self, url, fdata, fname, fargs={}):
+        self.iLog("postForm BEG {} {} {} {}".format(url, fdata, fname, fargs))
         args = {k: [str(fargs[k]).encode()] for k in fargs}
         docs = {
             "file": [
@@ -803,7 +811,9 @@ class XSpawner(Spawnable):
             ]
         } if fdata or fname else {}
         headers, body = make_multipart_request(args, docs)
-        return await postAsync(url, headers, body)
+        rt = await postAsync(url, headers, body)
+        self.iLog("postForm END {rt}".format(rt))
+        return rt
 
     async def waitForService(self, port, host="127.0.0.1", timeout=30, interval=0.5):
         self.iLog(f"waitForService BEG host={host} port={port} timeout={timeout}")
@@ -860,3 +870,495 @@ class XSpawner(Spawnable):
         info["work_dir"] = getWorkDir()
         info["logfile"] = self.getLogFile()
         return info
+
+
+
+class Spawner(XSpawner): # NOQA
+
+
+    @ApiHandler.route("/get_config")
+    def _get_config(self, headers: dict, data: dict):
+        return self._config._asdict()
+
+    @ApiHandler.route("/backup_db")
+    async def _backup_db(self, headers: dict, data: dict):
+        self.iLog("{}::_backup_db BEG".format(self.__class__.__name__))
+        if "conn" not in data:
+            self.eLog("Failed to backup db, No conn in data")
+            return False
+        try:
+            loop = self._ioloop.asyncio_loop
+            rt = await loop.run_in_executor(None, backup_database, data["conn"])
+            self.iLog("{}::_backup_db END {}".format(self.__class__.__name__, rt))
+            return rt
+        except Exception as e:
+            self.eLog(f"Exception on backup db {e}")
+            return False
+
+
+    @ApiHandler.route("/drop_db")
+    async def _drop_db(self, headers: dict, data: dict):
+        self.iLog("{}::_drop_db BEG".format(self.__class__.__name__))
+        if "conn" not in data:
+            self.eLog("Failed to drop db, No conn in data")
+            return False
+        try:
+            await drop_database(data["conn"])
+            self.iLog("{}::_drop_db END".format(self.__class__.__name__))
+        except Exception as e:
+            self.eLog(f"Exception on drop db {e}")
+            return False
+        return True
+
+    @ApiHandler.route("/get_children")
+    async def _get_children(self, headers: dict, data: dict):
+        return await self.getChildren()
+
+    @ApiHandler.route("/start_child")
+    async def _start_child(self, headers: dict, data: dict):
+        self.iLog("{}::_start_child BEG {}".format(self.__class__.__name__, data))
+        if "id" not in data:
+            self.eLog(f"Failed to start child, No id key in data {data}")
+            return False
+
+        model = await self.getConfig(data["id"])
+        if model:
+            child_config = model
+        else:
+            child_config = self._config._replace(**data)._replace(parent=self._config.id)
+
+        # open systemed service
+        if open_service(child_config):
+            self.iLog(f"successfully start child {child_config}!")
+        else:
+            self.eLog(f"failed to start child {child_config}!")
+            return False
+
+        # wait child service ready
+        child_addr = self.getLocalAddr(child_config.port)
+        loop = self._ioloop.asyncio_loop
+        ok = await loop.run_in_executor(None, wait_port_sync, child_config.port)
+        if not ok:
+            self.eLog(f"child {child_addr} did not become ready in 120s")
+            return False
+        self.iLog(f"child {child_addr} is ready")
+
+
+        # open sub systemd service
+        grand_children = await self.postJson(f"{child_addr}/get_children", {})
+        if grand_children:
+            for grand_child in grand_children:
+                res = await self.postJson(f"{child_addr}/start_child", {"id":grand_child})
+                if res:
+                    self.iLog("Successful request to {}/start_child {}: {}".format(child_addr, grand_child, res))
+                else:
+                    self.eLog("Exception request to {}/start_child {}".format(child_addr, grand_child))
+                    return False
+                await tornado.gen.sleep(1)
+
+        sts = get_service_status(self._config.host, data["id"])
+        pid = int(sts["MainPID"]) if sts["ActiveState"] == "active" else None
+        self.iLog(f"service status: {sts}")
+
+        rt = {"id": data["id"], "pid": pid}
+        self.iLog("{}::start_child END {}".format(self.__class__.__name__, rt))
+        return rt
+
+    @ApiHandler.route("/stop_child")
+    async def _stop_child(self, headers: dict, data: dict):
+        self.iLog("{}::_stop_child BEG {}".format(self.__class__.__name__, data))
+        if "id" not in data:
+            self.eLog(f"Failed to stop child, No id key in data {data}")
+            return False
+
+        child_id = data["id"]
+        model = await self.getConfig(child_id)
+
+        if model:
+            # close sub systemd service
+            child_addr = self.getLocalAddr(model.port)
+            grand_children = await self.postJson(f"{child_addr}/get_children", {})
+            if grand_children:
+                for grand_child in grand_children:
+                    res = await self.postJson(f"{child_addr}/stop_child", {"id":grand_child})
+                    if res:
+                        self.iLog("Successful request to {}/stop_child {}".format(child_addr, grand_child))
+                    else:
+                        self.eLog("Exception request to {}/stop_child {}".format(child_addr, grand_child))
+                        return False
+                    await tornado.gen.sleep(0.2)
+                await tornado.gen.sleep(0.5)
+
+        sts = get_service_status(self._config.host, child_id)
+        pid = int(sts["MainPID"]) if sts["ActiveState"] == "active" else None
+        self.iLog(f"service status: {sts}")
+
+        # close systemed service
+        if close_service(self._config.host, child_id):
+            if await self.delConfig(child_id):
+                self.iLog(f"successfully rm model {child_id}")
+            else:
+                self.eLog(f"failed to rm model {child_id}!")
+            rt = {"id": child_id, "pid": pid}
+            self.iLog("{}::_stop_child END {}".format(self.__class__.__name__, rt))
+            return rt
+        else:
+            self.eLog(f"failed to stop service {child_id}!")
+            return False
+
+
+    @ApiHandler.route("/deploy_child")
+    async def _deploy_child(self, headers: dict, fdata: bytes, fname: str, fargs: dict):
+        """
+        一步部署并启动子服务。
+        近支持直接上传文件: 传 fdata / fname / fargs
+        参数:
+          - fdata/fname/fargs: 与 /upload_plugin 一致，直接提供文件内容，且fargs中包含服务的 id & port。
+        """
+        self.iLog("{}::_deploy_child BEG".format(self.__class__.__name__))
+        if fdata is None:
+            self.eLog("Error: no plugin payload {}".format(fname))
+            return False
+
+        if fname is None:
+            self.eLog("Error: no plugin name {}".format(fname))
+            return False
+
+        plugin_id = os.path.splitext(os.path.basename(fname))[0]
+
+        if fargs is None:
+            self.eLog("Error: no fargs")
+            return False
+
+        if "id" not in fargs:
+            self.eLog("deploy_child: miss 'id' in fargs {}".format(fargs))
+            return False
+
+        child_id = fargs["id"]
+
+        if "port" not in fargs:
+            self.eLog("deploy_child: miss 'port' in fargs {}".format(fargs))
+            return False
+
+        child_port = int(fargs["port"])
+
+        models = await self.getConfigs() or []
+        for m in models:
+            if m.id == child_id:
+                self.eLog("Error: duplicated id {}".format(child_id))
+                return False
+            if m.port == child_port:
+                self.eLog("Error: duplicated port {}".format(child_port))
+                return False
+
+        if not await self._upload_plugin(headers, fdata, fname, fargs):
+            self.eLog("Error: failed to upload plugin {}".format(plugin_id))
+            return False
+
+
+        child_config = self._config._replace(
+            parent=self._config.id,
+            plugin=plugin_id,
+            id=child_id,
+            port=child_port,
+            libs=fargs.get("libs", "") if fargs else ""
+        )
+
+        if not await self.addConfig(child_config):
+            self.eLog("Error: failed to add model {}".format(child_id))
+            return False
+
+        rt = await self._start_child(headers, {"id": child_id})
+        if rt and isinstance(rt, dict):
+            self.iLog("{}::_deploy_child END {}".format(self.__class__.__name__, rt))
+            return True
+        else:
+            await self.delConfig(child_id)
+            self.eLog("Error: cleanup model {} after failure".format(child_id))
+            return False
+
+
+    @ApiHandler.route("/clean_plugin")
+    async def _clean_plugin(self, headers: dict, data: dict):
+        self.iLog("{}::_clean_plugin BEG {}".format(self.__class__.__name__, data))
+        if "plugin" not in data or not data["plugin"]:
+            self.wLog(f"Miss plugin in data {data}")
+            return False
+
+        srvapp = data["plugin"]
+
+        if srvapp == "spawner" or srvapp == "administrator":
+            self.wLog("refuse to clean spawner itself")
+            return False
+
+        pkgdir = f"{PLUGIN_PKG}.{srvapp}".replace('.', '/')
+        if os.path.isdir(pkgdir):
+            shutil.rmtree(pkgdir)
+            self.iLog(f"directory {pkgdir} is deleted")
+        else:
+            modfile = pkgdir + ".py"
+            if os.path.isfile(modfile):
+                os.remove(modfile)
+                self.iLog(f"file {modfile} is deleted")
+            else:
+                self.iLog(f"file {modfile} doesnt exist")
+
+        mod = "{}.{}".format(PLUGIN_PKG, data["plugin"])
+        if mod in sys.modules:
+            del sys.modules[mod]
+        mod = "{}.{}.{}".format(PLUGIN_PKG, data["plugin"], data["plugin"])
+        if mod in sys.modules:
+            del sys.modules[mod]
+        mod = "test"
+        if mod in sys.modules:
+            del sys.modules[mod]
+
+        self.iLog("{}::_clean_plugin END".format(self.__class__.__name__))
+        return True
+
+
+    @ApiHandler.route("/download_plugin")
+    async def _download_plugin(self, headers: dict, data: dict):
+        self.iLog("{}::_download_plugin BEG {}".format(self.__class__.__name__, data))
+        if "plugin" not in data or not data["plugin"]:
+            self.wLog(f"Miss plugin in data {data}")
+            return False
+        srvapp = data["plugin"]
+        pkgdir = f"{PLUGIN_PKG}.{srvapp}".replace('.', '/')
+        if os.path.isdir(pkgdir):
+            fname = pkgdir + ".zip"
+            try:
+                zip_folder(pkgdir, fname, ["__pycache__", ".git", "logs"])
+                self.iLog(f"directory {pkgdir} is zipped to {fname}")
+                with open(fname, 'rb') as f:
+                    fdata = f.read()
+                self.dLog("{}::_download_plugin END {}".format(self.__class__.__name__, os.path.basename(fname)))
+                return (fdata, os.path.basename(fname))
+            finally:
+                if os.path.exists(fname):
+                    os.unlink(fname)
+        else:
+            fname = pkgdir + ".py"
+            if os.path.isfile(fname):
+                self.iLog(f"file {fname} is found")
+                with open(fname, 'rb') as f:
+                    fdata = f.read()
+                self.dLog("{}::_download_plugin END {}".format(self.__class__.__name__, os.path.basename(fname)))
+                return (fdata, os.path.basename(fname))
+            else:
+                self.wLog(f"file {fname} doesnt exist")
+        self.iLog("{}::_download_plugin END".format(self.__class__.__name__))
+        return False
+
+
+    @ApiHandler.route("/upload_plugin")
+    async def _upload_plugin(self, headers: dict, fdata: bytes, fname: str, fargs: dict):
+        self.iLog("{}::_upload_plugin BEG {} {} {}".format(self.__class__.__name__, len(fdata), fname, fargs))
+        fname = os.path.basename(fname)          # ← 入口统一 sanitize
+        if get_file_type(fname) == "application/zip":
+            zip_buffer = io.BytesIO(fdata)
+            with zipfile.ZipFile(zip_buffer, 'r') as zipf:
+                root = os.path.realpath(PLUGIN_DIR)
+                for entry in zipf.namelist():
+                    tgt = os.path.realpath(os.path.join(PLUGIN_DIR, entry))
+                    if not tgt.startswith(root + os.sep):
+                        self.eLog(f"zip entry escapes: {entry}")
+                        return False
+                zipf.extractall(PLUGIN_DIR)
+                self.iLog(f"exact {fname} to {PLUGIN_DIR}")
+        else:
+            modfile = f"{PLUGIN_DIR}/{fname}"
+            with open(modfile, "wb") as f:
+                f.write(fdata)
+                self.iLog(f"write to {modfile}")
+        self.iLog("{}::_upload_plugin END".format(self.__class__.__name__))
+        return True
+
+
+    @ApiHandler.route("/test_child")
+    async def _test_child(self, headers: dict, data: dict):
+        self.iLog("{}::_test_child BEG {}".format(self.__class__.__name__, data))
+        if "plugin" not in data \
+        or "port" not in data \
+        or "id" not in data:
+            self.wLog(f"Miss plugin or port or id in data: {data}")
+            return True
+        
+        test_dir = "{}/{}/tests".format(PLUGIN_DIR, data["plugin"])
+        self.iLog("test_dir: {}".format(test_dir))
+        if os.path.isdir(test_dir):
+            await tornado.gen.sleep(1)
+            if is_port_used(data["port"]):
+                # run unittest
+                loader = unittest.TestLoader()
+                suite = loader.discover(start_dir=test_dir, top_level_dir=test_dir)
+                runner = unittest.TextTestRunner(failfast=True)
+                result = runner.run(suite)
+                self.iLog("unittest result {}".format(result))
+                if result.errors or result.failures:
+                    self.eLog("unittest upon server {}={} failed.".format(data["plugin"], data["id"]))
+                    return False
+                else:
+                    self.iLog("unittest passed.")
+            else:
+                self.wLog("server <:{}> is not running.".format(data["port"]))
+                return False
+        else:
+            self.wLog("no unittest case.")
+        self.iLog("{}::_test_child END".format(self.__class__.__name__))
+        return True
+
+    @ApiHandler.route("/get_info")
+    async def _get_info(self, headers: dict, data: dict):
+        return self.getInfo()
+
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+
+##############################################################################
+# Functions
+##############################################################################
+
+def js_to_dict(js):
+    return tornado.escape.json_decode(js)
+
+
+def dict_to_js(dt):
+    return tornado.escape.json_encode(dt)
+
+
+def _is_loopback_url(url: str) -> bool:
+    """URL 是否指向本机环回地址。
+
+    ⚠️ 安全假设：url 应由内部代码构造，不应直接透传用户输入。
+    本函数仅用于决定是否关闭证书校验，不是 SSRF 防护。
+
+    注：0.0.0.0 不在 loopback 范围（is_loopback=False），
+    访问 https://0.0.0.0:port 时证书 SAN 不匹配、严格校验会失败，
+    符合预期。
+    """
+    try:
+        host = urlparse(url).hostname or ""
+    except Exception:
+        return False
+    if not host:
+        return False
+    if host == "127.0.0.1":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _validate_cert_for(url: str) -> bool:
+    """内部调用（环回地址）关闭校验；外部调用严格校验。"""
+    return not _is_loopback_url(url)
+
+
+def _preview(body, limit: int = 200) -> bytes:
+    """安全截取响应体片段，用于日志。body 可能为 None。"""
+    return body[:limit] if body else b""
+
+
+async def postAsyncFile(url: str, filepath: str, fileargs: dict = None):
+    """POST 上传文件，返回解析后的 JSON 响应。
+
+    参数:
+      - url:      目标地址
+      - filepath: 待上传文件路径
+      - fileargs: 附加表单字段 {name: value}，value 会转为 str
+
+    返回:
+      - dict  成功
+      - None  失败（文件不存在、非 200、JSON 解析失败等）
+    """
+    fileargs = fileargs or {}
+    if not os.path.isfile(filepath):
+        raise Exception("postAsyncFile: file not found: {filepath}")
+        return None
+
+    args = {k: [str(fileargs[k]).encode()] for k in fileargs}
+    docs = make_docs({"file": [filepath]})
+
+    boundary = tornado.escape.utf8(
+        "----XSPAWNER" + uuid.uuid4().hex)
+    body = make_multipart_form(boundary, args, docs)
+    headers = {
+        "Content-Type": "multipart/form-data; boundary={}".format(
+            boundary.decode()),
+        # Content-Length 交给 Tornado 自动计算
+    }
+
+    # 使用 Tornado 全局单例（IOLoop 级别），复用连接池；
+    # 依赖 xspawner 全局单 IOLoop 假设。
+    client = tornado.httpclient.AsyncHTTPClient()
+    try:
+        res = await client.fetch(
+            url, method="POST", headers=headers, body=body,
+            validate_cert=_validate_cert_for(url),
+        )
+    except tornado.httpclient.HTTPClientError as e:
+        raise Exception(f"postAsyncFile {url}: HTTP {e.code}: {e.message}; "
+                     f"body={_preview(e.response.body) if e.response else b''!r}")
+        return None
+    except asyncio.CancelledError:
+        raise Exception(f"postAsync {url}: CancelledError")
+    except Exception as e:
+        raise Exception(f"postAsyncFile {url}: "
+                     f"{type(e).__name__}: {e}")
+        return None
+
+    if res.code != 200:
+        raise Exception(f"postAsyncFile {url}: HTTP {res.code}, "
+                       f"body={_preview(res.body)!r}")
+        return None
+
+    rstr = res.body.decode("utf-8", errors="replace") if res.body else ""
+    if not rstr:
+        raise Exception(f"postAsyncFile {url}: empty response body")
+        return None
+    try:
+        return json.loads(rstr)
+    except json.JSONDecodeError as e:
+        raise Exception(f"postAsyncFile {url}: invalid JSON: {e}; "
+                     f"body={_preview(res.body)!r}")
+        return None
+
+
+async def postAsync(url, headers, body):
+    """POST 请求，返回 parse_reply 的结果。
+
+    返回:
+      - dict/其他  成功（HTTP 200）
+      - None       失败（非 200、解析失败、网络异常等）
+    """
+    # 使用 Tornado 全局单例（IOLoop 级别），复用连接池；
+    # 依赖 xspawner 全局单 IOLoop 假设。
+    client = tornado.httpclient.AsyncHTTPClient()
+    try:
+        res = await client.fetch(
+            url, method="POST", headers=headers, body=body,
+            validate_cert=_validate_cert_for(url),
+            raise_error=False,        # 显式关闭：让下方 if res.code 生效
+        )
+    except asyncio.CancelledError:
+        raise Exception(f"postAsync {url}: CancelledError")
+    except Exception as e:
+        raise Exception(f"postAsync {url}: {type(e).__name__}: {e}")
+        return None
+
+    if res.code != 200:
+        raise Exception(f"postAsync {url}: HTTP {res.code}, "
+                       f"body={_preview(res.body)!r}")
+        return None
+
+    try:
+        return parse_reply(res)
+    except Exception as e:
+        raise Exception(f"postAsync {url}: parse_reply failed: "
+                     f"{type(e).__name__}: {e}; "
+                     f"body={_preview(res.body)!r}")
+        return None
