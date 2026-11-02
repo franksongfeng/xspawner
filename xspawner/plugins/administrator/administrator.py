@@ -25,10 +25,10 @@ from pywebio.session import *
 from pywebio.utils import *
 import tornado.gen
 
-from xspawner.service import get_service_status_text_async
+from xspawner.service import get_service_status_text_async, split_libs, is_valid_pip_pkg
 from xspawner.xspawner import Spawner, UiHandler #NOQA
 from xspawner.log import LEVELS #NOQA
-from xspawner.misc import trim_code, filter_logs, delete_file, path_to_pkg, get_similar_cls, get_file_type, is_port_used, split_libs, is_valid_pip_pkg # NOQA
+from xspawner.misc import trim_code, filter_logs, delete_file, path_to_pkg, get_similar_cls, get_file_type, is_port_used # NOQA
 from xspawner.constants import * # NOQA
 
 
