@@ -556,13 +556,13 @@ docker exec xspawner systemctl is-active <child_id>
 
 ### 未来
 
+- ORM：ConfigModel 转为 Administration （t_administration）
 - Venv：python虚拟环境
 - Heatbeat：administrator 通过periodic方法监控子服务
 - Update：增加更换服务
 - Docker：容器化部署单域名服务集群，多容器部署多域名服务
 - AAA：增加管理员口令，完善鉴权和权限
-- MsgHandler
-- AI：SDD和模型代理Aider
+- AI GUI：图形化界面，遵从SDD和模型代理Aider
 
 
 ### 其它
