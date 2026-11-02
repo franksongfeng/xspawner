@@ -490,40 +490,103 @@ def kill_process_on_port(port):
         print("stderr: {}".format(result.stderr))
         return False
 
-# kind = 0  search for specific class, that is to say,
-#           mod contains the base class
-# kind = 1  search for specific class's all derivative class, that is to say, 
-#           mod contains a derivative class of the base class
-# kind = 2  search for specific class and its all derivative class, that is to say,
-#           mod contains the base class or a derivative class of the base class
-@lru_cache(maxsize=256)
+
+
+def is_descendant_cls(cls, base_cls_name):
+    """
+    判断 cls 是否是名为 base_cls_name 的类的派生类（不含 cls 自身）。
+    按 __name__ 匹配，可跨模块匹配任意同名基类。
+    """
+    if not inspect.isclass(cls):
+        return False
+    return any(
+        getattr(base, "__name__", None) == base_cls_name
+        for base in cls.__mro__[1:]
+    )
+
+
+# @lru_cache(maxsize=256)
 def get_similar_cls(mod, base_cls_name, kind=2):
-    print("get_similar_cls BEG {} {} {}".format(str(mod), base_cls_name, kind))
+    """
+    在 mod 模块中搜索并返回第一个匹配的类。
+
+    参数
+    ----
+    mod : str | module
+        模块名（如 'xspawner.plugins.administrator'）或已导入的模块对象。
+    base_cls_name : str
+        目标类名（kind=0）、基类名（kind=1），或两者（kind=2）。
+    kind : int
+        0 - 类名 == base_cls_name
+        1 - 类是 base_cls_name 的派生类（不含自身）  ← 找插件类用这个
+        2 - 二者之一（默认）
+
+    返回
+    ----
+    type | None
+        匹配到的类对象；模块导入失败或没有匹配时返回 None。
+    """
+    # ---- 参数校验：错的参数应该立刻炸，而不是静默返回 None ----
+    if not isinstance(base_cls_name, str) or not base_cls_name:
+        raise ValueError("base_cls_name 必须是非空字符串，得到 %r" % (base_cls_name,))
+    if kind not in (0, 1, 2):
+        raise ValueError("kind 必须是 0/1/2，得到 %r" % (kind,))
+
+    print("get_similar_cls BEG mod=%r base=%r kind=%d",
+                 mod, base_cls_name, kind)
+
+    # ---- 1. 导入模块：只把 ImportError 当"合理失败"，其它异常让它冒泡 ----
     try:
         mod_obj = importlib.import_module(mod) if isinstance(mod, str) else mod
-        if mod_obj:
-            for name in dir(mod_obj):
-                obj = getattr(mod_obj, name)
-                if inspect.isclass(obj):
-                    if (kind == 0 and obj.__name__ == base_cls_name) \
-                    or (kind == 1 and is_descendant_cls(obj, base_cls_name)) \
-                    or (kind == 2 and (obj.__name__ == base_cls_name or is_descendant_cls(obj, base_cls_name))):
-                        print("get_similar_cls END Found {} {}".format(base_cls_name, str(obj)))
-                        return obj
-    except Exception as e:
-        print("exception: {}".format(str(e)))
+    except ImportError as e:
+        print("导入模块 %r 失败: %s", mod, e)
         return None
 
-# kls is a derivative class of the base class
-def is_descendant_cls(kls, base_cls_name):
-    if not kls:
-        return False
-    if kls.__name__ == "object":
-        return False
-    if kls.__base__.__name__ == base_cls_name:
-        print("is_descendant_cls: found subclass of {} - {}!".format(base_cls_name, str(kls)))
-        return True
-    return is_descendant_cls(kls.__base__, base_cls_name)
+    if not inspect.ismodule(mod_obj):
+        raise TypeError(
+            "mod 必须是模块对象或模块名字符串，得到 %s"
+            % type(mod_obj).__name__
+        )
+    mod_name = getattr(mod_obj, "__name__", str(mod))
+
+    # ---- 2. 收集候选类 ----
+    candidates = [obj for _, obj in inspect.getmembers(mod_obj, inspect.isclass)]
+    if not candidates:
+        print("模块 %r 中没有任何类", mod_name)
+        return None
+
+    # ---- 3. 按 kind 过滤 ----
+    def _match(cls):
+        name_hit = cls.__name__ == base_cls_name
+        if kind == 0:
+            return name_hit
+        desc_hit = is_descendant_cls(cls, base_cls_name)
+        if kind == 1:
+            return desc_hit
+        return name_hit or desc_hit
+
+    matched = [c for c in candidates if _match(c)]
+    if not matched:
+        print(
+            "模块 %r 中未找到 base_cls_name=%r 的匹配类 (kind=%d)",
+            mod_name, base_cls_name, kind,
+        )
+        return None
+
+    # ---- 4. 优先级排序：名字精确匹配 > 直接子类 > 间接子类 ----
+    def _priority(cls):
+        if cls.__name__ == base_cls_name:
+            return 0
+        if any(getattr(b, "__name__", None) == base_cls_name
+               for b in cls.__bases__):
+            return 1
+        return 2
+
+    matched.sort(key=lambda c: (_priority(c), c.__name__))
+    result = matched[0]
+
+    print("get_similar_cls END Found %s -> %r", base_cls_name, result)
+    return result
 
 
 def is_module_available(module_name):
