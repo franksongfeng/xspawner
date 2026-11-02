@@ -24,6 +24,7 @@ from pywebio.pin import *
 from pywebio.session import *
 from pywebio.utils import *
 import tornado.gen
+from tortoise import Tortoise
 
 from xspawner.service import get_service_status_text_async, split_libs, is_valid_pip_pkg
 from xspawner.xspawner import Spawner, UiHandler #NOQA
@@ -346,15 +347,12 @@ class Administrator(Spawner): # NOQA
         srvcls = None
         pkgfname = None
         if get_file_type(fname) == "application/zip":
+            # 搜索文件包
             pkgfname = tempfile.mktemp()+".zip"
             with open(pkgfname, "wb") as f:
                 f.write(fdata)
             srvcls = search_for_class_in_package(pkgfname, "Spawner")
             delete_file(pkgfname)
-            if not srvcls:
-                put_error('No required server class in package {}!'.format(pkgfname))
-                return
-
         elif get_file_type(fname) == "text/x-python":
             pkgfname = f"{PLUGIN_DIR}/{fname}"
             if not check_mod_file(pkgfname):
@@ -364,14 +362,21 @@ class Administrator(Spawner): # NOQA
                 f.write(fdata)
 
             srvcls = search_for_class_in_file(pkgfname, "Spawner")
-
-            if not srvcls:
-                put_error('No required server class in {}!'.format(pkgfname))
-                return
         else:
             put_error('Invalid file type {}!'.format(fname))
             return
 
+        if not srvcls:
+            # 没有搜到
+            put_error('No required server class in package {}!'.format(pkgfname))
+            self.eLog('No required server class in package {}!'.format(pkgfname))
+            return
+
+        # 补充ORM模型
+        try:
+            Tortoise.init_models([srv_cls.__module__], "models")
+        except Exception as e:
+            self.eLog("Tortoise.init_models failed: {}: {}".format(type(e).__name__, e))
 
         topmod = srvcls.__module__
         self.dLog(f"topmod: {topmod}")
