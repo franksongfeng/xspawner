@@ -16,6 +16,7 @@ from decimal import Decimal
 import os
 import traceback
 import tempfile
+import zipfile
 
 from pywebio import *
 from pywebio.input import *
