@@ -32,7 +32,7 @@ from xspawner.xspawner import Spawner, UiHandler #NOQA
 from xspawner.log import LEVELS #NOQA
 from xspawner.misc import trim_code, filter_logs, delete_file, path_to_pkg, get_similar_cls, get_file_type, is_port_used # NOQA
 from xspawner.constants import * # NOQA
-
+from .encryption import _require_password
 
 ##############################################################################
 # Constants
@@ -136,6 +136,9 @@ class Administrator(Spawner): # NOQA
     @UiHandler.route("/")
     @config(theme="yeti")
     async def _(self):
+        if not await _require_password(self):
+            return
+
         set_env(title="首页", output_animation=False)
         put_html(f'<style>{CSS}</style>')
         tab_title = """

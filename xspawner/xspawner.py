@@ -363,7 +363,10 @@ class XSpawner(Spawnable):
             )
             self.iLog("httpserver is with specific ssl certification")
         else:
-            self._server = tornado.httpserver.HTTPServer(app)
+            self._server = tornado.httpserver.HTTPServer(
+                app,
+                xheaders=(config.access == "127.0.0.1")     # 信任来自反向代理的头信息
+            )
             self.iLog("httpserver is without specific ssl certification")
         print("__init__ END")
 
