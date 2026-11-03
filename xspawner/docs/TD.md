@@ -452,7 +452,7 @@ sudo apt-get install -y caddy
 https://example.com {
 
     # 根路径精确跳转到 /service/main
-    redir / /service/main 302
+    redir / /services/main 302
 
     # 动态注入的 /services/{srv_id}/* 插在这里之前
 
