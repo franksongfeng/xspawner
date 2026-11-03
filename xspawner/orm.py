@@ -679,7 +679,7 @@ class TieredModel(KeyedModel):
         # reference parent
         if "parent" not in attrs and "parent" not in fk_mapping:
             attrs['parent'] = fields.ForeignKeyField(
-                f"{app_label}.{name}",  # like "models.ConfigModel"
+                f"{app_label}.{name}",  # like "models.XXXModel"
                 null=True,
                 on_delete=fields.SET_NULL,
                 related_name="+",               # No reverse access
