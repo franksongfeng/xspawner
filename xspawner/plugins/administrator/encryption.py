@@ -1,6 +1,24 @@
 # ============================================================================
 # 访问口令校验（<PSW_FILE> 位于当前工作目录，PBKDF2-HMAC-SHA256 加盐哈希）
 #   文件格式：pbkdf2_sha256$<iters>$<salt_hex>$<hash_hex>
+#
+# 口令文件的生成过程:
+#
+# cd /opt/xspawner    # 换成你的 WorkingDirectory（systemctl cat 里看）
+
+# python3 - <<'PY' > admpw.txt
+# import secrets, hashlib
+
+# pw    = 'YOUR-PASSWORD'      # ← 改成你的口令
+# iters = 200_000               # 迭代次数，200000 约 50~100ms/次
+# salt  = secrets.token_bytes(16)
+
+# dk = hashlib.pbkdf2_hmac('sha256', pw.encode('utf-8'), salt, iters)
+# print(f"pbkdf2_sha256${iters}${salt.hex()}${dk.hex()}")
+# PY
+
+# chmod 600 admpw.txt
+# cat admpw.txt
 # ============================================================================
 
 import os
