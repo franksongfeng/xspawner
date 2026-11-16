@@ -264,7 +264,7 @@ class Spawnable(object):
     def use_caddy(self):
         raise NotImplementedError
 
-    async def init_db(self):
+    async def add_model(self):
         raise NotImplementedError
 
     async def add_route(self):
@@ -473,7 +473,7 @@ class XSpawner(Spawnable):
         self.iLog("start BEG")
         self._fatal = False
         self._ioloop.add_callback(self.loop)
-        self._ioloop.add_callback(self.init_db)
+        self._ioloop.add_callback(self.add_model)
         self._ioloop.add_callback(self.add_route)
         try:
             self._server.listen(self._config.port, address=self._config.access)
@@ -534,8 +534,8 @@ class XSpawner(Spawnable):
     def getPid(self):
         return os.getpid()
 
-    async def init_db(self):
-        self.iLog("init_db BEG")
+    async def add_model(self):
+        self.iLog("add_model BEG")
         try:
             connection_str = f"sqlite://{LOCAL_DB}"
             extra_model_mod = "{}.{}".format(PLUGIN_PKG, self._config.plugin)
@@ -544,10 +544,10 @@ class XSpawner(Spawnable):
                 # await tornado.gen.sleep(0.5)
                 await self.addConfig(self._config)
                 self.iLog(f"new a model {self._config}")
-            self.iLog("init_db END")
+            self.iLog("add_model END")
         except Exception as e:
-            self.eLog(f"init_db raise {e}")
-            self.cLog("init_db failed, no db => fatal")
+            self.eLog(f"add_model raise {e}")
+            self.cLog("add_model failed, no db => fatal")
             self._fatal = True
             self._server.stop()
             self._ioloop.stop()
