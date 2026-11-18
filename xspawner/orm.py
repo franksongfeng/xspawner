@@ -697,64 +697,80 @@ class TieredModel(KeyedModel):
         return super().__new__(cls, name, bases, attrs)
 
 
-# 配置模型
-class ConfigModel(models.Model, metaclass = TieredModel):
-    class Meta:
-        table = "m_config"
-
-    plugin = fields.CharField(max_length=32)
-    host = fields.CharField(max_length=32)
-    port = fields.IntField()
-    access = fields.CharField(max_length=32)
-    log = fields.BooleanField()
-    severity = fields.CharField(max_length=16)
-    ssl = fields.BooleanField()
-    certfile = fields.CharField(max_length=255, default="")
-    keyfile = fields.CharField(max_length=255, default="")
-    libs = fields.TextField(default="")
-    additional = fields.TextField(default="")
-
 # 状态模型
-class StateModel(models.Model):
-    class Meta:
-        table = "m_state"
-        unique_together = (("config", "key"),)           # 联合唯一约束
-
-    id = fields.IntField(pk=True, generated=True)       # 代理主键
-    key = fields.CharField(max_length=255)              # 状态键
-    config = fields.ForeignKeyField(
-        "models.ConfigModel",
-        null=False,
-        on_delete=fields.CASCADE,
-        related_name="entities",
-    )
-    value = fields.JSONField(null=True)
-
-    def __str__(self):
-        return f"{self.__class__.__name__}({self.key}@{self.config_id})"
+# 一行一个键：id 就是键（主键由 KeyedModel 提供）。
+# 表名在服务启动时由 set_state_table() 设为 t_<服务标识>，
+# 因此每个服务实例在共用的 xspawner.db 里都有自己的一张状态表。
+# value 有两种含义，按数据形状识别，不使用任何保留键：
+#   1) 服务配置行：value 是原 ConfigModel 的数据（Config 元组转来的 JSON），
+#      id 为子服务标识；由父服务（一般是 administrator 插件）创建子服务时写入
+#   2) 普通状态行：value 是任意 JSON 状态，id 就是状态键；由服务自己读写
+class StateModel(models.Model, metaclass=KeyedModel):
+    # 表名不写死：由 set_state_table() 在启动时设为 t_<服务标识>，
+    # 因此无需 Meta 类；若绕过 set_state_table() 直接使用，Tortoise 会用默认表名 statemodel。
+    value = fields.JSONField(null=True)                 # 状态值；服务配置行为原 ConfigModel 数据
 
 
-def config_model_to_tuple(model: ConfigModel) -> Config:
-    if not isinstance(model, ConfigModel):
-        raise TypeError(f"Expected ConfigModel instance, got {type(model)}")
-    return Config(
-        id = model.id,
-        plugin = model.plugin,
-        host = model.host,
-        port = model.port,
-        access = model.access,
-        log = model.log,
-        severity = model.severity,
-        ssl = model.ssl,
-        certfile = model.certfile,
-        keyfile = model.keyfile,
-        parent = model.parent_id or "",
-        libs = model.libs or "",
-        additional=model.additional or ""
-    )
+def set_state_table(service_id: str) -> str:
+    """把状态模型的表名设为 t_<service_id>（插件实例的名字）。
 
-def config_model_to_dict(model: ConfigModel) -> dict:
-    return config_model_to_tuple(model)._asdict()
+    每个服务进程启动时调用一次，必须在 Tortoise.init/generate_schemas 之前，
+    这样同一个 xspawner.db 里每个服务实例各有自己的一张状态表。
+    """
+    if not service_id:
+        raise ValueError("service_id must not be empty")
+    table = f"t_{service_id}"
+    StateModel._meta.db_table = table
+    return table
+
+
+_CONFIG_DEFAULTS = {
+    "plugin": "",
+    "host": "",
+    "port": 0,
+    "access": "",
+    "parent": "",
+    "log": False,
+    "severity": "info",
+    "ssl": False,
+    "certfile": "",
+    "keyfile": "",
+    "libs": "",
+    "additional": "",
+}
+
+_CONFIG_FIELDS = tuple(Config._fields)
+
+
+def is_config_data(value) -> bool:
+    """判断 StateModel.value 是否为原 ConfigModel 数据（按字段形状识别，不依赖保留键）。"""
+    return isinstance(value, dict) and all(name in value for name in _CONFIG_FIELDS)
+
+
+def config_to_dict(config: Config) -> dict:
+    """把 Config 元组转成可写入 StateModel.value 的 JSON 数据。"""
+    if not isinstance(config, Config):
+        raise TypeError(f"Expected Config instance, got {type(config)}")
+    data = config._asdict()
+    for name, default in _CONFIG_DEFAULTS.items():
+        if data.get(name) is None:
+            data[name] = default
+    if not data.get("id"):
+        raise ValueError("Config.id must not be empty")
+    return data
+
+
+def value_to_config(value) -> Config:
+    """把服务配置值（原 ConfigModel 数据）还原成 Config 元组。"""
+    if not is_config_data(value):
+        raise TypeError(f"Expected config data, got {type(value)}")
+    kwargs = {}
+    for name in Config._fields:
+        v = value.get(name)
+        if v is None:
+            v = _CONFIG_DEFAULTS.get(name, "")
+        kwargs[name] = v
+    return Config(**kwargs)
 
 def _timestamp() -> str:
     return datetime.datetime.now().strftime("%Y%m%d%H%M%S")

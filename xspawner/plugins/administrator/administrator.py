@@ -29,6 +29,7 @@ from tortoise import Tortoise
 
 from xspawner.service import get_service_status_text_async, split_libs, is_valid_pip_pkg
 from xspawner.xspawner import Spawner, UiHandler #NOQA
+from xspawner.orm import is_config_data #NOQA
 from xspawner.log import LEVELS #NOQA
 from xspawner.misc import trim_code, filter_logs, delete_file, path_to_pkg, get_similar_cls, get_file_type, is_port_used # NOQA
 from xspawner.constants import * # NOQA
@@ -99,11 +100,11 @@ class Administrator(Spawner): # NOQA
             # 主服务：内存里已有
             data = self._config._asdict()
         else:
-            child = await self.getConfig(srv_id)
-            if not child:
+            value = await self.getValue(srv_id)
+            if not is_config_data(value):
                 toast(f'服务 {srv_id} 不存在', color='error')
                 return
-            child_addr = self.getLocalAddr(child.port)
+            child_addr = self.getLocalAddr(value.get("port"))
             try:
                 data = await self.postJson(f"{child_addr}/get_config", {})
             except Exception as e:
@@ -163,12 +164,14 @@ class Administrator(Spawner): # NOQA
         })
 
         # 子服务依次追加
-        children = await self.getChildren()
+        values = await self.getValues()
+        children = [k for k, v in values.items()
+                    if is_config_data(v) and v.get("parent") == self._config.id]
         for child_id in children:
-            child = await self.getConfig(child_id)
-            if not child:
+            value = values.get(child_id)
+            if not is_config_data(value):
                 continue
-            child_addr = self.getLocalAddr(child.port)
+            child_addr = self.getLocalAddr(value.get("port"))
             try:
                 info = await self.postJson(f"{child_addr}/get_info", {})
             except Exception as e:
@@ -338,7 +341,7 @@ class Administrator(Spawner): # NOQA
                     return
 
         if srvname:
-            if srvname in await self.getChildren():
+            if srvname in await self.getValues():
                 put_error('Repeated server id {}!'.format(srvname))
                 return
 
@@ -434,7 +437,9 @@ class Administrator(Spawner): # NOQA
     @config(theme="yeti")
     async def _delete(self):
 
-        children = await self.getChildren()
+        values = await self.getValues()
+        children = [k for k, v in values.items()
+                    if is_config_data(v) and v.get("parent") == self._config.id]
         def select_server(set_value):
             def set_value_and_close_popup(v):
                 set_value(v)
@@ -463,13 +468,13 @@ class Administrator(Spawner): # NOQA
             put_error("Please input a server id")
             return
 
-        elm = await self.getConfig(data["id"])
-        if not elm:
+        value = await self.getValue(data["id"])
+        if not is_config_data(value):
             put_error("Server '{}' not found".format(data["id"]))
             return
 
-        srvname = elm.id
-        srvaddr = self.getLocalAddr(elm.port)
+        srvname = data["id"]
+        srvaddr = self.getLocalAddr(value.get("port"))
 
         res = await self.postJson(f"{srvaddr}/get_info", {})
         if not res or not isinstance(res, dict):

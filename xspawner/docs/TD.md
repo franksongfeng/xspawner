@@ -556,7 +556,7 @@ docker exec xspawner systemctl is-active <child_id>
 
 ### 未来
 
-- ORM：ConfigModel 转为 Administration （t_administration）
+- ORM：每个服务实例一张状态表 t_<服务标识>（服务自身配置只在 self._config，子服务配置由父服务写入自己的状态表），原 ConfigModel 已去除
 - Venv：python虚拟环境
 - Heatbeat：administrator 通过periodic方法监控子服务
 - Update：增加更换服务

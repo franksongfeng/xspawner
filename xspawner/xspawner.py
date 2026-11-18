@@ -24,8 +24,8 @@ import uuid
 import ssl
 import unittest
 import shutil
+import io
 from urllib.parse import urlparse
-from typing import Optional, List, Dict
 from collections import UserDict
 import ipaddress
 import asyncio
@@ -44,13 +44,12 @@ import tornado.httpserver
 import tornado.httpclient
 import tornado.httputil
 import tornado.tcpclient
-from tortoise.exceptions import DoesNotExist
 import pywebio.platform.tornado
 
 # Self Libraries
 from xspawner.log import Log # NOQA
 from xspawner.constants import * # NOQA
-from xspawner.orm import open_database, drop_database, config_model_to_tuple, ConfigModel, StateModel #NOQA
+from xspawner.orm import open_database, drop_database, backup_database, config_to_dict, value_to_config, is_config_data, set_state_table, StateModel #NOQA
 from xspawner.service import open_service, close_service, get_service_status # NOQA
 from xspawner.proxy import _prefix, caddy_is_running, caddy_find_server_by_site_address, caddy_add_route, caddy_del_route  # NOQA
 from xspawner.misc import wait_port_sync, getSSLContext, zip_folder, make_multipart_request, make_multipart_form, make_docs, parse_reply, get_file_type, is_module_available, is_port_used, getWorkDir # NOQA
@@ -190,13 +189,13 @@ class ProxyHandler(tornado.web.RequestHandler):
         gServer.iLog(f"ProxyHandler._proxy BEG {method} {self.path_args} use_caddy={gServer.use_caddy()}")
         srv_id = self.path_args[0]
         rest = self.path_args[1] or ""
-        child = await gServer.getConfig(srv_id)
-        if not child:
+        value = await gServer.getValue(srv_id)
+        if not is_config_data(value):
             self.set_status(404)
             self.write("Not Found Config of {srv_id}")
             return
         scheme = self.request.protocol
-        upstream = "{}://127.0.0.1:{}/{}".format(scheme, child.port, rest)
+        upstream = "{}://127.0.0.1:{}/{}".format(scheme, value.get("port"), rest)
         if self.request.query:
             upstream += "?" + self.request.query
         headers = {k: v for k, v in self.request.headers.items()
@@ -246,12 +245,6 @@ class Spawnable(object):
     def __init__(self, config: Config, **others):
         raise NotImplementedError
 
-    def start(self):
-        raise NotImplementedError
-
-    def stop(self):
-        raise NotImplementedError
-
     def getPid(self):
         raise NotImplementedError
 
@@ -261,16 +254,7 @@ class Spawnable(object):
     def getLocalAddr(self, port):
         raise NotImplementedError
 
-    def use_caddy(self):
-        raise NotImplementedError
-
-    async def add_kvs(self):
-        raise NotImplementedError
-
-    async def add_route(self):
-        raise NotImplementedError
-
-    async def del_route(self):
+    def getConfig(self):
         raise NotImplementedError
 
     async def getValues(self):
@@ -279,28 +263,13 @@ class Spawnable(object):
     async def getValue(self, key):
         raise NotImplementedError
 
+    async def addValue(self, key, value):
+        raise NotImplementedError
+
     async def setValue(self, key, value):
         raise NotImplementedError
 
     async def delValue(self, key):
-        raise NotImplementedError
-
-    async def getConfigs(self):
-        raise NotImplementedError
-
-    async def getRootConfig(self):
-        raise NotImplementedError
-
-    async def getConfig(self, id):
-        raise NotImplementedError
-
-    async def delConfig(self, id):
-        raise NotImplementedError
-
-    async def addConfig(self, config):
-        raise NotImplementedError
-
-    async def getChildren(self):
         raise NotImplementedError
 
 
@@ -539,11 +508,11 @@ class XSpawner(Spawnable):
         try:
             connection_str = f"sqlite://{LOCAL_DB}"
             extra_model_mod = "{}.{}".format(PLUGIN_PKG, self._config.plugin)
+            # 每个服务实例用自己的状态表 t_<服务标识>，必须在建表前设定
+            set_state_table(self._config.id)
             await open_database(connection_str, extra_model_mod)
-            if not await self.getConfig(self._config.id):
-                # await tornado.gen.sleep(0.5)
-                await self.addConfig(self._config)
-                self.iLog(f"new a model {self._config}")
+            # 服务自身的配置在 self._config 中；
+            # 子服务的配置由父服务（一般是 administrator）创建时写入状态表。
             self.iLog("add_kvs END")
         except Exception as e:
             self.eLog(f"add_kvs raise {e}")
@@ -578,11 +547,16 @@ class XSpawner(Spawnable):
                 raise Exception("Caddy is out of work!")
         self.iLog("del_route END")
 
+    def getConfig(self) -> Config:
+        """返回实例内部的配置元组 self._config。"""
+        return self._config
+
     async def getValues(self) -> dict:
-        self.iLog(f"getValues BEG config={self._config.id}")
+        """返回本服务状态表里的全部键值（含子服务配置行）。"""
+        self.iLog(f"getValues BEG service={self._config.id}")
         try:
-            models = await StateModel.filter(config_id=self._config.id).all()
-            rt = {m.key: m.value for m in models}
+            models = await StateModel.all()
+            rt = {m.id: m.value for m in models}
             self.iLog(f"getValues END {len(rt)}")
             return rt
         except Exception as e:
@@ -590,15 +564,16 @@ class XSpawner(Spawnable):
             return {}
 
     async def getValue(self, key: str):
-        self.iLog(f"getValue BEG key={key} config={self._config.id}")
+        """取一个键的值；键是本服务自己时返回自身配置。"""
+        self.iLog(f"getValue BEG key={key}")
         if not key:
             self.wLog("getValue: empty key")
             return None
+        if key == self._config.id:
+            self.iLog("getValue END self")
+            return self._config._asdict()
         try:
-            model = await StateModel.get_or_none(
-                key=key,
-                config_id=self._config.id
-            )
+            model = await StateModel.get_or_none(id=key)
             if model is None:
                 self.iLog(f"getValue END {key} no-hit")
                 return None
@@ -609,24 +584,38 @@ class XSpawner(Spawnable):
             return None
 
 
+    async def addValue(self, key: str, value) -> bool:
+        """新增一个键值；键已存在时不覆盖并返回 False。"""
+        self.iLog(f"addValue BEG key={key} type={type(value).__name__}")
+        if not key:
+            self.wLog("addValue: empty key")
+            return False
+        try:
+            await StateModel.create(
+                id=key,
+                value=value
+            )
+            self.iLog(f"addValue END {key} created")
+            return True
+        except Exception as e:
+            self.eLog(f"addValue EXP {key}: {e}")
+            return False
+
     async def setValue(self, key: str, value) -> bool:
-        self.iLog(f"setValue BEG key={key} config={self._config.id} type={type(value).__name__}")
+        """写入一个键值；键不存在时新建，存在时覆盖。"""
+        self.iLog(f"setValue BEG key={key} type={type(value).__name__}")
         if not key:
             self.wLog("setValue: empty key")
             return False
         try:
-            model = await StateModel.get_or_none(
-                key=key,
-                config_id=self._config.id
-            )
+            model = await StateModel.get_or_none(id=key)
             if model:
                 model.value = value
                 await model.save()
                 self.iLog(f"setValue END {key} updated")
             else:
                 await StateModel.create(
-                    key=key,
-                    config_id=self._config.id,
+                    id=key,
                     value=value
                 )
                 self.iLog(f"setValue END {key} created")
@@ -636,128 +625,22 @@ class XSpawner(Spawnable):
             return False
 
     async def delValue(self, key: str) -> bool:
-        self.iLog(f"delValue BEG key={key} config={self._config.id}")
+        """删除一个键值。"""
+        self.iLog(f"delValue BEG key={key}")
         if not key:
             self.wLog("delValue: empty key")
             return False
         try:
-            deleted = await StateModel.filter(
-                key=key,
-                config_id=self._config.id,
-            ).delete()
-            self.iLog(f"delValue END {key} deleted={deleted}")
+            model = await StateModel.get_or_none(id=key)
+            if model is None:
+                self.iLog(f"delValue END {key} no-hit")
+                return False
+            await model.delete()
+            self.iLog(f"delValue END {key} deleted")
             return True
         except Exception as e:
             self.eLog(f"delValue EXP {key}: {e}")
             return False
-
-    async def getConfigs(self) -> Optional[List[Config]]:
-        self.iLog(f"getConfigs BEG")
-        try:
-            models = await ConfigModel.all()
-            ones = [config_model_to_tuple(m) for m in models]
-            self.iLog(f"getConfigs END {len(ones)}")
-            return ones
-        except Exception as e:
-            self.eLog(f'getConfigs EXP {e}')
-            return None
-
-
-    async def getRootConfig(self) -> Optional[Config]:
-        """
-        沿 parent 链向上查找，返回服务集群根节点的 Config。
-
-        - 当前实例本身就是根（parent 为空）时，返回 self._config
-        - 链上某个 parent 在 DB 中不存在时，返回 None（并记 error 日志）
-        - 出现环（A→B→A）时，返回 None（并记 error 日志）
-        """
-        self.iLog("getRootConfig BEG")
-        cur = self._config
-        seen = {cur.id}
-        while cur.parent:
-            nxt = await self.getConfig(cur.parent)
-            if not nxt:
-                self.eLog("getRootConfig EXP: parent '{}' of '{}' not found".format(cur.parent, cur.id))
-                return None
-            if nxt.id in seen:
-                self.eLog("getRootConfig EXP: cycle detected at '{}'".format(nxt.id))
-                return None
-            seen.add(nxt.id)
-            cur = nxt
-        self.iLog(f"getRootConfig END {cur}")
-        return cur
-
-
-    async def getConfig(self, id: str) -> Optional[Config]:
-        self.iLog(f"getConfig BEG {id}")
-        try:
-            model = await ConfigModel.get(id=id)
-        except DoesNotExist:
-            self.iLog(f"getConfig END No")
-            return None
-        except Exception as e:
-            self.eLog(f'getConfig EXP {e}')
-            return None
-        one = config_model_to_tuple(model)
-        self.iLog(f"getConfig END {one}")
-        return one
-
-    async def delConfig(self, id: str) -> bool:
-        self.iLog(f"delConfig BEG {id}")
-        try:
-            model = await ConfigModel.get(id=id)
-            await model.delete()
-            self.iLog("delConfig END")
-            return True
-        except DoesNotExist:
-            self.iLog(f"delConfig END No")
-        except Exception as e:
-            self.eLog(f'delConfig EXP {e}')
-        return False
-
-    async def addConfig(self, config: Config) -> bool:
-        self.iLog(f"addConfig BEG {config}")
-        data = config._asdict()
-        if data.get('parent'):
-            parent_id = data['parent']
-            try:
-                parent_obj = await ConfigModel.get(id=parent_id)
-                # set parent with object or set parent_id with value
-                data['parent'] = parent_obj
-            except DoesNotExist:
-                self.eLog(f"Parent '{parent_id}' not found, setting parent to None")
-                data['parent'] = None
-        else:
-            data['parent'] = None
-
-        if data.get('certfile') is None:
-            data['certfile'] = ""
-        if data.get('keyfile') is None:
-            data['keyfile'] = ""
-        if data.get('libs') is None:
-            data['libs'] = ""
-        if data.get('additional') is None:
-            data['additional'] = ""
-
-        try:
-            model = await ConfigModel.create(**data)
-            self.iLog(f"addConfig END {model}")
-            return True
-        except Exception as e:
-            self.eLog(f'addConfig EXP {e}')
-            return False
-
-    async def getChildren(self) -> List[str]:
-        self.iLog(f"getChildren BEG")
-        try:
-            models = await ConfigModel.filter(parent_id=self._config.id).all()
-            self.iLog(f"Type: {type(models)} Len: {len(models)} Models: {models}") # Models: [ConfigModel]
-            ids = [m.id for m in models]
-            self.iLog(f"getChildren END {ids}")
-            return ids
-        except Exception as e:
-            self.eLog(f'getChildren EXP: {e}')
-            return []
 
 
     # 所有子类共享单例
@@ -915,7 +798,11 @@ class Spawner(XSpawner): # NOQA
 
     @ApiHandler.route("/get_children")
     async def _get_children(self, headers: dict, data: dict):
-        return await self.getChildren()
+        values = await self.getValues()
+        ids = [k for k, v in values.items()
+               if is_config_data(v) and v.get("parent") == self._config.id]
+        self.iLog("{}::_get_children END {}".format(self.__class__.__name__, ids))
+        return ids
 
     @ApiHandler.route("/start_child")
     async def _start_child(self, headers: dict, data: dict):
@@ -924,9 +811,14 @@ class Spawner(XSpawner): # NOQA
             self.eLog(f"Failed to start child, No id key in data {data}")
             return False
 
-        model = await self.getConfig(data["id"])
-        if model:
-            child_config = model
+        if data["id"] == self._config.id:
+            # getValue 对本服务 id 返回 self._config 的 JSON，若放行会重启自身
+            self.eLog(f"Failed to start child, id equals self: {data['id']}")
+            return False
+
+        value = await self.getValue(data["id"])
+        if is_config_data(value):
+            child_config = value_to_config(value)
         else:
             child_config = self._config._replace(**data)._replace(parent=self._config.id)
 
@@ -945,6 +837,13 @@ class Spawner(XSpawner): # NOQA
             self.eLog(f"child {child_addr} did not become ready in 120s")
             return False
         self.iLog(f"child {child_addr} is ready")
+
+        # 子服务不再自己写库，由父服务（一般是 administrator）在启动成功后登记。
+        # 只登记带了完整 Config 字段的请求（如 /create、/deploy_child），
+        # 避免 /start_child {"id": ...} 这类部分请求把拼出来的配置写进库。
+        if not is_config_data(value) and all(name in data for name in Config._fields):
+            if not await self.addValue(child_config.id, config_to_dict(child_config)):
+                self.eLog(f"failed to persist config of child {child_config.id}")
 
 
         # open sub systemd service
@@ -975,11 +874,11 @@ class Spawner(XSpawner): # NOQA
             return False
 
         child_id = data["id"]
-        model = await self.getConfig(child_id)
+        value = await self.getValue(child_id)
 
-        if model:
+        if is_config_data(value):
             # close sub systemd service
-            child_addr = self.getLocalAddr(model.port)
+            child_addr = self.getLocalAddr(value.get("port"))
             grand_children = await self.postJson(f"{child_addr}/get_children", {})
             if grand_children:
                 for grand_child in grand_children:
@@ -998,10 +897,10 @@ class Spawner(XSpawner): # NOQA
 
         # close systemed service
         if close_service(self._config.host, child_id):
-            if await self.delConfig(child_id):
-                self.iLog(f"successfully rm model {child_id}")
+            if await self.delValue(child_id):
+                self.iLog(f"successfully rm value {child_id}")
             else:
-                self.eLog(f"failed to rm model {child_id}!")
+                self.eLog(f"failed to rm value {child_id}!")
             rt = {"id": child_id, "pid": pid}
             self.iLog("{}::_stop_child END {}".format(self.__class__.__name__, rt))
             return rt
@@ -1045,12 +944,20 @@ class Spawner(XSpawner): # NOQA
 
         child_port = int(fargs["port"])
 
-        models = await self.getConfigs() or []
-        for m in models:
-            if m.id == child_id:
+        # 服务自身的配置不在 m_state 中，重复性需先与自己比对
+        if child_id == self._config.id:
+            self.eLog("Error: duplicated id {}".format(child_id))
+            return False
+        if child_port == self._config.port:
+            self.eLog("Error: duplicated port {}".format(child_port))
+            return False
+
+        values = await self.getValues()
+        for key, value in values.items():
+            if key == child_id:
                 self.eLog("Error: duplicated id {}".format(child_id))
                 return False
-            if m.port == child_port:
+            if is_config_data(value) and value.get("port") == child_port:
                 self.eLog("Error: duplicated port {}".format(child_port))
                 return False
 
@@ -1067,8 +974,8 @@ class Spawner(XSpawner): # NOQA
             libs=fargs.get("libs", "") if fargs else ""
         )
 
-        if not await self.addConfig(child_config):
-            self.eLog("Error: failed to add model {}".format(child_id))
+        if not await self.addValue(child_config.id, config_to_dict(child_config)):
+            self.eLog("Error: failed to add value {}".format(child_id))
             return False
 
         rt = await self._start_child(headers, {"id": child_id})
@@ -1076,8 +983,8 @@ class Spawner(XSpawner): # NOQA
             self.iLog("{}::_deploy_child END {}".format(self.__class__.__name__, rt))
             return True
         else:
-            await self.delConfig(child_id)
-            self.eLog("Error: cleanup model {} after failure".format(child_id))
+            await self.delValue(child_id)
+            self.eLog("Error: cleanup value {} after failure".format(child_id))
             return False
 
 
