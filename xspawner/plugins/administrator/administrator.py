@@ -503,12 +503,23 @@ class Administrator(Spawner): # NOQA
     async def _log(self):
         set_env(title="服务日志", output_animation=False)
         logfile = self.getLogFile()
-        if os.path.isfile(logfile):
-            filter_logs(logfile, 1) # preserve 1 hour
-            with open(logfile, 'r') as f:
+        if not os.path.isfile(logfile):
+            return
+        try:
+            filter_logs(logfile, 2) # preserve 2 hours
+            if not os.path.isfile(logfile):
+                # filter_logs 在日志全部过期时会删除文件
+                put_text("(无日志)")
+                return
+            # 日志可能含非 UTF-8 字节：errors="replace" 保证页面不会因解码失败而报错
+            with open(logfile, 'r', encoding='utf-8', errors='replace') as f:
                 text = f.read()
-                text = "```log\n" + text + "\n```"
-                put_markdown(text)
+        except (OSError, UnicodeError) as e:
+            self.eLog(f"read log file {logfile} failed: {e}")
+            put_error("读取日志失败: {}".format(e))
+            return
+
+        put_markdown("```log\n" + text + "\n```")
 
 
     async def _run_debug_code(self, code):

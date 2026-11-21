@@ -646,55 +646,45 @@ def tail_file(file_path, n):
         print(f"读取文件出错: {e}")
         return ""
 
-def filter_logs(log_file, hours):
-    def get_first_timestamp(lines, pattern):
-        for line in lines:
-            match = pattern.match(line)
-            if match:
-                return match.group(1)
-        return "No Timestamp"
+def filter_logs(log_file, hours, tz=None):
+    if hours <= 0:
+        raise ValueError("hours must be positive")
 
-    def get_last_timestamp(lines, pattern):
-        for line in reversed(lines):
-            match = pattern.match(line)
-            if match:
-                return match.group(1)
-        return "No Timestamp"
+    # 明确时区：tz=None 表示用本地时间；传 datetime.timezone.utc 表示日志是 UTC
+    now = datetime.datetime.now(tz)
+    cutoff = now - datetime.timedelta(hours=hours)
 
-    now = datetime.datetime.utcnow()
-    sometime_ago = now - datetime.timedelta(hours=hours)
+    ts_pattern = re.compile(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})')
+    fmt = '%Y-%m-%d %H:%M:%S'
 
-    with open(log_file, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
+    dir_name = os.path.dirname(os.path.abspath(log_file))
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, prefix='.filter_')
+    try:
+        with open(log_file, 'r', encoding='utf-8',
+                  errors='surrogateescape', newline='') as src, \
+             os.fdopen(fd, 'w', encoding='utf-8',
+                       errors='surrogateescape', newline='') as dst:
 
-    timestamp_pattern = re.compile(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})')
+            keep = True  # 文件开头无时间戳的行默认保留
+            for line in src:                      # 流式，不整文件入内存
+                m = ts_pattern.match(line)
+                if m:
+                    try:
+                        ts = datetime.datetime.strptime(m.group(1), fmt)
+                        if tz is not None:
+                            ts = ts.replace(tzinfo=tz)
+                        keep = ts >= cutoff
+                    except ValueError:
+                        keep = True                # 格式错，保守保留
+                if keep:
+                    dst.write(line)                # 续行跟随主行
 
-    filtered_lines = []
-    line_count = 0
-    removed_count = 0
-
-    for line in lines:
-        line_count += 1
-        match = timestamp_pattern.match(line)
-        if not match:
-            filtered_lines.append(line)
-            continue
-        try:
-            timestamp = datetime.datetime.strptime(match.group(1), '%Y-%m-%d %H:%M:%S')
-            if timestamp >= sometime_ago:
-                filtered_lines.append(line)
-            else:
-                removed_count += 1
-        except ValueError as e:
-            print(f"Line {line_count} timestamp format error: {e}")
-            filtered_lines.append(line)
-
-    if not filtered_lines:
-        os.remove(log_file)
-    else:
-        with open(log_file, 'w', encoding='utf-8') as f:
-            f.writelines(filtered_lines)
-
+        # 保留原文件权限，再原子替换
+        os.chmod(tmp_path, os.stat(log_file).st_mode)
+        os.replace(tmp_path, log_file)
+    except BaseException:
+        os.unlink(tmp_path)
+        raise
 
 def zip_folder(folder_path, output_path, excluded_subdirs):
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
