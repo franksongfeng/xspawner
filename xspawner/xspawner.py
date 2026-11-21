@@ -873,6 +873,11 @@ class Spawner(XSpawner): # NOQA
             self.eLog(f"Failed to stop child, No id key in data {data}")
             return False
 
+        if data["id"] == self._config.id:
+            # 与 _start_child 一致：禁止停掉当前服务自身
+            self.eLog(f"Failed to stop child, id equals self: {data['id']}")
+            return False
+
         child_id = data["id"]
         value = await self.getValue(child_id)
 

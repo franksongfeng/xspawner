@@ -466,6 +466,10 @@ class Administrator(Spawner): # NOQA
             put_error("Please input a server id")
             return
 
+        if data["id"] == self._config.id:
+            put_error("Cannot delete the current service itself")
+            return
+
         value = await self.getValue(data["id"])
         if not is_config_data(value):
             put_error("Server '{}' not found".format(data["id"]))
