@@ -183,7 +183,7 @@ class Administrator(Spawner): # NOQA
                 "vsn":  info.get("vsn", "-"),
                 "pid":  info.get("pid", "-"),
                 "time": info.get("start_time", "-"),
-                "addr": info.get("addr", "-"),
+                "addr": info.get("addr") or "-",
             })
 
         # ---- 构造表格 ----
@@ -203,10 +203,11 @@ class Administrator(Spawner): # NOQA
 
         for idx, r in enumerate(rows):
             srv_id = r["id"]
-            addr_url = "{}/".format(r["addr"])
 
             is_main = (idx == 0)                # 第一行是主服务
             id_display = f'{_esc(srv_id)}' if is_main else _esc(srv_id)
+
+            addr = r.get("addr")
 
             table.append([
                 put_html(id_display),
@@ -224,7 +225,7 @@ class Administrator(Spawner): # NOQA
                     small=True, outline=True,
                     onclick=lambda _v, s=srv_id: self._show_status_popup(s),
                 ),
-                put_link(r["addr"], url=addr_url),
+                put_link(addr, url="{}/".format(addr)) if isinstance(addr, str) and addr.strip() and addr != "-" else put_text("-")
             ])
 
         put_table(table)
