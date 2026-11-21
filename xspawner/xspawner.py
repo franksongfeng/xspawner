@@ -1182,13 +1182,13 @@ async def postAsyncFile(url: str, filepath: str, fileargs: dict = None):
       - fileargs: 附加表单字段 {name: value}，value 会转为 str
 
     返回:
-      - dict  成功
-      - None  失败（文件不存在、非 200、JSON 解析失败等）
+      - dict  成功（HTTP 200）
+
+    失败时（文件不存在、非 200、网络异常、JSON 解析失败等）抛出 Exception。
     """
     fileargs = fileargs or {}
     if not os.path.isfile(filepath):
-        raise Exception("postAsyncFile: file not found: {filepath}")
-        return None
+        raise Exception(f"postAsyncFile: file not found: {filepath}")
 
     args = {k: [str(fileargs[k]).encode()] for k in fileargs}
     docs = make_docs({"file": [filepath]})
@@ -1209,33 +1209,26 @@ async def postAsyncFile(url: str, filepath: str, fileargs: dict = None):
         res = await client.fetch(
             url, method="POST", headers=headers, body=body,
             validate_cert=_validate_cert_for(url),
+            raise_error=False,        # 显式关闭：让下方 if res.code 生效
         )
-    except tornado.httpclient.HTTPClientError as e:
-        raise Exception(f"postAsyncFile {url}: HTTP {e.code}: {e.message}; "
-                     f"body={_preview(e.response.body) if e.response else b''!r}")
-        return None
     except asyncio.CancelledError:
-        raise Exception(f"postAsync {url}: CancelledError")
+        raise Exception(f"postAsyncFile {url}: CancelledError")
     except Exception as e:
         raise Exception(f"postAsyncFile {url}: "
                      f"{type(e).__name__}: {e}")
-        return None
 
     if res.code != 200:
         raise Exception(f"postAsyncFile {url}: HTTP {res.code}, "
                        f"body={_preview(res.body)!r}")
-        return None
 
     rstr = res.body.decode("utf-8", errors="replace") if res.body else ""
     if not rstr:
         raise Exception(f"postAsyncFile {url}: empty response body")
-        return None
     try:
         return json.loads(rstr)
     except json.JSONDecodeError as e:
         raise Exception(f"postAsyncFile {url}: invalid JSON: {e}; "
                      f"body={_preview(res.body)!r}")
-        return None
 
 
 async def postAsync(url, headers, body):
@@ -1243,7 +1236,8 @@ async def postAsync(url, headers, body):
 
     返回:
       - dict/其他  成功（HTTP 200）
-      - None       失败（非 200、解析失败、网络异常等）
+
+    失败时（非 200、解析失败、网络异常等）抛出 Exception。
     """
     # 使用 Tornado 全局单例（IOLoop 级别），复用连接池；
     # 依赖 xspawner 全局单 IOLoop 假设。
@@ -1258,12 +1252,10 @@ async def postAsync(url, headers, body):
         raise Exception(f"postAsync {url}: CancelledError")
     except Exception as e:
         raise Exception(f"postAsync {url}: {type(e).__name__}: {e}")
-        return None
 
     if res.code != 200:
         raise Exception(f"postAsync {url}: HTTP {res.code}, "
                        f"body={_preview(res.body)!r}")
-        return None
 
     try:
         return parse_reply(res)
@@ -1271,4 +1263,3 @@ async def postAsync(url, headers, body):
         raise Exception(f"postAsync {url}: parse_reply failed: "
                      f"{type(e).__name__}: {e}; "
                      f"body={_preview(res.body)!r}")
-        return None
