@@ -477,23 +477,47 @@ class Administrator(Spawner): # NOQA
             return
 
         srvname = data["id"]
-        srvaddr = self.getLocalAddr(value.get("port"))
+        srvport = value.get("port")
+        srvapp = value.get("plugin") or ""
+        srvpid = "-"
 
-        res = await self.postJson(f"{srvaddr}/get_info", {})
-        if not res or not isinstance(res, dict):
-            self.eLog("Invalid response from {}/get_info: {}".format(srvaddr, res))
-            put_error("Failed to reach server {}".format(srvaddr))
+        # 子服务可能已经停止：拿不到 /get_info 时不要中断删除流程，
+        # 用状态表里的 plugin 继续停服并清理
+        if srvport:
+            srvaddr = self.getLocalAddr(srvport)
+            try:
+                res = await self.postJson(f"{srvaddr}/get_info", {})
+            except Exception as e:
+                self.wLog(f"get_info from {srvaddr} failed: {e}")
+                res = None
+            if isinstance(res, dict):
+                srvpid = res.get("pid") or "-"
+                srvapp = res.get("plugin") or srvapp
+            else:
+                put_warning("Server {} is unreachable, stop it directly.".format(srvname))
+        else:
+            put_warning("Server {} has no port in config, stop it directly.".format(srvname))
+
+        put_info("Server <{} :{}> will be deleted.".format(srvname, srvpid))
+        try:
+            stopped = await self._stop_child(None, {"id": srvname})
+        except Exception as e:
+            self.eLog(f"stop child {srvname} failed: {e}")
+            put_error("Failed to stop server {}: {}".format(srvname, e))
+            return
+        if not stopped:
+            put_error("Failed to stop server {}".format(srvname))
             return
 
-        srvpid = res["pid"]
-        srvapp = res["plugin"]
-        put_info("Server <{} :{}> will be deleted.".format(srvname, srvpid))
-        if await self._stop_child(None, {"id": srvname}):
-            put_success("Server <{} :{}> is deleted.".format(srvname, srvpid))
-            if srvapp not in ["administrator"]:
+        put_success("Server <{} :{}> is deleted.".format(srvname, srvpid))
+        if srvapp and srvapp not in ["administrator"]:
+            try:
                 if await self._clean_plugin(None, {"plugin": srvapp}):
                     put_success("Plugin {} is cleaned.".format(srvapp))
                     self.iLog("Plugin {} is cleaned.".format(srvapp))
+            except Exception as e:
+                self.eLog(f"clean plugin {srvapp} failed: {e}")
+                put_warning("Plugin {} cleanup failed: {}".format(srvapp, e))
 
         self.iLog("{}::_delete END".format(self.__class__.__name__))
 
