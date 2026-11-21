@@ -194,6 +194,7 @@ async def _require_password(srv) -> bool:
     """
     # 1. 文件不存在 → 不启用
     if not os.path.isfile(PSW_PATH):
+        srv.wLog(f"file {PSW_PATH} doesnt exist, no password!")
         return True
 
     # 2. 读取并 strip（echo 写入的换行）
