@@ -381,7 +381,7 @@ class Administrator(Spawner): # NOQA
 
         # 补充ORM模型
         try:
-            Tortoise.init_models([srv_cls.__module__], "models")
+            Tortoise.init_models([srvcls.__module__], "models")
         except Exception as e:
             self.eLog("Tortoise.init_models failed: {}: {}".format(type(e).__name__, e))
 
