@@ -2,14 +2,14 @@
 # 访问口令校验（<PSW_FILE> 位于当前工作目录，PBKDF2-HMAC-SHA256 加盐哈希）
 #   文件格式：pbkdf2_sha256$<iters>$<salt_hex>$<hash_hex>
 #
-# 口令文件的生成过程（调用 make_pbkdf2，输出重定向到 admpw.txt）:
+# 口令文件的生成过程（调用 _make_pbkdf2，输出重定向到 admpw.txt）:
 #
 # cd /opt/xspawner    # 换成你的 WorkingDirectory（systemctl cat 里看）
 #
 # python3 - <<'PY' > admpw.txt
-# from xspawner.plugins.administrator.encryption import make_pbkdf2
+# from xspawner.plugins.administrator.encryption import _make_pbkdf2
 #
-# print(make_pbkdf2('YOUR-PASSWORD'))   # ← 改成你的口令
+# print(_make_pbkdf2('YOUR-PASSWORD'))   # ← 改成你的口令
 # PY
 #
 # chmod 600 admpw.txt
@@ -96,7 +96,7 @@ def _verify(pw: str, params: dict) -> bool:
     return secrets.compare_digest(calc, params["hash"])
 
 
-def make_pbkdf2(pw: str, iters: int = PSW_ITERS_DEFAULT) -> str:
+def _make_pbkdf2(pw: str, iters: int = PSW_ITERS_DEFAULT) -> str:
     """
     生成 <PSW_FILE> 中保存的口令哈希。
 
@@ -112,8 +112,8 @@ def make_pbkdf2(pw: str, iters: int = PSW_ITERS_DEFAULT) -> str:
         口令文件内容（不含结尾换行符）
 
     用法:
-        from xspawner.plugins.administrator.encryption import make_pbkdf2
-        print(make_pbkdf2('YOUR-PASSWORD'))
+        from xspawner.plugins.administrator.encryption import _make_pbkdf2
+        print(_make_pbkdf2('YOUR-PASSWORD'))
     """
     if not isinstance(pw, str) or not pw:
         raise ValueError("口令不能为空")
