@@ -2,21 +2,16 @@
 # 访问口令校验（<PSW_FILE> 位于当前工作目录，PBKDF2-HMAC-SHA256 加盐哈希）
 #   文件格式：pbkdf2_sha256$<iters>$<salt_hex>$<hash_hex>
 #
-# 口令文件的生成过程:
+# 口令文件的生成过程（调用 make_pbkdf2，输出重定向到 admpw.txt）:
 #
 # cd /opt/xspawner    # 换成你的 WorkingDirectory（systemctl cat 里看）
-
+#
 # python3 - <<'PY' > admpw.txt
-# import secrets, hashlib
-
-# pw    = 'YOUR-PASSWORD'      # ← 改成你的口令
-# iters = 200_000               # 迭代次数，200000 约 50~100ms/次
-# salt  = secrets.token_bytes(16)
-
-# dk = hashlib.pbkdf2_hmac('sha256', pw.encode('utf-8'), salt, iters)
-# print(f"pbkdf2_sha256${iters}${salt.hex()}${dk.hex()}")
+# from xspawner.plugins.administrator.encryption import make_pbkdf2
+#
+# print(make_pbkdf2('YOUR-PASSWORD'))   # ← 改成你的口令
 # PY
-
+#
 # chmod 600 admpw.txt
 # cat admpw.txt
 # ============================================================================
@@ -43,6 +38,9 @@ PSW_CLEANUP_THRESHOLD = 1024         # 记录数超过此值时惰性清理
 # 迭代次数合理区间：防止配置过弱，也防止恶意文件拖死 CPU
 PSW_ITERS_MIN = 100_000
 PSW_ITERS_MAX = 10_000_000
+PSW_ITERS_DEFAULT = 200_000          # 默认迭代次数，200000 约 50~100ms/次
+
+PSW_SALT_BYTES = 16                  # 盐长度
 
 _psw_failures: Dict[str, dict] = {}
 _psw_state_lock = asyncio.Lock()
@@ -96,6 +94,37 @@ def _verify(pw: str, params: dict) -> bool:
         "sha256", (pw or "").encode("utf-8"), params["salt"], params["iters"]
     ).hex()
     return secrets.compare_digest(calc, params["hash"])
+
+
+def make_pbkdf2(pw: str, iters: int = PSW_ITERS_DEFAULT) -> str:
+    """
+    生成 <PSW_FILE> 中保存的口令哈希。
+
+    对明文口令 pw 做 PBKDF2-HMAC-SHA256 加盐哈希，返回一行
+        pbkdf2_sha256$<iters>$<salt_hex>$<hash_hex>
+    可直接写入 admpw.txt（本函数不写文件）。
+
+    参数:
+        pw:    明文口令，不能为空
+        iters: PBKDF2 迭代次数，须在 [PSW_ITERS_MIN, PSW_ITERS_MAX] 区间内
+
+    返回:
+        口令文件内容（不含结尾换行符）
+
+    用法:
+        from xspawner.plugins.administrator.encryption import make_pbkdf2
+        print(make_pbkdf2('YOUR-PASSWORD'))
+    """
+    if not isinstance(pw, str) or not pw:
+        raise ValueError("口令不能为空")
+    if not (PSW_ITERS_MIN <= iters <= PSW_ITERS_MAX):
+        raise ValueError(
+            "iters 超出范围 [{}, {}]".format(PSW_ITERS_MIN, PSW_ITERS_MAX)
+        )
+
+    salt = secrets.token_bytes(PSW_SALT_BYTES)
+    dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, iters)
+    return "pbkdf2_sha256${}${}${}".format(iters, salt.hex(), dk.hex())
 
 
 def _client_ip() -> str:
