@@ -9,10 +9,8 @@ import io
 import contextlib
 import ast
 import inspect
-import datetime
 import json
 import html
-from decimal import Decimal
 import os
 import traceback
 import tempfile
@@ -499,7 +497,7 @@ class Administrator(Spawner): # NOQA
     @config(theme="yeti")
     async def _log(self):
         set_env(title="服务日志", output_animation=False)
-        logfile = self.getLogFile();
+        logfile = self.getLogFile()
         if os.path.isfile(logfile):
             filter_logs(logfile, 1) # preserve 1 hour
             with open(logfile, 'r') as f:
