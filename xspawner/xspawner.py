@@ -884,7 +884,12 @@ class Spawner(XSpawner): # NOQA
         if is_config_data(value):
             # close sub systemd service
             child_addr = self.getLocalAddr(value.get("port"))
-            grand_children = await self.postJson(f"{child_addr}/get_children", {})
+            try:
+                grand_children = await self.postJson(f"{child_addr}/get_children", {})
+            except Exception as e:
+                # 子服务已停止/不可达：跳过孙服务处理，继续停服和清理
+                self.wLog(f"get_children from {child_addr} failed: {e}")
+                grand_children = None
             if grand_children:
                 for grand_child in grand_children:
                     res = await self.postJson(f"{child_addr}/stop_child", {"id":grand_child})
@@ -897,7 +902,7 @@ class Spawner(XSpawner): # NOQA
                 await tornado.gen.sleep(0.5)
 
         sts = get_service_status(self._config.host, child_id)
-        pid = int(sts["MainPID"]) if sts["ActiveState"] == "active" else None
+        pid = int(sts.get("MainPID") or 0) if sts.get("ActiveState") == "active" else None
         self.iLog(f"service status: {sts}")
 
         # close systemed service
