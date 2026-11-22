@@ -92,6 +92,10 @@ def parse_connection_str(conn_str: str) -> dict:
     if category == "sqlite":
         if not rest:
             raise ValueError(f"Empty sqlite file path: {conn_str!r}")
+        # SQLAlchemy 用 sqlite:////abs/path 表示绝对路径，
+        # 这里还原成普通的 /abs/path，便于 sqlite3/os 直接使用。
+        if rest.startswith("//"):
+            rest = rest[1:]
         return {"category": "sqlite", "file": rest}
 
     # ── mysql / postgres: usr:psw@host:port/name ─────────

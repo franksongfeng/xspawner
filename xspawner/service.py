@@ -9,7 +9,6 @@
 import os
 import sys
 import subprocess
-import shutil
 import json
 import re
 import time
@@ -22,7 +21,7 @@ import requests
 import tornado.gen
 import tornado.process
 
-from xspawner.constants import Config, LOCAL_DB, LOG_FILE
+from xspawner.constants import Config, LOCAL_DB, LOCAL_DB_URL, LOG_FILE
 from xspawner.log import Log
 
 
@@ -294,7 +293,7 @@ def _build_pip_install_pre(config: Config) -> str:
 
     cmd = " ".join([
         sys.executable, "-m", "pip", "install",
-        "--no-input", "--disable-pip-version-check",
+        "--no-input", "--disable-pip-version-check", "--no-cache-dir",
     ] + pkgs)
     return "ExecStartPre={}\n".format(cmd)
 
@@ -578,7 +577,7 @@ if __name__ == "__main__":
                 try:
                     rt = requests.post(
                         f"{local_url}/backup_db",
-                        json={"conn": f"sqlite://{LOCAL_DB}"},
+                        json={"conn": LOCAL_DB_URL},
                         verify=local_verify).json()
                     if rt:
                         print("Database backed up")
@@ -644,7 +643,7 @@ if __name__ == "__main__":
 
                 requests.post(
                     f"{local_url}/drop_db",
-                    json={"conn": f"sqlite://{LOCAL_DB}"}, verify=local_verify)
+                    json={"conn": LOCAL_DB_URL}, verify=local_verify)
 
                 if close_service(srv_host, srv_id):
                     logs = get_service_logs(srv_host, srv_id, 10)

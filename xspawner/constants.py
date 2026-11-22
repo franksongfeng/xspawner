@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 
+import os
 from collections import namedtuple
 
 SOFTWARE_ID = "xspawner"
@@ -10,7 +11,13 @@ PLUGIN_DIR = f"{SOFTWARE_ID}/plugins"
 RES_DIR_TEMP = PLUGIN_DIR + "/{}/static"
 PYTHON_MIME_TYPE = "text/x-python"
 ZIP_MIME_TYPE = "application/zip"
-LOCAL_DB = f"{SOFTWARE_ID}.db"
-LOG_FILE = f"{SOFTWARE_ID}.log"
+
+# 运行数据目录：数据库、日志、备份等可变文件都放这里。
+# 容器部署时用 XSPAWNER_DATA_DIR=/data 挂载持久化卷；
+# 裸机部署保持默认当前目录，行为与旧版本一致。
+DATA_DIR = os.path.abspath(os.environ.get("XSPAWNER_DATA_DIR", "."))
+LOCAL_DB = os.path.join(DATA_DIR, f"{SOFTWARE_ID}.db")
+LOCAL_DB_URL = "sqlite:///" + LOCAL_DB
+LOG_FILE = os.path.join(DATA_DIR, f"{SOFTWARE_ID}.log")
 
 Config = namedtuple('Config', ['id', 'plugin', 'host', 'port', 'access', 'parent', 'log', 'severity', 'ssl', 'certfile', 'keyfile', 'libs', 'additional'])

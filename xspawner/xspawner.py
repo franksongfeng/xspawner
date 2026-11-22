@@ -506,7 +506,7 @@ class XSpawner(Spawnable):
     async def add_kvs(self):
         self.iLog("add_kvs BEG")
         try:
-            connection_str = f"sqlite://{LOCAL_DB}"
+            connection_str = LOCAL_DB_URL
             extra_model_mod = "{}.{}".format(PLUGIN_PKG, self._config.plugin)
             # 每个服务实例用自己的状态表 t_<服务标识>，必须在建表前设定
             set_state_table(self._config.id)
