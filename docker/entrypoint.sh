@@ -56,8 +56,8 @@ args=(
 chmod +x /opt/xspawner/start-unit.sh
 
 # ── administrator systemd unit ─────────────────────────────────────────────
-# unit 名必须与 service.py 的 unit_name(host, id) 保持一致。
-UNIT_NAME="${XSPAWNER_HOST}-${XSPAWNER_ID}"
+# unit 名必须与 service.py 的 unit_name 保持一致：直接使用服务 id。
+UNIT_NAME="${XSPAWNER_ID}"
 cat > "/etc/systemd/system/${UNIT_NAME}.service" <<EOF
 [Unit]
 Description=XSpawner ${XSPAWNER_ID} (${XSPAWNER_CLUSTER})

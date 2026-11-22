@@ -230,10 +230,10 @@ docker ps --filter label=xspawner.managed=true
 docker logs -f xspawner-example-com-admin
 docker exec xspawner-example-com-admin ps -p 1 -o comm=
 
-# 进入容器并管理 systemd 服务
+# 进入容器并管理 systemd 服务（unit 名就是服务 id）
 docker exec -it xspawner-example-com-admin bash
-systemctl status example.com-admin
-systemctl list-units 'example.com-*'
+systemctl status admin
+systemctl list-units --type=service
 
 # 重启单个集群（保留卷）
 docker restart xspawner-example-com-admin

@@ -33,6 +33,11 @@ and their local `config.json` instead.
 
 ## Caveats
 
+- systemd unit names are now just the service id, e.g. `admin.service`, not
+  `<host>-<id>.service`. Remove old host-prefixed units once before switching:
+  `systemctl disable --now <old-unit>` and delete the old unit file.
+- Because the service id becomes the unit name, avoid ids that collide with
+  existing systemd units (for example `dbus`, `systemd-*`).
 - `stop` is not just "stop": it stops the unit, disables it, and deletes the
   unit file. On bare metal, use `systemctl stop <unit>` if you only want a
   temporary stop.
