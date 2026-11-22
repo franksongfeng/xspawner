@@ -1,0 +1,8 @@
+# Shell scripts, Dockerfile and config files must keep LF line endings when
+# checked out on Windows; they are executed inside Linux containers.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.caddy text eol=lf
+*.py text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
