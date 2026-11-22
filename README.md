@@ -24,6 +24,28 @@ XSpawner is suitable for the following scenarios:
 - **Asynchronous Task Processing**: Scenarios requiring high-concurrency or asynchronous task handling using Tornado coroutines.
 
 
+## Docker Deployment
+
+The repository includes one generic Dockerfile for **administrator service clusters**. A cluster is one root administrator plus all services it manages, and runs in a single container. The image is built once and reused by every cluster; the domain/IP, ports and cluster id are passed as runtime environment variables. Docker Compose is not required.
+
+The image uses the Ubuntu 20.04 base system and Ubuntu's default Python 3.8.
+
+```bash
+chmod +x deploy/*.sh
+./deploy/build.sh
+./deploy/cluster.sh example-com example.com 8000
+
+# 在线备份 / 删除集群
+./deploy/backup.sh example-com
+./deploy/remove.sh example-com          # 保留数据卷
+./deploy/remove.sh example-com --purge  # 同时删除数据卷和插件卷
+```
+
+See [DOCKER.md](DOCKER.md) for the container model, runtime variables, volumes, optional Caddy setup, backup/update procedures and security notes.
+
+The legacy bare-metal/systemd scripts are archived in [`legacy/baremetal/`](legacy/baremetal/README.md); they are not used by the container deployment.
+
+
 ## Project Information
 
 - **License**: Apache-2.0

@@ -1,0 +1,12 @@
+#!/bin/bash
+# -*- coding: utf-8 -*-
+# Copyright © 2025 Song Feng.
+#
+# Bare-metal / host systemd deployment only.
+# Container deployment: use docker stop or deploy/remove.sh instead.
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
+exec python3 -m xspawner.service stop "$ROOT/legacy/baremetal/config.json"

@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 #
-# 交互式生成 ./config.json
+# 交互式生成脚本所在目录下的 config.json
 #
 # 用法:
-#   ./init.sh
+#   legacy/baremetal/init
 
 set -euo pipefail
 
-FILE="./config.json"
+FILE="$(cd "$(dirname "$0")" && pwd)/config.json"
 
 # ---------- 工具函数 ----------
 
@@ -103,6 +103,9 @@ else
     keyfile=""
 fi
 
+libs=$(read_default "libs (comma separated)" "")
+additional=$(read_default "additional" "")
+
 # ---------- 端口校验 ----------
 
 if ! [[ "$port" =~ ^[0-9]+$ ]] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
@@ -124,7 +127,9 @@ cat > "$FILE" <<EOF
   "severity": "$(json_escape "$severity")",
   "ssl": ${ssl},
   "certfile": "$(json_escape "$certfile")",
-  "keyfile": "$(json_escape "$keyfile")"
+  "keyfile": "$(json_escape "$keyfile")",
+  "libs": "$(json_escape "$libs")",
+  "additional": "$(json_escape "$additional")"
 }
 EOF
 

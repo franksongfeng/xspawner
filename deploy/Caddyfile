@@ -1,0 +1,9 @@
+# 共享 Caddy：站点配置全部由 /etc/caddy/sites/*.caddy 提供。
+#   - default.caddy 是保证 Caddy 可启动的占位站点；
+#   - deploy/cluster.sh 为每个集群写一个 <cluster>.caddy。
+{
+    admin 127.0.0.1:2019
+    auto_https off
+}
+
+import /etc/caddy/sites/*.caddy

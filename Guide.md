@@ -34,9 +34,8 @@ XSpawner 的项目结构清晰，采用模块化设计：
 
 - **核心模块**（`spawner.py`、`xspawner.py`、`service.py`、`orm.py`、`constants.py`）位于主包根目录。
 - **插件系统**（`plugins/`）支持 从`Spawner`自定义派生插件类。`administrator`等插件可独立包含测试和静态资源。
-- **工具库**（`utilities/`）提供日志、客户端、消息等通用功能。
 - **示例代码**（`demo/`）覆盖多种使用场景，便于快速上手。
-- **根目录脚本**（`init`、`start`、`stop`、`backup`、`drop`）提供命令行管理接口。
+- **裸机脚本**（`legacy/baremetal/` 下的 `init`、`start`、`stop`、`backup`、`drop`）提供宿主机 systemd 命令行管理接口；容器部署使用 `deploy/*.sh`。
 
 主程序包内部按功能划分了多个子目录和模块。
 
@@ -46,7 +45,6 @@ XSpawner 的项目结构清晰，采用模块化设计：
 | `docs/`          | 目录 | 附加信息目录               |
 | `plugins/`       | 目录 | 插件目录，包含核心插件实现  |
 | `static/`        | 目录 | 静态文件目录               |
-| `utilities/`     | 目录 | 工具函数目录               |
 | `__init__.py`    | 文件 | 包初始化文件               |
 | `__main__.py`    | 文件 | 程序入口文件               |
 | `__version__.py` | 文件 | 版本信息文件               |

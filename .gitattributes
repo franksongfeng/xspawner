@@ -2,7 +2,12 @@
 # checked out on Windows; they are executed inside Linux containers.
 *.sh text eol=lf
 Dockerfile text eol=lf
+Caddyfile text eol=lf
+.gitattributes text eol=lf
+.dockerignore text eol=lf
+legacy/baremetal/* text eol=lf
 *.caddy text eol=lf
 *.py text eol=lf
 *.toml text eol=lf
+*.json text eol=lf
 *.md text eol=lf

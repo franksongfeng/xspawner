@@ -88,30 +88,34 @@ sudo /usr/bin/python3 -u -m xspawner --name xspawner --plugin administrator --ho
 #### 服务管理
 
 ##### 命令
-每一个节点都是一个Systemd服务实例，通过以下命令管理它们：./start, ./stop, ./drop, ./init, ./backup
+
+> 以下命令只适用于**裸机 / 宿主机 systemd** 部署，脚本已归档到 `legacy/baremetal/`。
+> 容器部署请使用 `deploy/cluster.sh`、`deploy/backup.sh`、`deploy/remove.sh` 和 `docker` 命令。
+
+每一个节点都是一个 Systemd 服务实例，通过以下命令管理它们：`legacy/baremetal/start`、`legacy/baremetal/stop`、`legacy/baremetal/drop`、`legacy/baremetal/init`、`legacy/baremetal/backup`。
 
 启动服务集群并恢复上次停止时的状态、数据
 
 ```bash
-./start
+legacy/baremetal/start
 ```
 停止服务集群
 ```bash
-./stop
+legacy/baremetal/stop
 ```
 停止服务集群并销毁服务状态及数据
 ```bash
-./drop
+legacy/baremetal/drop
 ```
-创建配置文件的精灵
+交互式创建配置文件
 ```bash
-./init
+legacy/baremetal/init
 ```
 
 备份数据库
 
 ```bash
-./backup
+legacy/baremetal/backup
 ```
 
 
@@ -235,9 +239,14 @@ keyfile=/etc/ssl/private/xspawner.com.key
 
 ### 容器部署
 
-服务集群推荐采用容器化部署。
+> 注意：实际部署以仓库根目录的 `Dockerfile`、
+> `deploy/build.sh`、`deploy/cluster.sh` 和 `DOCKER.md` 为准：
+> 一个 administrator 服务集群运行在一个容器中，容器内用 systemd 管理
+> 根 administrator 及其全部子服务；所有集群复用同一个镜像，集群参数通过
+> 运行时环境变量传入，不依赖 Docker Compose。基础系统为 Ubuntu 20.04，
+> Python 使用 Ubuntu 默认的 3.8。
 
-容器内具有 systemd + caddy + xspawner 三个组件；容器只跑业务，管理走宿主机。
+服务集群推荐采用容器化部署。把Caddy 拆成共享的独立容器，xspawner 容器只跑业务。
 
 #### 容器配置文件
 
@@ -555,14 +564,10 @@ docker exec xspawner systemctl is-active <child_id>
 
 
 ### 未来
-
-- ORM：每个服务实例一张状态表 t_<服务标识>（服务自身配置只在 self._config，子服务配置由父服务写入自己的状态表），原 ConfigModel 已去除
-- Venv：python虚拟环境
+- Docker：容器化部署单域名服务集群，多容器部署多域名服务
 - Heatbeat：administrator 通过periodic方法监控子服务
 - Update：增加更换服务
-- Docker：容器化部署单域名服务集群，多容器部署多域名服务
 - AAA：增加管理员口令，完善鉴权和权限
-- AI GUI：图形化界面，遵从SDD和模型代理Aider
 
 
 ### 其它

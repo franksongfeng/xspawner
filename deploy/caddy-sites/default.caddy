@@ -1,0 +1,5 @@
+# 占位站点：保证 Caddy 启动时至少有一个站点块。
+# 真实集群站点由 deploy/cluster.sh 写入 deploy/caddy-sites/<cluster>.caddy。
+http://xspawner.invalid {
+    respond "Not Found" 404
+}
