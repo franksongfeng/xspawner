@@ -9,7 +9,6 @@
 import inspect
 import re
 import os
-import shutil
 import datetime
 import subprocess
 import tempfile
@@ -458,7 +457,7 @@ async def drop_database(conn: str):
 
     if category == "sqlite":
         if "file" not in setting:
-            raise ValueError(f"Miss file parameter in setting")
+            raise ValueError("Miss file parameter in setting")
         _drop_sqlite_database(setting["file"])
         return
 
@@ -631,7 +630,7 @@ def backup_database(conn: str, outfile: str = None) -> bool:
 
     if category == "sqlite":
         if "file" not in setting:
-            raise ValueError(f"Miss file parameter in setting")
+            raise ValueError("Miss file parameter in setting")
         return _backup_sqlite_database(setting["file"], outfile)
 
     if category not in ("mysql", "postgres"):

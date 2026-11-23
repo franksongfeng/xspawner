@@ -305,12 +305,10 @@ RUN pip3 install --no-cache-dir --upgrade pip \
         requests==2.31.0 \
         ipaddress==1.0.23 \
         psutil==5.9.5 \
-        bokeh==3.1.1 \
         tortoise-orm==0.23.0 \
         aiomysql==0.2.0 \
         asyncpg==0.30.0 \
-        pyinstaller==6.22.3 \
-    && python3 -c "import tornado, pywebio, requests, bokeh, tortoise; print('Python packages OK')"
+    && python3 -c "import tornado, pywebio, requests, tortoise; print('Python packages OK')"
 
 # ── 运行时默认值 ───────────────────────────────────────────────────────
 ENV HOST=xspawner.com \

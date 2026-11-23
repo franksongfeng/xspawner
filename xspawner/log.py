@@ -1,9 +1,7 @@
-import json
 import http.client
 import logging
 from logging.handlers import RotatingFileHandler, HTTPHandler
 from urllib.parse import urlparse
-import os
 
 
 LEVELS = {
@@ -37,7 +35,7 @@ class JsonHTTPHandler(HTTPHandler):
             response = conn.getresponse()
             response.read()
             conn.close()
-        except Exception as e:
+        except Exception:
             self.handleError(record)
 
 
@@ -67,7 +65,7 @@ class Log(logging.Logger):
 
         # 验证 category 参数
         if category not in ['file', 'http']:
-            raise ValueError(f"Invalid category")
+            raise ValueError("Invalid category")
 
         # 初始化处理器
         if category == 'file':

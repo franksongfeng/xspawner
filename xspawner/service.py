@@ -16,7 +16,6 @@ import shlex
 import urllib3
 from typing import Optional, Dict, List, Any
 
-import psutil
 import requests
 import tornado.gen
 import tornado.process
@@ -207,7 +206,7 @@ def _run_systemctl(command: List[str]) -> bool:
             text=True
         )
         logger.info(f"systemctl {' '.join(command)} successful")
-        logger.info(f"_run_systemctl END true")
+        logger.info("_run_systemctl END true")
         return True
     except subprocess.CalledProcessError as e:
         logger.error(f"systemctl {' '.join(command)} failed: {e.stderr}")
@@ -384,7 +383,7 @@ def open_service(config: Config) -> bool:
             return False
 
         logger.info(f"Started {service_name} service successfully.")
-        logger.info(f"open_service END true")
+        logger.info("open_service END true")
         return True
     except Exception as e:
         logger.error(f"Exception occurred when starting service: {e}")
@@ -419,7 +418,7 @@ def reset_service(srv_id: str) -> bool:
         stop_service(srv_id)
         disable_service(srv_id)
         reload_systemd()
-        logger.info(f"reset_service END true")
+        logger.info("reset_service END true")
         return True
     except Exception as e:
         logger.info(f"Failed to reset service {unit_name(srv_id)}: {e}")
@@ -441,13 +440,6 @@ def get_service_logs(srv_id: str, lines: int = 50) -> Optional[str]:
     except Exception as e:
         logger.error(f"Failed to get service logs: {e}")
         return None
-
-
-def is_running_by_psutil(proc_name: str) -> bool:
-    for proc in psutil.process_iter(['name', 'pid']):
-        if proc.info['name'] == proc_name:
-            return True
-    return False
 
 
 def wait_for_service_ready(srv_url: str, timeout: int = 60,
@@ -662,4 +654,4 @@ if __name__ == "__main__":
         else:
             logger.error(f"Error: file not found: {file}")
     else:
-        logger.error(f"Error: miss command")
+        logger.error("Error: miss command")

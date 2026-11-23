@@ -204,55 +204,6 @@ async def _get_routes(server_name):
     return data or []
 
 
-# ── 查询：遍历所有反向代理 ──────────────────────────────────
-async def _walk_routes(routes, inherit_paths=None, inherit_strip=None):
-    """
-    递归展开 routes，抽取所有 reverse_proxy 条目。
-    - subroute 内的子路由若自身没有 match，则继承父路径
-    - rewrite / uri 的剥离前缀沿继承链向下传递
-    返回 list[dict]: {id, paths, strip, upstream}
-    """
-    inherit_paths = inherit_paths or []
-    out = []
-
-    for route in routes or []:
-        own_paths = []
-        for m in route.get("match") or []:
-            own_paths.extend(m.get("path") or [])
-        paths = own_paths or inherit_paths
-
-        strip = inherit_strip
-        upstreams = []
-        sub_routes = None
-
-        for h in route.get("handle") or []:
-            name = h.get("handler")
-            if name == "rewrite":
-                strip = h.get("strip_path_prefix") or strip
-            elif name == "uri":
-                strip = h.get("strip_prefix") or strip
-            elif name == "reverse_proxy":
-                for u in h.get("upstreams") or []:
-                    if u.get("dial"):
-                        upstreams.append(u["dial"])
-            elif name == "subroute":
-                sub_routes = h.get("routes") or []
-
-        if sub_routes:
-            out.extend(await _walk_routes(sub_routes, paths, strip))
-
-        for up in upstreams:
-            out.append({
-                "id":       route.get("@id"),
-                "hosts":    list(hosts),
-                "paths":    list(paths),
-                "strip":    strip,
-                "upstream": up,
-            })
-
-    return out
-
-
 async def caddy_is_running(timeout: float = 3.0) -> bool:
     """
     检测 Caddy 是否在运行（Admin API 可达即为运行）。
@@ -271,98 +222,7 @@ async def caddy_is_running(timeout: float = 3.0) -> bool:
         return False
 
 
-async def caddy_list_proxies(server_name: str) -> list:
-    """
-    列出 Caddy 中指定 server 的全部反向代理路由。
-
-    :param server_name: 要查询的 server 名（如 srv0）
-    :return: list[dict] 每项含：
-        server   所属 server 名（如 srv0）
-        listen   监听地址列表（如 [":443"]）
-        id       路由 @id（无 @id 则为 None）
-        paths    匹配的路径列表
-        strip    剥离前缀（无则 None）
-        upstream 上游 dial 地址（如 127.0.0.1:8081）
-    """
-    result = []
-
-    try:
-        resp = await _fetch(
-            "GET", f"{CADDY_ADMIN}/config/apps/http/servers/{server_name}"
-        )
-        if resp.code >= 400:
-            return result
-        cfg = json.loads(resp.body or b"{}") or {}
-    except Exception:
-        traceback.print_exc()
-        return result
-
-    listen = list(cfg.get("listen") or [])
-
-    try:
-        routes = await _get_routes(server_name)
-    except Exception:
-        traceback.print_exc()
-        return result
-
-    try:
-        items = await _walk_routes(routes)
-    except Exception:
-        traceback.print_exc()
-        return result
-
-    for it in items:
-        it["server"] = server_name
-        it["listen"] = listen
-        result.append(it)
-
-    return result
-
-
-# ── 格式化辅助 ──────────────────────────────────────────────
-_PROXY_COLUMNS = ("SERVER", "LISTEN", "MATCH", "STRIP", "UPSTREAM", "@ID")
-
-
-def _proxy_row(it: dict) -> list:
-    return [
-        it.get("server") or "-",
-        ",".join(it.get("listen") or []) or "-",
-        " ".join(it.get("paths") or []) or "-",
-        it.get("strip") or "-",
-        it.get("upstream") or "-",
-        it.get("id") or "-",
-    ]
-
-
-def format_proxies_table(items: list) -> list:
-    """返回二维列表（含表头），可直接喂给 PyWebIO 的 put_table。"""
-    table = [list(_PROXY_COLUMNS)]
-    for it in items:
-        table.append(_proxy_row(it))
-    return table
-
-
-def format_proxies_text(items: list) -> str:
-    """返回纯文本对齐表格，适合日志或命令行输出。"""
-    if not items:
-        return "(没有任何 reverse_proxy 路由)"
-
-    rows = [_proxy_row(it) for it in items]
-    widths = [
-        max(len(r[i]) for r in (rows + [list(_PROXY_COLUMNS)]))
-        for i in range(len(_PROXY_COLUMNS))
-    ]
-
-    def _fmt(row):
-        return "  ".join(str(row[i]).ljust(widths[i]) for i in range(len(row)))
-
-    lines = [_fmt(list(_PROXY_COLUMNS)),
-             "-" * (sum(widths) + 2 * (len(widths) - 1))]
-    lines.extend(_fmt(r) for r in rows)
-    return "\n".join(lines)
-
-
-# ── 对外接口（增删改，保持原样）─────────────────────────────
+# ── 对外接口（动态路由增删）─────────────────────────────────
 async def caddy_add_route(srv_host: str, srv_id: str, port: int) -> bool:
     """幂等：先按 @id 删，再插到 routes 头部。"""
     async with _lock:
@@ -404,36 +264,6 @@ async def caddy_del_route(srv_host: str, srv_id: str) -> bool:
         try:
             resp = await _fetch("DELETE", f"{CADDY_ADMIN}/id/{_rid(srv_host, srv_id)}")
             return resp.code in (200, 404)   # 404 = 本来就没有，视为成功
-        except Exception:
-            traceback.print_exc()
-            return False
-
-
-async def caddy_bootstrap(srv_host: str, children: dict) -> bool:
-    """
-    Caddy 重启 / caddy reload 后动态路由会丢失，
-    启动时用当前子服务列表整体重放一次。
-    children: {srv_id: port}
-    """
-    async with _lock:
-        try:
-            server_name = await caddy_find_server_by_site_address(srv_host)
-            if not server_name:
-                print(f"[caddy] no server found for host {srv_host}", flush=True)
-                return False
-
-            prefix = f"{srv_host}-"
-            routes = await _get_routes(server_name)
-            routes = [x for x in routes
-                      if not str(x.get("@id", "")).startswith(prefix)]
-            for sid, port in children.items():
-                routes.insert(0, _route_obj(srv_host, sid, port))
-
-            resp = await _fetch(
-                "PATCH", _routes_url(server_name),
-                body=json.dumps(routes).encode("utf-8"),
-            )
-            return 200 <= resp.code < 300
         except Exception:
             traceback.print_exc()
             return False

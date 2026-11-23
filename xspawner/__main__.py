@@ -1,18 +1,11 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
-import json
-import sys
-import uuid
 import argparse
-import os
-import os.path
 import traceback
-import pkgutil
-import importlib
 
 from . import __version__
-from .constants import *
+from .constants import Config, PLUGIN_PKG
 from .misc import get_similar_cls
 
 if __name__ == '__main__':
@@ -42,5 +35,5 @@ if __name__ == '__main__':
             srv_cls.getServer(config=Config(**cmd_args)).start()
         else:
             print("Err: the plugin {} is not found!".format(args.plugin))
-    except Exception as e:
+    except Exception:
         print(traceback.format_exc()) # NOQA

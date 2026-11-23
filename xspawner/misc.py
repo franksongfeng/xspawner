@@ -28,7 +28,7 @@ import importlib
 import pkgutil
 import inspect
 import hashlib
-from functools import lru_cache
+from collections import deque
 
 
 # better than getCurTimeStr

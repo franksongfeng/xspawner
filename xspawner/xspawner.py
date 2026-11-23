@@ -15,18 +15,14 @@ import importlib
 import inspect
 import traceback
 import datetime
-import types
 import functools
-import itertools
 import zipfile
-import base64
 import uuid
 import ssl
 import unittest
 import shutil
 import io
 from urllib.parse import urlparse
-from collections import UserDict
 import ipaddress
 import asyncio
 
@@ -48,10 +44,12 @@ import pywebio.platform.tornado
 
 # Self Libraries
 from xspawner.log import Log # NOQA
-from xspawner.constants import * # NOQA
+from xspawner.constants import (
+    Config, LOCAL_DB_URL, LOG_FILE, PLUGIN_DIR, PLUGIN_PKG, RES_DIR_TEMP,
+)
 from xspawner.orm import open_database, drop_database, backup_database, config_to_dict, value_to_config, is_config_data, set_state_table, StateModel #NOQA
 from xspawner.service import open_service, close_service, get_service_status # NOQA
-from xspawner.proxy import _prefix, caddy_is_running, caddy_find_server_by_site_address, caddy_add_route, caddy_del_route  # NOQA
+from xspawner.proxy import _prefix, caddy_is_running, caddy_add_route, caddy_del_route  # NOQA
 from xspawner.misc import wait_port_sync, getSSLContext, zip_folder, make_multipart_request, make_multipart_form, make_docs, parse_reply, get_file_type, is_module_available, is_port_used, getWorkDir # NOQA
 
 
@@ -497,7 +495,7 @@ class XSpawner(Spawnable):
         addr = "{}://127.0.0.1:{}".format(
             "https" if self._config.ssl and not self.use_caddy() else "http",
             port if port is not None else self._config.port)
-        self.iLog(f"getLocalAddr END")
+        self.iLog("getLocalAddr END")
         return addr
 
     def getPid(self):
@@ -698,7 +696,7 @@ class XSpawner(Spawnable):
         } if fdata or fname else {}
         headers, body = make_multipart_request(args, docs)
         rt = await postAsync(url, headers, body)
-        self.iLog("postForm END {rt}".format(rt))
+        self.iLog(f"postForm END {rt}")
         return rt
 
     async def waitForService(self, port, host="127.0.0.1", timeout=30, interval=0.5):

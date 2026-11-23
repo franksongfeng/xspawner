@@ -3,9 +3,7 @@
 import tornado.httpclient
 import tornado.escape
 import json
-import io
 import os
-import mimetypes
 from xspawner.misc import get_file_type, make_multipart_request, parse_reply
 
 class Client:

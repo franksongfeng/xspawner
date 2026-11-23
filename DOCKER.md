@@ -27,7 +27,7 @@
 | 文件 | 作用 |
 |---|---|
 | `Dockerfile` | 所有集群共用的通用镜像 |
-| `docker/install-deps.py` | 从 `pyproject.toml` 安装 Python 依赖，跳过 pyinstaller |
+| `docker/install-deps.py` | 从 `pyproject.toml` 安装运行时 Python 依赖 |
 | `docker/entrypoint.sh` | 生成 administrator 的 systemd unit，设置集群级环境，最后 `exec systemd` |
 | `deploy/build.sh` | 构建通用镜像 `xspawner:latest` |
 | `deploy/cluster.sh` | 部署一个集群：准备卷、选项、Caddy 站点并启动容器 |
