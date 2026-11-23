@@ -198,7 +198,7 @@ http://example.com:8000/services/admin/
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `XSPAWNER_CLUSTER` | `default` | 集群标识，用于容器/卷命名和日志 |
+| `XSPAWNER_CLUSTER` | `default` | 集群标识，用于容器/卷命名、数据库文件名（`<cluster>.db`）和日志文件名（`<cluster>.log`） |
 | `XSPAWNER_ID` | `admin` | 根 administrator 实例标识 |
 | `XSPAWNER_PLUGIN` | `administrator` | 根实例插件 |
 | `XSPAWNER_HOST` | `127.0.0.1` | 对外域名或 IP |
@@ -223,6 +223,8 @@ http://example.com:8000/services/admin/
 | `xspawner-<cluster>-data` | `/data` | SQLite 数据库、日志、备份 |
 | `xspawner-<cluster>-plugins` | `/opt/xspawner/xspawner/plugins` | 上传/安装的插件 |
 | `xspawner-<cluster>-certs`（可选） | `/opt/xspawner/certs` | 自有证书 |
+
+SQLite 数据库文件名为 `/data/<cluster>.db`，例如 `xspawner-com` 集群使用 `/data/xspawner-com.db`；日志文件为 `/data/<cluster>.log`。
 
 命名卷第一次挂载时会由镜像内容初始化插件目录。如果改成 bind mount，需要先把镜像里的 `xspawner/plugins` 复制到宿主机目录。镜像升级后，已存在的插件卷不会自动覆盖内置插件；需要更新内置插件时应备份后重建插件卷。
 
@@ -284,4 +286,4 @@ docker stop xspawner-example-com-admin
 - **回环监听**：启用 Caddy 时 `cluster.sh` 默认让 xspawner 服务只监听 `127.0.0.1`，外部只能经 Caddy 访问；不使用 Caddy 时才会监听 `0.0.0.0`。
 - **Caddy 单点**：所有启用 TLS 的集群共享 `xspawner-caddy`；Caddy 重启或 reload 后需要重启集群容器恢复动态路由。
 - **Python 3.8 已 EOL**：Ubuntu 20.04 默认 Python 3.8 已停止安全更新，镜像固定了 3.8 上可用的依赖版本。本方案遵循 Ubuntu 20.04 + 默认 Python 的约束；新部署建议改用更新基础镜像。
-- **SQLite 单文件**：同一集群共享 `/data/xspawner.db`；不同集群的数据卷相互隔离。
+- **SQLite 单文件**：同一集群共享 `/data/<cluster>.db`；不同集群的数据卷相互隔离。

@@ -2,14 +2,12 @@
 # -*- coding: utf-8 -*-
 # Copyright © 2025 Song Feng.
 #
-# 交互式生成脚本所在目录下的 config.json
+# 交互式生成脚本所在目录下的 <cluster>.json
 #
 # 用法:
 #   legacy/baremetal/init
 
 set -euo pipefail
-
-FILE="$(cd "$(dirname "$0")" && pwd)/config.json"
 
 # ---------- 工具函数 ----------
 
@@ -59,6 +57,22 @@ json_escape() {
     printf '%s' "$s"
 }
 
+# ---------- 配置文件选择 ----------
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+echo "Press Enter to accept the default shown in [brackets]."
+echo
+
+cluster=$(read_default "cluster name" "example-com")
+if ! [[ "${cluster}" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+    echo "Invalid cluster name: ${cluster}" >&2
+    echo "Use letters, digits, '.', '_' or '-'." >&2
+    exit 1
+fi
+
+FILE="${SCRIPT_DIR}/${cluster}.json"
+
 # ---------- 覆盖确认 ----------
 
 if [ -e "$FILE" ]; then
@@ -75,10 +89,8 @@ fi
 # ---------- 交互收集 ----------
 
 echo "Creating ${FILE}"
-echo "Press Enter to accept the default shown in [brackets]."
-echo
 
-id=$(read_default "id" "xspawner")
+id=$(read_default "id" "admin")
 plugin=$(read_default "plugin" "administrator")
 host=$(read_default "host" "127.0.0.1")
 port=$(read_default "port" "8000")

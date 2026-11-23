@@ -41,8 +41,7 @@ PartOf={}
 [Service]
 Type=simple
 WorkingDirectory={}
-
-ExecStartPre=/bin/sleep 1.0s
+{}ExecStartPre=/bin/sleep 1.0s
 {}ExecStart={}
 Restart=on-failure
 
@@ -305,8 +304,8 @@ def _build_pip_install_pre(config: Config) -> str:
 def generate_service_file(config: Config) -> str:
     """
     生成 systemd service 文件内容。
-    注意 config.id / config.parent 都是逻辑 id，本函数内翻译为
-    带 HOST 前缀的单元名，写入 Description / After / Requires / PartOf。
+    unit 名直接使用服务 id；集群级环境（cluster/data dir）写入 unit，
+    保证子服务使用同一个数据库。
     """
     cmd = get_exec_cmd(config)
     pip_pre = _build_pip_install_pre(config)
@@ -320,9 +319,17 @@ def generate_service_file(config: Config) -> str:
 
     work_dir = os.getcwd()
 
+    env_lines = []
+    for key in ("XSPAWNER_CLUSTER", "XSPAWNER_DATA_DIR"):
+        value = os.environ.get(key)
+        if value:
+            value = value.replace("\\", "\\\\").replace('"', '\\"')
+            env_lines.append(f'Environment="{key}={value}"')
+    environment = "".join(line + "\n" for line in env_lines)
+
     service_content = SERVICE_TMPL.format(
         description, prior_service, prior_service, prior_service,
-        work_dir, pip_pre, cmd
+        work_dir, environment, pip_pre, cmd
     )
 
     return service_content

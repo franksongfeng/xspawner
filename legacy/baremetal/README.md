@@ -17,19 +17,33 @@ For containerized clusters use:
 ```bash
 chmod +x legacy/baremetal/*
 
-legacy/baremetal/init      # interactively write legacy/baremetal/config.json
-legacy/baremetal/start     # create/enable/start the systemd unit
-legacy/baremetal/stop      # stop and remove the systemd unit
-legacy/baremetal/backup    # online SQLite backup via the running service
-legacy/baremetal/drop      # destructive: stop children, remove unit, delete DB
+legacy/baremetal/init             # asks for a cluster name, writes <cluster>.json
+legacy/baremetal/start example-com
+legacy/baremetal/stop example-com
+legacy/baremetal/backup example-com
+legacy/baremetal/drop example-com
 ```
 
-All scripts `cd` to the repository root and use
-`legacy/baremetal/config.json`, so they can be invoked from any directory.
+Each cluster uses its own config file:
 
-The former root-level `init`, `start`, `stop`, `backup`, `drop` shims and the
-root `config.json` sample have been removed. Use the scripts in this directory
-and their local `config.json` instead.
+```text
+legacy/baremetal/<cluster>.json
+```
+
+For example, `example-com.json`. Multiple cluster configs can coexist in this
+directory. `_common.sh` is the shared helper that resolves and validates the
+config path. All scripts `cd` to the repository root, so they can be invoked
+from any directory.
+
+The scripts export `XSPAWNER_CLUSTER=<cluster>`, so the SQLite database is named
+`<cluster>.db` and the log file is named `<cluster>.log` (under the repository
+root, or under `XSPAWNER_DATA_DIR` if set). When upgrading an existing
+deployment, rename the old `xspawner.db` / `xspawner.log` to `<cluster>.db` /
+`<cluster>.log` if you want to keep the existing data and history.
+
+An `example-com.json` sample is included. The former root-level `init`, `start`,
+`stop`, `backup`, `drop` shims and the root `config.json` sample have been
+removed.
 
 ## Caveats
 
@@ -38,6 +52,9 @@ and their local `config.json` instead.
   `systemctl disable --now <old-unit>` and delete the old unit file.
 - Because the service id becomes the unit name, avoid ids that collide with
   existing systemd units (for example `dbus`, `systemd-*`).
+- If you run multiple cluster configs on the same host systemd, give each one a
+  unique `id` (for example `xspawner-com` and `lepli-cn`); otherwise their
+  `admin.service` units collide.
 - `stop` is not just "stop": it stops the unit, disables it, and deletes the
   unit file. On bare metal, use `systemctl stop <unit>` if you only want a
   temporary stop.

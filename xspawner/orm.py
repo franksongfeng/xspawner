@@ -703,7 +703,7 @@ class TieredModel(KeyedModel):
 # 状态模型
 # 一行一个键：id 就是键（主键由 KeyedModel 提供）。
 # 表名在服务启动时由 set_state_table() 设为 t_<服务标识>，
-# 因此每个服务实例在共用的 xspawner.db 里都有自己的一张状态表。
+# 因此每个服务实例在共用的 <cluster>.db 里都有自己的一张状态表。
 # value 有两种含义，按数据形状识别，不使用任何保留键：
 #   1) 服务配置行：value 是原 ConfigModel 的数据（Config 元组转来的 JSON），
 #      id 为子服务标识；由父服务（一般是 administrator 插件）创建子服务时写入
@@ -718,7 +718,7 @@ def set_state_table(service_id: str) -> str:
     """把状态模型的表名设为 t_<service_id>（插件实例的名字）。
 
     每个服务进程启动时调用一次，必须在 Tortoise.init/generate_schemas 之前，
-    这样同一个 xspawner.db 里每个服务实例各有自己的一张状态表。
+    这样同一个 <cluster>.db 里每个服务实例各有自己的一张状态表。
     """
     if not service_id:
         raise ValueError("service_id must not be empty")

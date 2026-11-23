@@ -12,7 +12,7 @@
 #   ./deploy/backup.sh example-com ./backups
 #
 # 环境变量:
-#   XSPAWNER_DB          容器内数据库路径，默认 /data/xspawner.db
+#   XSPAWNER_DB          容器内数据库路径，默认 /data/<cluster>.db
 #   XSPAWNER_PLUGIN_DIR  容器内插件目录，默认 /opt/xspawner/xspawner/plugins
 set -euo pipefail
 
@@ -39,7 +39,7 @@ if [ -z "${SLUG}" ]; then
 fi
 
 NAME="xspawner-${SLUG}-admin"
-DB="${XSPAWNER_DB:-/data/xspawner.db}"
+DB="${XSPAWNER_DB:-/data/${SLUG}.db}"
 PLUGIN_DIR="${XSPAWNER_PLUGIN_DIR:-/opt/xspawner/xspawner/plugins}"
 
 if ! docker inspect -f '{{.State.Running}}' "${NAME}" 2>/dev/null | grep -q true; then

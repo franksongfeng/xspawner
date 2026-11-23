@@ -92,20 +92,20 @@ sudo /usr/bin/python3 -u -m xspawner --name xspawner --plugin administrator --ho
 > 以下命令只适用于**裸机 / 宿主机 systemd** 部署，脚本已归档到 `legacy/baremetal/`。
 > 容器部署请使用 `deploy/cluster.sh`、`deploy/backup.sh`、`deploy/remove.sh` 和 `docker` 命令。
 
-每一个节点都是一个 Systemd 服务实例，通过以下命令管理它们：`legacy/baremetal/start`、`legacy/baremetal/stop`、`legacy/baremetal/drop`、`legacy/baremetal/init`、`legacy/baremetal/backup`。
+每一个节点都是一个 Systemd 服务实例，通过以下命令管理它们：`legacy/baremetal/start <cluster>`、`legacy/baremetal/stop <cluster>`、`legacy/baremetal/drop <cluster>`、`legacy/baremetal/init`、`legacy/baremetal/backup <cluster>`。
 
 启动服务集群并恢复上次停止时的状态、数据
 
 ```bash
-legacy/baremetal/start
+legacy/baremetal/start example-com
 ```
 停止服务集群
 ```bash
-legacy/baremetal/stop
+legacy/baremetal/stop example-com
 ```
 停止服务集群并销毁服务状态及数据
 ```bash
-legacy/baremetal/drop
+legacy/baremetal/drop example-com
 ```
 交互式创建配置文件
 ```bash
@@ -115,14 +115,14 @@ legacy/baremetal/init
 备份数据库
 
 ```bash
-legacy/baremetal/backup
+legacy/baremetal/backup example-com
 ```
 
 
 
 ##### 配置文件
 
-config.json内容如下
+`<cluster>.json` 内容如下
 
 ```json
 {
@@ -532,7 +532,7 @@ docker context use xspawner-prod
 docker ps
 docker exec -it xspawner bash
 docker logs -f xspawner
-docker cp xspawner:/opt/xspawner/xspawner.db ./local-backup.db
+docker cp xspawner:/opt/xspawner/<cluster>.db ./local-backup.db
 docker restart xspawner
 
 # 切回本地

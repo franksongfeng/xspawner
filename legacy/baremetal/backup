@@ -4,9 +4,14 @@
 #
 # Bare-metal / host systemd deployment only.
 # Container deployment: use deploy/backup.sh instead.
+#
+# Usage:
+#   legacy/baremetal/backup <cluster>
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-cd "$ROOT"
-exec python3 -m xspawner.service backup "$ROOT/legacy/baremetal/config.json"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${SCRIPT_DIR}/_common.sh" "$@"
+
+cd "${ROOT}"
+exec python3 -m xspawner.service backup "${CONFIG}"
