@@ -1,4 +1,4 @@
-# Docker 容器化部署（不使用 Docker Compose）
+# Docker 容器化部署
 
 ## 1. 架构
 
@@ -91,6 +91,28 @@ docker run -d --name xspawner-example-com-admin \
 ```
 
 上面只列出 xspawner 容器本身；Caddy 的启动、站点写入和动态路由恢复由 `deploy/cluster.sh` 完成。
+
+### 使用宿主机已有 Caddy
+
+如果宿主机已经用 systemd 运行 Caddy，并且已经配置好 `https://xspawner.com` 和真实证书，就不要启动 `xspawner-caddy` 容器，否则会抢占 80/443/2019：
+
+```bash
+XSPAWNER_MANAGE_CADDY=false \
+    ./deploy/cluster.sh xspawner-com xspawner.com 8000
+```
+
+前提：
+
+- 宿主机 Caddy 正在运行，Admin API 为 `127.0.0.1:2019`
+- 宿主机 Caddy 已有 `https://xspawner.com` 站点
+- 宿主机上的旧 xspawner 服务已停止，8000 端口空闲
+
+此时 xspawner 容器只负责业务进程，启动时会向宿主机 Caddy 注入 `/services/<id>/*` 路由。重启或 reload 宿主机 Caddy 后，动态路由会丢失，需要重启容器恢复：
+
+```bash
+systemctl reload caddy
+docker restart xspawner-xspawner-com-admin
+```
 
 ### 国内网络 / Docker Hub 不可达
 

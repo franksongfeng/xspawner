@@ -57,6 +57,7 @@ NAME="xspawner-${SLUG}-admin"
 DATA_VOLUME="xspawner-${SLUG}-data"
 PLUGIN_VOLUME="xspawner-${SLUG}-plugins"
 SSL="${XSPAWNER_SSL:-true}"
+MANAGE_CADDY="${XSPAWNER_MANAGE_CADDY:-true}"
 ACCESS="${XSPAWNER_ACCESS:-}"
 if [ -z "${ACCESS}" ]; then
     if [ "${SSL}" = "true" ]; then
@@ -73,7 +74,7 @@ if ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
 fi
 
 # ── 2. Caddy（可选）：TLS 与 /services/<id>/* 动态路由 ─────────────────────
-if [ "${SSL}" = "true" ]; then
+if [ "${SSL}" = "true" ] && [ "${MANAGE_CADDY}" = "true" ]; then
     ./deploy/caddy.sh
 
     mkdir -p deploy/caddy-sites
@@ -141,6 +142,9 @@ echo "  container : ${NAME}"
 echo "  host      : ${HOST}"
 echo "  root port : ${ROOT_PORT}"
 echo "  access    : ${ACCESS}"
+if [ "${SSL}" = "true" ] && [ "${MANAGE_CADDY}" != "true" ]; then
+    echo "  caddy     : external 127.0.0.1:2019"
+fi
 if [ "${SSL}" = "true" ]; then
     echo "  UI        : https://${HOST}/services/admin/"
 else
