@@ -14,6 +14,7 @@ requires-python = ">=3.8"
 dynamic = ["version", "description"]
 # Python 3.8 是 Ubuntu 20.04 的默认版本；部分依赖的新版本已不再支持 3.8，
 # 因此用环境标记固定 3.8 上可用的最后一批版本。
+# pywebio 1.8.4 依赖于 Python 3.9+
 dependencies = [
     "requests>=2.22.0",
     "tornado>=6.4.1,<6.5; python_version < '3.9'",
