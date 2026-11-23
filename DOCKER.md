@@ -118,7 +118,7 @@ docker restart xspawner-xspawner-com-admin
 
 如果 `docker build` 在 `FROM ubuntu:20.04` 处报 `request canceled while waiting for connection`，这是宿主机 Docker daemon 无法访问 Docker Hub，不是 Dockerfile 的问题。先配置镜像加速器（阿里云控制台：容器镜像服务 → 镜像工具 → 镜像加速器），然后重启 Docker：
 
-```bash
+```
 sudo mkdir -p /etc/docker
 sudo tee /etc/docker/daemon.json >/dev/null <<'EOF'
 {
@@ -127,25 +127,42 @@ sudo tee /etc/docker/daemon.json >/dev/null <<'EOF'
 EOF
 sudo systemctl daemon-reload
 sudo systemctl restart docker
+```
+
+> 一个可用的加速器地址：https://vt6e27zj.mirror.aliyuncs.com
+
+拉取基础镜像：
+
+```bash
 docker pull ubuntu:20.04
 ```
 
 > 如果 `/etc/docker/daemon.json` 已存在，请只把 `registry-mirrors` 合并进去，不要覆盖其他配置。
 
-基础镜像可用后，如果 apt/pip 也慢，构建时指定国内源：
+基础镜像拉取成功后，接下来构建 `xspawner:latest`。
 
 ```bash
-APT_MIRROR=https://mirrors.aliyun.com/ubuntu \
+cd /opt/xspawner
+
+APT_MIRROR=http://mirrors.aliyun.com/ubuntu \
 PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
 ./deploy/build.sh
 ```
 
-如果已有可用的 Ubuntu 镜像源，也可以先拉取并 tag 成 `ubuntu:20.04`，`build.sh` 默认不会强制 `--pull`：
+> `build.sh` 会先检查本地已有 `ubuntu:20.04`，不会再次访问 Docker Hub。
+>
+> 构建过程中如果出现 `legacy builder is deprecated`，可以忽略。
+
+确认镜像：
 
 ```bash
-docker pull docker.m.daocloud.io/library/ubuntu:20.04
-docker tag docker.m.daocloud.io/library/ubuntu:20.04 ubuntu:20.04
-./deploy/build.sh
+docker images | grep xspawner
+```
+
+应看到：
+
+```bash
+xspawner    latest    ...
 ```
 
 ## 4. 多域名 / 多 IP
