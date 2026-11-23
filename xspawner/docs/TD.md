@@ -572,7 +572,6 @@ docker exec xspawner systemctl is-active <child_id>
 
 
 ### 未来
-- Docker：容器化部署单域名服务集群，多容器部署多域名服务
 - Heatbeat：administrator 通过periodic方法监控子服务
 - Update：增加更换服务
 - AAA：增加管理员口令，完善鉴权和权限
