@@ -15,7 +15,7 @@
 
 - **一个集群 = 一个容器**。根 administrator 和它管理的所有服务都在同一个容器内，由容器里的 systemd 管理。
 - **所有集群共用同一个镜像**。镜像里不写入域名、端口等集群参数；这些参数在 `docker run` 时通过环境变量传入。
-- **不使用 Docker Compose**，全部用 `docker build` / `docker run` 完成。
+- 全部用 `docker build` / `docker run` 完成，不使用 Docker Compose。
 - 基础系统固定为 **Ubuntu 20.04**，Python 使用 Ubuntu 默认的 **Python 3.8**。
 - 集群之间通过独立的容器名、数据卷和插件卷隔离。
 - Caddy 是独立容器，可选；启用时通过 Admin API 把 `/services/<id>/*` 路由到对应服务。
