@@ -29,8 +29,8 @@
 | `Dockerfile` | 所有集群共用的通用镜像 |
 | `docker/install-deps.py` | 从 `pyproject.toml` 安装运行时 Python 依赖 |
 | `docker/entrypoint.sh` | 生成 administrator 的 systemd unit，设置集群级环境，最后 `exec systemd` |
-| `deploy/build.sh` | 构建通用镜像 `xspawner:latest` |
-| `deploy/cluster.sh` | 部署一个集群：准备卷、选项、Caddy 站点并启动容器 |
+| **`deploy/build.sh`** | 构建通用镜像 `xspawner:latest` |
+| **`deploy/cluster.sh`** | 部署一个集群：准备卷、选项、Caddy 站点并启动容器 |
 | `deploy/caddy.sh` | 启动共享 Caddy 容器（可选） |
 | `deploy/sync-caddy.sh` | reload Caddy，并重启已有集群容器以恢复动态路由 |
 | `deploy/backup.sh` | 在线备份集群 SQLite 数据库和插件目录，并复制到宿主机 |
