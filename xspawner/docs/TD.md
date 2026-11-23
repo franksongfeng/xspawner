@@ -219,7 +219,7 @@ keyfile=/etc/ssl/private/xspawner.com.key
 > /var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/{DN}/
 > ```
 >
-> Caddy的典型配置（在真实域名 + 公网可达场景下）
+> Caddy的一个最简配置模板（在真实域名 + 公网可达场景下）
 >
 > ```apl
 > {
