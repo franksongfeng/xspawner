@@ -21,7 +21,7 @@ https://example.com {
     # 2. 路由
 
     # 2.1 首页跳转
-    # redir / /services/main 302
+    redir / /services/main 302
 
     # 2.2 带尾斜杠跳转
     # @add_trailing_slash {

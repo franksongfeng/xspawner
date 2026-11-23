@@ -437,7 +437,7 @@ exec /lib/systemd/systemd --system --unit=multi-user.target
 
 #### 代理配置
 
-xspawner支持使用代理软件caddy自动申请域名并反向代理路由。
+xspawner支持使用代理软件caddy实现：自动申请域名；自动http到https重定向；反向代理路由等。
 
 caddy的安装
 
@@ -453,20 +453,32 @@ sudo apt-get install -y caddy
 缺省的caddy配置文件: /etc/caddy/Caddyfile
 
 ```apl
+# 共享 Caddy：站点配置全部由 /etc/caddy/sites/*.caddy 提供。
 {
     admin 127.0.0.1:2019
 }
 
+import /etc/caddy/sites/*.caddy
+```
 
-https://example.com {
+占位站点块的caddy配置文件：/etc/caddy/Caddy/sites/default.caddy
+
+```apl
+# 占位站点：保证 Caddy 启动时至少有一个站点块。
+http://xspawner.invalid {
+    respond "Not Found" 404
+}
+```
+
+一个例子站点块的caddy配置文件：/etc/caddy/Caddy/sites/xspawner.caddy
+
+```apl
+https://xspawner.com {
 
     # 根路径精确跳转到 /service/main
     redir / /services/main 302
 
-    # 动态注入的 /services/{srv_id}/* 插在这里之前
-
-    # 未匹配的路径反代到特定端口服务
-    # reverse_proxy 127.0.0.1:10000
+    # 动态注入的 /services/{app_id}/* 插在这里之前
 
     # 未匹配的路径一律 404
     handle {
@@ -474,8 +486,6 @@ https://example.com {
     }
 }
 ```
-
-用 `:443` + 显式 `tls` + `auto_https off` + `reverse_proxy 127.0.0.1:8000` 兜底，形成「动态路由优先、xspawner 兜底、任意 Host 可访问、证书自签名可复现」的确定性结构，完全适配容器内 xspawner 的部署。
 
 
 

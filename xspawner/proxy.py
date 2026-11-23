@@ -120,21 +120,16 @@ def _host_matches(pattern: str, domain: str) -> bool:
 
 
 # ── 路由构造 ────────────────────────────────────────────────
-# ---------------------------------------------------------------------------
-# 逻辑 id → systemd 单元名
-#
-# 对外 API（get_service_status / start_service / close_service / ...）一律
-# ---------------------------------------------------------------------------
+# Caddy 路由 @id 使用 host 前缀，避免多域名共享 Caddy 时冲突
 
 def _rid(srv_host: str, srv_id: str) -> str:
     """
     路由在 Caddy 内的唯一 @id。
 
     格式：{srv_host}-{srv_id}
-    - Caddy 的 @id 是全局命名空间，只需全局唯一
-    - 用 host 做前缀，语义稳定：
-      host 由配置决定，跨 Caddyfile 变更保持稳定
-    - 约束：同一 host 下 srv_id 必须唯一（由 DB 保证）
+    - Caddy 的 @id 是全局命名空间
+    - 用 host 做前缀，保证多域名共享 Caddy 时唯一
+    - 同一 host 下 srv_id 必须唯一（由 DB 保证）
     """
     return f"{srv_host}-{srv_id}"
 

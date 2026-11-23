@@ -145,6 +145,8 @@ docker tag docker.m.daocloud.io/library/ubuntu:20.04 ubuntu:20.04
 
 所有容器使用 host 网络，因此**不同集群的 root 端口不能重复；普通服务端口也需人工规划，避免冲突**。
 
+> Caddy 路由 `@id` 使用 `host-id` 前缀，多域名共享同一个 Caddy 时不会互相覆盖；同一域名下的服务 id 保持唯一即可。
+
 `deploy/cluster.sh` 在启动新集群前会：
 
 1. 启动或复用共享 Caddy；

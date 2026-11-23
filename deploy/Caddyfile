@@ -3,7 +3,7 @@
 #   - deploy/cluster.sh 为每个集群写一个 <cluster>.caddy。
 {
     admin 127.0.0.1:2019
-    auto_https off
+    # auto_https off
 }
 
 import /etc/caddy/sites/*.caddy
