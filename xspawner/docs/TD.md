@@ -235,7 +235,7 @@ keyfile=/etc/ssl/private/xspawner.com.key
 >
 > 屏蔽 tls 行, 即由 Caddy 全自动申请证书
 
-
+**Caddy 重启或 reload 后，必须重启一次 xspawner 服务**，因为动态注入的 `/services/<id>/*` 路由会丢失。Caddy 统一用 systemd 管理，不要用 `caddy start` 手工启动，避免出现两套 Caddy 配置。
 
 ### 容器部署
 
