@@ -572,9 +572,9 @@ docker exec xspawner systemctl is-active <child_id>
 
 
 ### 未来
-- Heatbeat：administrator 通过periodic方法监控子服务
-- Update：增加更换服务
-- AAA：增加管理员口令，完善鉴权和权限
+- Heatbeat：administrator 服务通过PeriodicCallback方式监控子服务的活动状态
+- Update：借助tableflip库实现服务热升级
+- AAA：完善服务的鉴权和权限
 
 
 ### 其它
