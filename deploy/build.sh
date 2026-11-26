@@ -2,11 +2,10 @@
 # 构建所有集群共用的 xspawner 镜像。
 #
 # 用法:
-#   ./deploy/build.sh
 #   XSPAWNER_IMAGE=xspawner:latest ./deploy/build.sh
 #
 # 国内网络可选用：
-#   APT_MIRROR=https://mirrors.aliyun.com/ubuntu \
+#   APT_MIRROR=http://mirrors.aliyun.com/ubuntu \
 #   PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
 #   ./deploy/build.sh
 set -euo pipefail
