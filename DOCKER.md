@@ -37,9 +37,8 @@
 | `deploy/remove.sh` | 删除集群容器和 Caddy 站点；`--purge` 同时删除数据卷 |
 | `deploy/Caddyfile` | Caddy 主配置，导入 `deploy/caddy-sites/*.caddy` |
 | `deploy/caddy-sites/*.caddy` | 每个集群的站点块 |
-| `legacy/baremetal/` | 旧的裸机/systemd 脚本，不参与容器部署 |
 
-> 裸机/systemd 脚本只保留在 `legacy/baremetal/`，根目录不再提供兼容 shim。容器运维使用 `deploy/*.sh` 和 `docker` 命令。
+> 本项目只支持容器部署，不提供裸机/systemd 脚本，也不提供根目录兼容 shim。运维统一使用 `deploy/*.sh` 和 `docker` 命令。
 
 ## 3. 快速开始（单集群）
 

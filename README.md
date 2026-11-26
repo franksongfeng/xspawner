@@ -43,7 +43,7 @@ chmod +x deploy/*.sh
 
 See [DOCKER.md](DOCKER.md) for the container model, runtime variables, volumes, optional Caddy setup, backup/update procedures and security notes.
 
-The legacy bare-metal/systemd scripts are archived in [`legacy/baremetal/`](legacy/baremetal/README.md); they are not used by the container deployment.
+Container deployment is the only supported deployment model; xspawner ships no bare-metal/systemd helper scripts.
 
 
 ## Project Information

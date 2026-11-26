@@ -15,7 +15,7 @@ ZIP_MIME_TYPE = "application/zip"
 
 # 运行数据目录：数据库、日志、备份等可变文件都放这里。
 # 容器部署时用 XSPAWNER_DATA_DIR=/data 挂载持久化卷；
-# 裸机部署保持默认当前目录，行为与旧版本一致。
+# 未设置该变量时退回当前工作目录。
 DATA_DIR = os.path.abspath(os.environ.get("XSPAWNER_DATA_DIR", "."))
 
 # 集群标识同时作为数据库文件名：<cluster>.db

@@ -82,117 +82,71 @@ flowchart TD
 直接命令行启动形式
 
 ```bash
-sudo /usr/bin/python3 -u -m xspawner --name xspawner --plugin administrator --host xspawner.com --port 8000 --access 0.0.0.0 --log --severity debug --ssl --certfile /etc/ssl/certs/xspawner.com.crt --keyfile /etc/ssl/private/xspawner.com.key
+sudo /usr/bin/python3 -u -m xspawner --id xspawner --plugin administrator --host xspawner.com --port 8000 --access 0.0.0.0 --log --severity debug --ssl --certfile /etc/ssl/certs/xspawner.com.crt --keyfile /etc/ssl/private/xspawner.com.key
 ```
 
 #### 服务管理
 
-##### 命令
+集群以容器为单位部署和运维；容器内仍由 systemd 管理各服务实例（unit 名就是服务 id）。
 
-> 以下命令只适用于**裸机 / 宿主机 systemd** 部署，脚本已归档到 `legacy/baremetal/`。
-> 容器部署请使用 `deploy/cluster.sh`、`deploy/backup.sh`、`deploy/remove.sh` 和 `docker` 命令。
+| 操作 | 命令 |
+| --- | --- |
+| 部署 / 更新集群 | `./deploy/cluster.sh <cluster> <host> <root-port>` |
+| 在线备份数据库与插件 | `./deploy/backup.sh <cluster>` |
+| 删除集群（保留卷） | `./deploy/remove.sh <cluster>` |
+| 删除集群并清除卷 | `./deploy/remove.sh <cluster> --purge` |
+| 重启集群 | `docker restart xspawner-<cluster>-admin` |
+| 查看容器内 unit | `docker exec -it xspawner-<cluster>-admin systemctl status <id>` |
+| 新增 / 移除 Caddy 站点 | 编辑 `deploy/caddy-sites/<cluster>.caddy` 后执行 `./deploy/sync-caddy.sh` |
 
-每一个节点都是一个 Systemd 服务实例，通过以下命令管理它们：`legacy/baremetal/start <cluster>`、`legacy/baremetal/stop <cluster>`、`legacy/baremetal/drop <cluster>`、`legacy/baremetal/init`、`legacy/baremetal/backup <cluster>`。
+完整的容器模型、卷、备份与运维说明见 `DOCKER.md`。
 
-启动服务集群并恢复上次停止时的状态、数据
+##### 参数
 
-```bash
-legacy/baremetal/start example-com
-```
-停止服务集群
-```bash
-legacy/baremetal/stop example-com
-```
-停止服务集群并销毁服务状态及数据
-```bash
-legacy/baremetal/drop example-com
-```
-交互式创建配置文件
-```bash
-legacy/baremetal/init
-```
+容器部署不读取本地配置文件；集群与根 administrator 的参数全部在 `docker run` 时通过环境变量传入，详见 `DOCKER.md` 的“环境变量”一节。环境变量与逻辑参数的对应关系如下：
 
-备份数据库
+| 参数 | 环境变量 |
+| --- | --- |
+| `id` | `XSPAWNER_ID` |
+| `plugin` | `XSPAWNER_PLUGIN` |
+| `host` | `XSPAWNER_HOST` |
+| `port` | `XSPAWNER_PORT` |
+| `access` | `XSPAWNER_ACCESS` |
+| `parent` | `XSPAWNER_PARENT` |
+| `log` / `severity` | `XSPAWNER_LOG` / `XSPAWNER_SEVERITY` |
+| `ssl` / `certfile` / `keyfile` | `XSPAWNER_SSL` / `XSPAWNER_CERTFILE` / `XSPAWNER_KEYFILE` |
+| `libs` | `XSPAWNER_LIBS` |
+| `additional` | `XSPAWNER_ADDITIONAL` |
 
-```bash
-legacy/baremetal/backup example-com
-```
-
-
-
-##### 配置文件
-
-`<cluster>.json` 内容如下
-
-```json
-{
-    "id": "xspawner",
-    "plugin": "administrator",
-    "host": "xspawner.com",
-    "port": 8000,
-    "access": "0.0.0.0",
-    "parent": "",
-    "log": true,
-    "severity": "debug",
-    "ssl": true,
-    "certfile": "/etc/ssl/certs/xspawner.com.crt",
-    "keyfile": "/etc/ssl/private/xspawner.com.key",
-    "libs": "",
-    "additional": ""
-}
-```
-
-未来将同时支持INI格式配置文件: config.ini
-
-```ini
-[DEFAULT]
-id=xspawner
-plugin=administrator
-host=xspawner.com
-port=8000
-access=0.0.0.0
-parent=
-libs=
-additional=
-
-[log]
-severity=debug
-
-[ssl]
-certifile=/etc/ssl/certs/xspawner.com.crt
-keyfile=/etc/ssl/private/xspawner.com.key
-
-```
-
-配置参数 id 的解释：
+参数 id 的解释：
 
 > 服务实例的名称
 
-配置参数 plugin 的解释：
+参数 plugin 的解释：
 
 > 服务的python包的名称
 
-配置参数 host 的解释：
+参数 host 的解释：
 
 > 服务主机的对外名称（域名或IP地址）
 
-配置参数 port 的解释：
+参数 port 的解释：
 
 > 服务的监听端口
 
-配置参数 access 的解释：
+参数 access 的解释：
 
 > 服务的访问来源（0.0.0.0代表所有来源）
 
-配置参数 parent 的解释：
+参数 parent 的解释：
 
 > 服务的上级节点（服务的创建者）
 
-配置参数 log severity 的解释：
+参数 log severity 的解释：
 
 > 服务运行是否打印日志，（如果打印日志）日志的打印门槛。
 
-配置参数 ssl certfile keyfile 的解释：
+参数 ssl certfile keyfile 的解释：
 
 > 参数 ssl 表明服务是否支持SSL安全认证。
 >
