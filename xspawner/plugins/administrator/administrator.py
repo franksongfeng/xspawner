@@ -703,7 +703,7 @@ class Administrator(Spawner): # NOQA
     def _schedule_child_reap(self):
         # PeriodicCallback 的回调必须是同步函数；把真正的异步巡检转成协程任务，
         # 避免阻塞 IOLoop。_reaping 保证上一次巡检没结束时不会重复进入。
-        self._ioloop.spawn_callback(self._reap_dead_children)
+        self._ioloop.add_callback(self._reap_dead_children)
 
     def stop(self):
         reaper = getattr(self, "_reaper", None)

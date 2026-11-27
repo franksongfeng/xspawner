@@ -71,11 +71,11 @@ class ChildReaperTests(unittest.IsolatedAsyncioTestCase):
         finally:
             self.srv._reaper.stop()
 
-    async def test_schedule_uses_spawn_callback(self):
+    async def test_schedule_uses_add_callback(self):
         self.srv._ioloop = mock.Mock()
         self.srv._schedule_child_reap()
-        self.srv._ioloop.spawn_callback.assert_called_once()
-        called = self.srv._ioloop.spawn_callback.call_args[0][0]
+        self.srv._ioloop.add_callback.assert_called_once()
+        called = self.srv._ioloop.add_callback.call_args[0][0]
         self.assertEqual(called.__func__, self.srv._reap_dead_children.__func__)
 
     async def test_dead_child_removed_after_threshold(self):
