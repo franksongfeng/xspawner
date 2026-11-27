@@ -710,12 +710,16 @@ def getSSLContextSimple(cert_file):
         context.load_cert_chain(certfile=cert_file)
         return context
     else:
-        filepath = tempfile.mktemp()
-        with open(filepath, 'wb') as fp:
-            fp.write(cert_file.encode())
-        context = getSSLContextSimple(filepath)
-        os.unlink(filepath)
-        return context
+        fd, filepath = tempfile.mkstemp()
+        try:
+            with os.fdopen(fd, "wb") as fp:
+                fp.write(cert_file.encode())
+            return getSSLContextSimple(filepath)
+        finally:
+            try:
+                os.unlink(filepath)
+            except OSError:
+                pass
 
 
 def getSSLOptions(certfile, keyfile, ca_certs=None):

@@ -377,12 +377,15 @@ class Administrator(Spawner): # NOQA
         srvcls = None
         pkgfname = None
         if get_file_type(fname) == "application/zip":
-            # 搜索文件包
-            pkgfname = tempfile.mktemp()+".zip"
-            with open(pkgfname, "wb") as f:
-                f.write(fdata)
-            srvcls = search_for_class_in_package(pkgfname, "Spawner")
-            delete_file(pkgfname)
+            # 搜索文件包（mkstemp 返回 (fd, path)，先关闭 fd 再写入）
+            fd, pkgfname = tempfile.mkstemp(suffix=".zip")
+            os.close(fd)
+            try:
+                with open(pkgfname, "wb") as f:
+                    f.write(fdata)
+                srvcls = search_for_class_in_package(pkgfname, "Spawner")
+            finally:
+                delete_file(pkgfname)
         elif get_file_type(fname) == "text/x-python":
             pkgfname = f"{PLUGIN_DIR}/{fname}"
             if not check_mod_file(pkgfname):
