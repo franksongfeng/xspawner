@@ -58,6 +58,36 @@ from xspawner.validation import ( # NOQA
 
 
 ##############################################################################
+# Timeouts
+##############################################################################
+
+# 子服务就绪等待上限（秒）：_start_child 等待子服务端口可用的最长时间。
+# 与 misc.wait_port_sync 的默认值保持一致，并显式传给 wait_port_sync。
+SERVICE_READY_TIMEOUT = 120
+
+# 服务间 HTTP 调用超时（秒）：必须 >= SERVICE_READY_TIMEOUT，并预留
+# 子服务继续启动其孙服务的时间，否则父服务会先于子服务超时。
+HTTP_REQUEST_TIMEOUT = 300
+
+# 外部请求等待后台任务完成的上限（秒）：必须 >= HTTP_REQUEST_TIMEOUT。
+API_WAIT_TIMEOUT = 360
+
+
+def _service_pid(status: dict):
+    """从 ``systemctl show`` 结果中取 MainPID。
+
+    统一用 ``.get`` 读取：systemctl 失败时 ``get_service_status`` 只返回
+    ``{'name', 'error'}``，直接下标会 KeyError。未运行或取值异常时返回 None。
+    """
+    if status.get("ActiveState") != "active":
+        return None
+    try:
+        return int(status.get("MainPID") or 0)
+    except (TypeError, ValueError):
+        return None
+
+
+##############################################################################
 # Classes
 ##############################################################################
 
@@ -126,7 +156,8 @@ class ApiHandler(tornado.web.RequestHandler):
         condition = tornado.locks.Condition()
         await q.put((future, condition, path, headers, body))
 
-        cond_res = await condition.wait(timeout=datetime.timedelta(seconds=60))
+        cond_res = await condition.wait(
+            timeout=datetime.timedelta(seconds=API_WAIT_TIMEOUT))
         if cond_res and future.done():
             result = future.result()
             if isinstance(result, tuple):
@@ -870,9 +901,14 @@ class Spawner(XSpawner): # NOQA
         # wait child service ready
         child_addr = self.getLocalAddr(child_config.port)
         loop = self._ioloop.asyncio_loop
-        ok = await loop.run_in_executor(None, wait_port_sync, child_config.port)
+        ok = await loop.run_in_executor(
+            None, functools.partial(
+                wait_port_sync, child_config.port,
+                timeout=SERVICE_READY_TIMEOUT))
         if not ok:
-            self.eLog(f"child {child_addr} did not become ready in 120s")
+            self.eLog(
+                f"child {child_addr} did not become ready "
+                f"in {SERVICE_READY_TIMEOUT}s")
             return False
         self.iLog(f"child {child_addr} is ready")
 
@@ -884,23 +920,42 @@ class Spawner(XSpawner): # NOQA
                 self.eLog(f"failed to persist config of child {child_config.id}")
 
 
-        # open sub systemd service
-        grand_children = await self.postJson(f"{child_addr}/get_children", {})
-        if grand_children:
-            for grand_child in grand_children:
-                res = await self.postJson(f"{child_addr}/start_child", {"id":grand_child})
-                if res:
-                    self.iLog("Successful request to {}/start_child {}: {}".format(child_addr, grand_child, res))
-                else:
-                    self.eLog("Exception request to {}/start_child {}".format(child_addr, grand_child))
-                    return False
-                await tornado.gen.sleep(1)
+        # 启动孙服务：子服务刚启动时可能暂时不可达，失败只记录，不能让
+        # 已经启动成功的本服务被误判为失败（否则调用方会清库/留下幽灵服务）。
+        failed_children = []
+        try:
+            grand_children = await self.postJson(f"{child_addr}/get_children", {})
+            if grand_children:
+                for grand_child in grand_children:
+                    res = await self.postJson(
+                        f"{child_addr}/start_child", {"id": grand_child})
+                    if res:
+                        self.iLog(
+                            "Successful request to {}/start_child {}: {}".format(
+                                child_addr, grand_child, res))
+                    else:
+                        self.eLog(
+                            "Failed request to {}/start_child {}".format(
+                                child_addr, grand_child))
+                        failed_children.append(grand_child)
+                    await tornado.gen.sleep(1)
+        except Exception as e:
+            self.eLog(
+                "start grandchildren of {} via {} failed: {}: {}".format(
+                    child_id, child_addr, type(e).__name__, e))
+        finally:
+            if failed_children:
+                self.eLog(
+                    "start_child {}: grandchildren failed: {}".format(
+                        child_id, failed_children))
 
         sts = get_service_status(child_id)
-        pid = int(sts["MainPID"]) if sts["ActiveState"] == "active" else None
+        pid = _service_pid(sts)
         self.iLog(f"service status: {sts}")
 
         rt = {"id": child_id, "pid": pid}
+        if failed_children:
+            rt["children_failed"] = failed_children
         self.iLog("{}::start_child END {}".format(self.__class__.__name__, rt))
         return rt
 
@@ -944,7 +999,7 @@ class Spawner(XSpawner): # NOQA
                 await tornado.gen.sleep(0.5)
 
         sts = get_service_status(child_id)
-        pid = int(sts.get("MainPID") or 0) if sts.get("ActiveState") == "active" else None
+        pid = _service_pid(sts)
         self.iLog(f"service status: {sts}")
 
         # close systemed service
@@ -1039,14 +1094,25 @@ class Spawner(XSpawner): # NOQA
             self.eLog("Error: failed to add value {}".format(child_id))
             return False
 
-        rt = await self._start_child(headers, {"id": child_id})
+        rt = None
+        try:
+            rt = await self._start_child(headers, {"id": child_id})
+        except Exception as e:
+            self.eLog("deploy_child: start {} raised {}: {}".format(
+                child_id, type(e).__name__, e))
+        finally:
+            # 无论 _start_child 返回 False 还是抛异常，都清掉刚写入的配置，
+            # 避免状态表里留下没有对应服务的记录。
+            if not (rt and isinstance(rt, dict)):
+                if await self.delValue(child_id):
+                    self.iLog("deploy_child: cleaned value {}".format(child_id))
+                else:
+                    self.eLog("deploy_child: failed to clean value {}".format(child_id))
+
         if rt and isinstance(rt, dict):
             self.iLog("{}::_deploy_child END {}".format(self.__class__.__name__, rt))
             return True
-        else:
-            await self.delValue(child_id)
-            self.eLog("Error: cleanup value {} after failure".format(child_id))
-            return False
+        return False
 
 
     @ApiHandler.route("/clean_plugin")
@@ -1281,13 +1347,16 @@ def _preview(body, limit: int = 200) -> bytes:
     return body[:limit] if body else b""
 
 
-async def postAsyncFile(url: str, filepath: str, fileargs: dict = None):
+async def postAsyncFile(url: str, filepath: str, fileargs: dict = None,
+                        timeout: float = HTTP_REQUEST_TIMEOUT):
     """POST 上传文件，返回解析后的 JSON 响应。
 
     参数:
       - url:      目标地址
       - filepath: 待上传文件路径
       - fileargs: 附加表单字段 {name: value}，value 会转为 str
+      - timeout:  整个请求的超时（秒），默认 HTTP_REQUEST_TIMEOUT，
+                  必须不小于子服务就绪等待（SERVICE_READY_TIMEOUT）
 
     返回:
       - dict  成功（HTTP 200）
@@ -1318,6 +1387,7 @@ async def postAsyncFile(url: str, filepath: str, fileargs: dict = None):
             url, method="POST", headers=headers, body=body,
             validate_cert=_validate_cert_for(url),
             raise_error=False,        # 显式关闭：让下方 if res.code 生效
+            request_timeout=timeout,
         )
     except asyncio.CancelledError:
         raise Exception(f"postAsyncFile {url}: CancelledError")
@@ -1339,8 +1409,12 @@ async def postAsyncFile(url: str, filepath: str, fileargs: dict = None):
                      f"body={_preview(res.body)!r}")
 
 
-async def postAsync(url, headers, body):
+async def postAsync(url, headers, body, timeout: float = HTTP_REQUEST_TIMEOUT):
     """POST 请求，返回 parse_reply 的结果。
+
+    参数:
+      - timeout: 整个请求的超时（秒），默认 HTTP_REQUEST_TIMEOUT，
+                 必须不小于子服务就绪等待（SERVICE_READY_TIMEOUT）
 
     返回:
       - dict/其他  成功（HTTP 200）
@@ -1355,6 +1429,7 @@ async def postAsync(url, headers, body):
             url, method="POST", headers=headers, body=body,
             validate_cert=_validate_cert_for(url),
             raise_error=False,        # 显式关闭：让下方 if res.code 生效
+            request_timeout=timeout,
         )
     except asyncio.CancelledError:
         raise Exception(f"postAsync {url}: CancelledError")

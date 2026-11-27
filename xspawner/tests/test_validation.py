@@ -142,21 +142,25 @@ class StartChildTests(unittest.IsolatedAsyncioTestCase):
         self.srv = _bare_server()
         self.srv._ioloop = xs.tornado.ioloop.IOLoop.current()
 
-    def _patch_runtime(self, open_ok=True):
+    def _patch_runtime(self, open_ok=True, status=None):
+        if status is None:
+            status = {"ActiveState": "active", "MainPID": "321"}
         return (
             mock.patch.object(xs, "open_service", return_value=open_ok),
             mock.patch.object(xs, "wait_port_sync", return_value=True),
-            mock.patch.object(
-                xs, "get_service_status",
-                return_value={"ActiveState": "active", "MainPID": "321"}),
+            mock.patch.object(xs, "get_service_status", return_value=status),
+            mock.patch.object(xs.tornado.gen, "sleep", new=mock.AsyncMock()),
         )
 
-    async def _start(self, data, stored=None):
+    async def _start(self, data, stored=None, post_json_return=None,
+                     post_json_side_effect=None, status=None):
         self.srv.getValue = mock.AsyncMock(return_value=stored)
         self.srv.addValue = mock.AsyncMock(return_value=True)
-        self.srv.postJson = mock.AsyncMock(return_value=[])
-        p_open, p_wait, p_status = self._patch_runtime()
-        with p_open as open_mock, p_wait, p_status:
+        self.srv.postJson = mock.AsyncMock(
+            return_value=post_json_return,
+            side_effect=post_json_side_effect)
+        p_open, p_wait, p_status, p_sleep = self._patch_runtime(status=status)
+        with p_open as open_mock, p_wait, p_status, p_sleep:
             rt = await self.srv._start_child(None, data)
         return rt, open_mock
 
@@ -207,6 +211,49 @@ class StartChildTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(rt)
         open_mock.assert_not_called()
 
+    async def test_status_without_keys_is_tolerated(self):
+        # systemctl 失败时 get_service_status 只返回 {'name','error'}，
+        # 统一用 .get 读取后不应 KeyError
+        data = _make_config(id="child4", port=8104)._asdict()
+        rt, _ = await self._start(data, status={})
+        self.assertEqual(rt, {"id": "child4", "pid": None})
+
+    async def test_grandchildren_unreachable_is_tolerated(self):
+        # 子服务 HTTP 不可达：本服务已启动成功，不能整体判失败
+        data = _make_config(id="child5", port=8105)._asdict()
+        rt, open_mock = await self._start(
+            data, post_json_side_effect=Exception("boom"))
+        self.assertIsInstance(rt, dict)
+        self.assertEqual(rt["id"], "child5")
+        self.assertNotIn("children_failed", rt)
+        open_mock.assert_called_once()
+
+    async def test_grandchild_failure_is_reported(self):
+        data = _make_config(id="child6", port=8106)._asdict()
+        rt, _ = await self._start(
+            data, post_json_side_effect=[["gc1"], False])
+        self.assertEqual(rt.get("children_failed"), ["gc1"])
+
+    async def test_grandchildren_started(self):
+        data = _make_config(id="child7", port=8107)._asdict()
+        rt, _ = await self._start(
+            data, post_json_side_effect=[["gc1"], {"id": "gc1"}])
+        self.assertNotIn("children_failed", rt)
+
+    async def test_waits_with_ready_timeout(self):
+        data = _make_config(id="child8", port=8108)._asdict()
+        self.srv.getValue = mock.AsyncMock(return_value=None)
+        self.srv.addValue = mock.AsyncMock(return_value=True)
+        self.srv.postJson = mock.AsyncMock(return_value=None)
+        with mock.patch.object(xs, "open_service", return_value=True), \
+                mock.patch.object(xs, "wait_port_sync", return_value=True) as wait_mock, \
+                mock.patch.object(xs, "get_service_status", return_value={}), \
+                mock.patch.object(xs.tornado.gen, "sleep", new=mock.AsyncMock()):
+            await self.srv._start_child(None, data)
+        wait_mock.assert_called_once()
+        self.assertEqual(
+            wait_mock.call_args.kwargs.get("timeout"), xs.SERVICE_READY_TIMEOUT)
+
     async def test_stop_child_rejects_invalid_id(self):
         self.srv.getValue = mock.AsyncMock()
         rt = await self.srv._stop_child(None, {"id": "../evil"})
@@ -219,6 +266,9 @@ class DeployChildValidationTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.srv = _bare_server()
         self.srv._upload_plugin = mock.AsyncMock(return_value=True)
+        self.srv.getValues = mock.AsyncMock(return_value={})
+        self.srv.addValue = mock.AsyncMock(return_value=True)
+        self.srv.delValue = mock.AsyncMock(return_value=True)
 
     async def test_rejects_invalid_id(self):
         rt = await self.srv._deploy_child(
@@ -237,6 +287,28 @@ class DeployChildValidationTests(unittest.IsolatedAsyncioTestCase):
             None, b"x=1", "bad-name.py", {"id": "child", "port": "9000"})
         self.assertFalse(rt)
         self.srv._upload_plugin.assert_not_called()
+
+    async def test_cleanup_when_start_raises(self):
+        self.srv._start_child = mock.AsyncMock(side_effect=Exception("boom"))
+        rt = await self.srv._deploy_child(
+            None, b"x=1", "ok.py", {"id": "child", "port": "9000"})
+        self.assertFalse(rt)
+        self.srv.delValue.assert_awaited_once_with("child")
+
+    async def test_cleanup_when_start_returns_false(self):
+        self.srv._start_child = mock.AsyncMock(return_value=False)
+        rt = await self.srv._deploy_child(
+            None, b"x=1", "ok.py", {"id": "child", "port": "9000"})
+        self.assertFalse(rt)
+        self.srv.delValue.assert_awaited_once_with("child")
+
+    async def test_no_cleanup_on_success(self):
+        self.srv._start_child = mock.AsyncMock(
+            return_value={"id": "child", "pid": 1})
+        rt = await self.srv._deploy_child(
+            None, b"x=1", "ok.py", {"id": "child", "port": "9000"})
+        self.assertTrue(rt)
+        self.srv.delValue.assert_not_awaited()
 
 
 @unittest.skipIf(xs is None, SKIP_REASON)
