@@ -29,7 +29,10 @@
 | `Dockerfile` | 所有集群共用的通用镜像 |
 | `docker/install-deps.py` | 从 `pyproject.toml` 安装运行时 Python 依赖 |
 | `docker/entrypoint.sh` | 生成 administrator 的 systemd unit，设置集群级环境，最后 `exec systemd` |
-| **`deploy/build.sh`** | 构建通用镜像 `xspawner:latest` |
+| **`deploy/build.sh`** | 构建通用镜像 `xspawner:latest`；`XSPAWNER_PUSH=true` 时构建后自动推送 |
+| **`deploy/push.sh`** | 把本地镜像推送到指定镜像仓库（多标签、`--all-tags`、自动登录） |
+| **`deploy/pull.sh`** | 从镜像仓库拉取镜像，默认重命名为 `xspawner:latest`，支持按摘要拉取 |
+| `deploy/lib-image.sh` | `push.sh` / `pull.sh` 共用的镜像引用解析、校验和 `docker login` 函数 |
 | **`deploy/cluster.sh`** | 部署一个集群：准备卷、选项、Caddy 站点并启动容器 |
 | `deploy/caddy.sh` | 启动共享 Caddy 容器（可选） |
 | `deploy/sync-caddy.sh` | reload Caddy，并重启已有集群容器以恢复动态路由 |
@@ -53,6 +56,8 @@ chmod +x deploy/*.sh
 # 2) 部署 example.com 集群
 ./deploy/cluster.sh example-com example.com 8000
 ```
+
+> 如果镜像已经发布到镜像仓库，可以跳过构建，用 `./deploy/pull.sh <registry>/<namespace>/xspawner:<tag>` 拉到本机再部署，见第 4 节。
 
 访问：
 
@@ -164,7 +169,151 @@ docker images | grep xspawner
 xspawner    latest    ...
 ```
 
-## 4. 多域名 / 多 IP
+## 4. 镜像仓库：推送与拉取
+
+镜像在开发机构建一次，通过镜像仓库分发到各台部署机，部署机就不必安装构建依赖。`deploy/push.sh` 和 `deploy/pull.sh` 只负责打标签、登录和传输，不改变“所有集群共用一个镜像”的模型。
+
+### 4.1 约定
+
+- 镜像引用统一写作 `<registry>/<namespace>/<repo>:<tag>`，也可以用摘要固定版本：`...@sha256:<64位十六进制>`。
+- 本地镜像名由 `XSPAWNER_IMAGE` 指定，默认 `xspawner:latest`；`cluster.sh` 按这个名字启动容器。
+- 仓库地址必须**全小写**且**带命名空间**。只写 `xspawner` 会被 Docker 展开成 `docker.io/library/xspawner`，脚本会直接拒绝，避免误推/误拉官方镜像。
+- 凭据只从环境变量或文件读取，不写进命令行参数，避免落进 shell 历史。
+- 不写 registry 时按 Docker Hub（`docker.io`）处理。
+
+### 4.2 推送到镜像仓库
+
+```bash
+./deploy/build.sh
+
+# 显式给仓库和标签
+./deploy/push.sh registry.cn-hangzhou.aliyuncs.com/my-ns/xspawner 1.2.3 latest
+
+# 或者用环境变量固定仓库，位置参数只当标签
+export XSPAWNER_REPO=registry.cn-hangzhou.aliyuncs.com/my-ns/xspawner
+./deploy/push.sh 1.2.3
+```
+
+推送前需要登录。交互式登录最省事，密码不会进 shell 历史：
+
+```bash
+docker login registry.cn-hangzhou.aliyuncs.com
+```
+
+CI 里可以交给脚本自动登录：
+
+```bash
+XSPAWNER_REGISTRY_USER=my-name \
+XSPAWNER_REGISTRY_PASSWORD="$ACR_TOKEN" \
+./deploy/push.sh registry.cn-hangzhou.aliyuncs.com/my-ns/xspawner 1.2.3
+```
+
+密码不想放进环境变量时改用文件（脚本会去掉文件末尾的换行和 CR）：
+
+```bash
+XSPAWNER_REGISTRY_USER=my-name \
+XSPAWNER_REGISTRY_PASSWORD_FILE=/run/secrets/acr-password \
+./deploy/push.sh registry.cn-hangzhou.aliyuncs.com/my-ns/xspawner 1.2.3
+```
+
+构建完直接推送：
+
+```bash
+XSPAWNER_PUSH=true \
+XSPAWNER_REPO=registry.cn-hangzhou.aliyuncs.com/my-ns/xspawner \
+XSPAWNER_TAG=1.2.3 \
+./deploy/build.sh
+```
+
+推送某仓库下的全部标签：
+
+```bash
+./deploy/push.sh registry.cn-hangzhou.aliyuncs.com/my-ns/xspawner --all-tags
+```
+
+推送成功后会打印每个标签的 `digest` 和对应的拉取命令。本地 `xspawner:latest` 不会被改名，只是额外打上了仓库标签。
+
+### 4.3 从镜像仓库拉取
+
+```bash
+# 拉取并同时打上 xspawner:latest（默认行为）
+./deploy/pull.sh registry.cn-hangzhou.aliyuncs.com/my-ns/xspawner:1.2.3
+
+# 只拉取，不改本地标签
+./deploy/pull.sh registry.cn-hangzhou.aliyuncs.com/my-ns/xspawner:1.2.3 --no-retag
+
+# 按摘要拉取：标签以后被覆盖也不会拉错版本
+./deploy/pull.sh registry.cn-hangzhou.aliyuncs.com/my-ns/xspawner@sha256:<64位>
+
+# 存成另一个本地名
+XSPAWNER_IMAGE=xspawner:1.2.3 ./deploy/pull.sh registry.cn-hangzhou.aliyuncs.com/my-ns/xspawner:1.2.3
+```
+
+`pull.sh` 会核对拉取到的摘要与请求的摘要一致，并输出 image id。默认把拉下来的镜像重命名为 `xspawner:latest`，之后直接 `./deploy/cluster.sh ...` 即可。
+
+也可以把“拉取”交给 `cluster.sh`，部署机不用手工执行 `pull.sh`：
+
+```bash
+# 本地没有该镜像时从仓库拉取
+XSPAWNER_IMAGE=registry.cn-hangzhou.aliyuncs.com/my-ns/xspawner:1.2.3 \
+XSPAWNER_PULL=true \
+./deploy/cluster.sh example-com example.com 8000
+
+# 每次部署都拉取，用于仓库里镜像已更新的滚动升级
+XSPAWNER_IMAGE=registry.cn-hangzhou.aliyuncs.com/my-ns/xspawner:1.2.3 \
+XSPAWNER_PULL=always \
+./deploy/cluster.sh example-com example.com 8000
+```
+
+`XSPAWNER_PULL` 的三种取值：
+
+| 值 | 行为 |
+|---|---|
+| `false`（默认） | 本地没有镜像时执行 `./deploy/build.sh` |
+| `true` | 本地没有镜像时从 `XSPAWNER_IMAGE` 指向的仓库拉取 |
+| `always` | 每次部署都先拉取 |
+
+> 打开 `XSPAWNER_PULL` 后必须把 `XSPAWNER_IMAGE` 设成带命名空间的仓库引用，例如 `registry.example.com/my-ns/xspawner:1.2.3`；仍用默认的 `xspawner:latest` 会直接报错。
+
+### 4.4 各仓库地址示例
+
+| 仓库 | 地址写法 | 说明 |
+|---|---|---|
+| 阿里云 ACR（个人版） | `registry.cn-hangzhou.aliyuncs.com/<命名空间>/xspawner` | 先在控制台创建命名空间 |
+| 阿里云 ACR（企业版） | `<实例名>-<地域>.cr.aliyuncs.com/<命名空间>/xspawner` | 使用企业版实例的访问域名 |
+| Docker Hub | `docker.io/<用户名>/xspawner` 或 `<用户名>/xspawner` | 不写 registry 时自动按 Docker Hub 处理 |
+| 自建 registry（HTTPS） | `registry.example.com/<命名空间>/xspawner` | 证书需被宿主机 Docker 信任 |
+| 自建 registry（HTTP） | `192.0.2.10:5000/<命名空间>/xspawner` | 需要在 daemon.json 配置 `insecure-registries` |
+
+自建 HTTP 仓库需要额外配置（改完重启 Docker）：
+
+```bash
+sudo tee /etc/docker/daemon.json >/dev/null <<'EOF'
+{
+  "insecure-registries": ["192.0.2.10:5000"]
+}
+EOF
+sudo systemctl restart docker
+```
+
+### 4.5 常见错误
+
+| 报错 | 原因 | 处理 |
+|---|---|---|
+| `unauthorized: authentication required` | 没登录或凭据过期 | `docker login <registry>`，或设置 `XSPAWNER_REGISTRY_USER` / `XSPAWNER_REGISTRY_PASSWORD` |
+| `denied: requested access to the resource is denied` | 命名空间/仓库不存在，或账号没有写权限 | 在控制台先创建命名空间和仓库，确认账号权限 |
+| `http: server gave HTTP response to HTTPS client` | 私有仓库只提供 HTTP | 把仓库地址加入 `insecure-registries` |
+| `x509: certificate signed by unknown authority` | 仓库使用自签证书 | 把 CA 放到 `/etc/docker/certs.d/<registry>/ca.crt` 并重启 Docker |
+| `manifest unknown` / `not found` | 标签不存在（还没推成功，或 tag 写错） | `docker manifest inspect <repo>:<tag>` 核对 |
+| `toomanyrequests` | Docker Hub 匿名拉取限流 | 登录后拉取，或改用私有仓库/加速器 |
+
+### 4.6 注意事项
+
+- `docker login` 默认把凭据以 base64 存在 `~/.docker/config.json`；共用机器建议配置 credential helper，用完执行 `docker logout <registry>`。
+- 推送会额外生成仓库标签（如 `registry.../xspawner:1.2.3`），不会覆盖本地 `xspawner:latest`。同一个标签重复推送会覆盖仓库里的旧镜像，生产环境建议同时打版本号/日期这类不可变标签，并用摘要部署。
+- 镜像里不含域名、端口等集群参数，同一个镜像推到仓库后可被任意数量的集群复用。
+
+## 5. 多域名 / 多 IP
 
 ```bash
 ./deploy/cluster.sh example-com example.com 8000
@@ -194,7 +343,7 @@ xspawner    latest    ...
 
 > Caddy reload 会丢弃通过 Admin API 注入的动态路由，所以新增/修改站点时已有集群会有短暂中断。
 
-## 5. 不使用 Caddy / 直接暴露端口
+## 6. 不使用 Caddy / 直接暴露端口
 
 ```bash
 XSPAWNER_SSL=false ./deploy/cluster.sh example-com example.com 8000
@@ -208,7 +357,7 @@ http://example.com:8000/services/admin/
 
 适合内网、端口映射或前面已有负载均衡/反向代理的场景。切换为 `false` 时，需要手动删除旧的 `deploy/caddy-sites/<cluster>.caddy` 并执行 `./deploy/sync-caddy.sh`。
 
-## 6. 环境变量
+## 7. 环境变量
 
 镜像不写入集群配置，以下变量全部在运行时传入：
 
@@ -232,7 +381,21 @@ http://example.com:8000/services/admin/
 >
 > `XSPAWNER_LIBS` 适合安装带 wheel 的包；需要本地编译的包请在自定义镜像中补 `build-essential`、`python3-dev` 等构建依赖。
 
-## 7. 持久化与备份
+镜像仓库相关变量（只影响 `build.sh` / `push.sh` / `pull.sh` / `cluster.sh`，不会传进容器）：
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `XSPAWNER_IMAGE` | `xspawner:latest` | 本地镜像名；`XSPAWNER_PULL` 打开时需为仓库引用 |
+| `XSPAWNER_PULL` | `false` | `true`：本地无镜像时从仓库拉取；`always`：每次部署都拉取 |
+| `XSPAWNER_REPO` | 空 | 镜像仓库地址，供 `push.sh` / `pull.sh` 默认使用 |
+| `XSPAWNER_TAG` | 空 | 推送/拉取标签，省略时用本地镜像标签，再退回 `latest` |
+| `XSPAWNER_PUSH` | `false` | `build.sh` 构建完成后自动推送，需要同时设置 `XSPAWNER_REPO` |
+| `XSPAWNER_REGISTRY_USER` | 空 | 仓库用户名；设置后 `push.sh` / `pull.sh` 自动 `docker login` |
+| `XSPAWNER_REGISTRY_PASSWORD` | 空 | 仓库密码或访问令牌 |
+| `XSPAWNER_REGISTRY_PASSWORD_FILE` | 空 | 从文件读取密码（CI 推荐，避免密码进环境变量） |
+| `XSPAWNER_NO_LOGIN` | `false` | `true` 时跳过自动登录，使用本机已有 docker 凭据 |
+
+## 8. 持久化与备份
 
 | 卷 | 容器内路径 | 内容 |
 |---|---|---|
@@ -262,7 +425,7 @@ docker run --rm \
     alpine tar czf "/backup/xspawner-example-com-$(date +%F).tgz" -C /data .
 ```
 
-## 8. 运维
+## 9. 运维
 
 ```bash
 # 查看集群容器
@@ -284,6 +447,13 @@ docker restart xspawner-example-com-admin
 ./deploy/build.sh
 ./deploy/cluster.sh example-com example.com 8000
 
+# 推送镜像到仓库 / 从仓库拉取镜像
+./deploy/push.sh registry.cn-hangzhou.aliyuncs.com/my-ns/xspawner 1.2.3
+./deploy/pull.sh registry.cn-hangzhou.aliyuncs.com/my-ns/xspawner:1.2.3
+
+# 查看镜像摘要（推送/拉取时都会打印，也可事后查询）
+docker image inspect --format '{{json .RepoDigests}}' registry.cn-hangzhou.aliyuncs.com/my-ns/xspawner:1.2.3
+
 # 删除集群（默认保留数据卷和插件卷）
 ./deploy/remove.sh example-com
 
@@ -294,10 +464,11 @@ docker restart xspawner-example-com-admin
 docker stop xspawner-example-com-admin
 ```
 
-## 9. 安全与限制
+## 10. 安全与限制
 
 - **systemd 需要特权**：容器以 `--privileged --cgroupns=host` 运行，systemd 才能作为 PID 1 管理 unit，等价于宿主机 root。只运行可信插件和代码。
 - **不再挂载 Docker socket**：集群内的 administrator 子服务也是同一个容器里的 systemd 服务，不再需要 Docker CLI 或 `/var/run/docker.sock`。
+- **仓库凭据**：`push.sh` / `pull.sh` 只从环境变量或密码文件读取凭据，不写命令行；`docker login` 会把凭据以 base64 存进 `~/.docker/config.json`，共用机器上建议配置 credential helper，或用完执行 `docker logout <registry>`。
 - **host 网络**：所有集群共享宿主机网络，root 端口和普通服务端口都必须人工规划，不能冲突。
 - **回环监听**：启用 Caddy 时 `cluster.sh` 默认让 xspawner 服务只监听 `127.0.0.1`，外部只能经 Caddy 访问；不使用 Caddy 时才会监听 `0.0.0.0`。
 - **Caddy 单点**：所有启用 TLS 的集群共享 `xspawner-caddy`；Caddy 重启或 reload 后需要重启集群容器恢复动态路由。

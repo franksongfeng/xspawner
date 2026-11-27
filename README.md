@@ -41,7 +41,22 @@ chmod +x deploy/*.sh
 ./deploy/remove.sh example-com --purge  # 同时删除数据卷和插件卷
 ```
 
-See [DOCKER.md](DOCKER.md) for the container model, runtime variables, volumes, optional Caddy setup, backup/update procedures and security notes.
+The image can be distributed through your own registry instead of being rebuilt on every host:
+
+```bash
+# push to a registry, then pull it on the deployment host
+./deploy/push.sh registry.example.com/my-ns/xspawner 1.2.3
+./deploy/pull.sh registry.example.com/my-ns/xspawner:1.2.3
+
+# or let cluster.sh pull it (XSPAWNER_PULL=always pulls on every deploy)
+XSPAWNER_IMAGE=registry.example.com/my-ns/xspawner:1.2.3 \
+XSPAWNER_PULL=true \
+    ./deploy/cluster.sh example-com example.com 8000
+```
+
+`push.sh` supports multiple tags, `--all-tags`, automatic `docker login` via `XSPAWNER_REGISTRY_USER` / `XSPAWNER_REGISTRY_PASSWORD` (`_FILE`), and `XSPAWNER_PUSH=true ./deploy/build.sh` builds and pushes in one step. Registry addresses must be lowercase and namespaced, and pull by digest (`@sha256:...`) is supported.
+
+See [DOCKER.md](DOCKER.md) for the container model, runtime variables, volumes, optional Caddy setup, registry push/pull, backup/update procedures and security notes.
 
 Container deployment is the only supported deployment model; xspawner ships no bare-metal/systemd helper scripts.
 

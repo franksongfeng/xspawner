@@ -13,6 +13,10 @@
 #
 # 前置条件:
 #   Docker Engine 20.10+（无需 Compose）
+#
+# 镜像来源:
+#   默认用本地 XSPAWNER_IMAGE，缺失时 ./deploy/build.sh 构建；
+#   XSPAWNER_PULL=true 改为从镜像仓库拉取，XSPAWNER_PULL=always 每次部署都拉取。
 set -euo pipefail
 
 if [ "$#" -ne 3 ]; then
@@ -69,8 +73,32 @@ if [ -z "${ACCESS}" ]; then
 fi
 
 # ── 1. 所有集群共用的镜像 ─────────────────────────────────────────────────
-if ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
-    ./deploy/build.sh
+# 默认：本地没有 XSPAWNER_IMAGE 时用 ./deploy/build.sh 构建。
+# XSPAWNER_PULL=true   本地没有时从镜像仓库拉取（XSPAWNER_IMAGE 需为仓库引用）
+# XSPAWNER_PULL=always 每次部署都拉取，用于仓库里已有新镜像的滚动升级
+PULL_MODE="${XSPAWNER_PULL:-false}"
+case "${PULL_MODE}" in
+    true|always|false) ;;
+    *)
+        echo "invalid XSPAWNER_PULL: ${PULL_MODE} (use true | always | false)" >&2
+        exit 1
+        ;;
+esac
+
+if [ "${PULL_MODE}" = "always" ] || ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
+    if [ "${PULL_MODE}" = "false" ]; then
+        ./deploy/build.sh
+    else
+        case "${IMAGE}" in
+            */*) ;;
+            *)
+                echo "XSPAWNER_PULL=${PULL_MODE} 需要把 XSPAWNER_IMAGE 设为镜像仓库引用，" >&2
+                echo "例如 XSPAWNER_IMAGE=registry.example.com/my-ns/xspawner:1.2.3；当前为 ${IMAGE}" >&2
+                exit 1
+                ;;
+        esac
+        ./deploy/pull.sh --no-retag "${IMAGE}"
+    fi
 fi
 
 # ── 2. Caddy（可选）：TLS 与 /services/<id>/* 动态路由 ─────────────────────
