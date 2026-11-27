@@ -144,6 +144,16 @@ fi
 if [ -n "${XSPAWNER_ADDITIONAL:-}" ]; then
     env_args+=(--env "XSPAWNER_ADDITIONAL=${XSPAWNER_ADDITIONAL}")
 fi
+# administrator 子服务巡检参数（见 xspawner/plugins/administrator/administrator.py）
+if [ -n "${XSPAWNER_CHILD_REAP_INTERVAL:-}" ]; then
+    env_args+=(--env "XSPAWNER_CHILD_REAP_INTERVAL=${XSPAWNER_CHILD_REAP_INTERVAL}")
+fi
+if [ -n "${XSPAWNER_CHILD_DEAD_THRESHOLD:-}" ]; then
+    env_args+=(--env "XSPAWNER_CHILD_DEAD_THRESHOLD=${XSPAWNER_CHILD_DEAD_THRESHOLD}")
+fi
+if [ -n "${XSPAWNER_CHILD_PROBE_TIMEOUT:-}" ]; then
+    env_args+=(--env "XSPAWNER_CHILD_PROBE_TIMEOUT=${XSPAWNER_CHILD_PROBE_TIMEOUT}")
+fi
 
 docker run -d \
     --name "${NAME}" \

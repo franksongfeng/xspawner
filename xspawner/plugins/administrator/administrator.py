@@ -25,8 +25,10 @@ from pywebio.session import *
 from pywebio.utils import *
 import tornado.gen  # 供 /debug 的调试命名空间使用（ns = dict(globals())）
 from tortoise import Tortoise
+import tornado.ioloop
 
-from xspawner.service import get_service_status_text_async, split_libs, is_valid_pip_pkg
+from xspawner.service import (
+    get_service_status_text_async, split_libs, is_valid_pip_pkg, close_service)
 from xspawner.xspawner import Spawner, UiHandler #NOQA
 from xspawner.orm import is_config_data #NOQA
 from xspawner.log import LEVELS #NOQA
@@ -41,6 +43,15 @@ from .encryption import _require_password
 # UI 查询子服务元数据（/get_info、/get_config）的超时（秒）。
 # 子服务可能已停止/失联，不能因为一次查询让整个首页卡住。
 UI_QUERY_TIMEOUT = 5
+
+# 子服务健康巡检：
+#   - 每 CHILD_REAP_INTERVAL 秒探测一次已登记的子服务；
+#   - 连续 CHILD_DEAD_THRESHOLD 次探测失败后，删除其状态记录并清理残留 unit；
+#   - 单次探测的超时。
+# 可通过环境变量覆盖，设为 0 可关闭巡检。
+CHILD_REAP_INTERVAL = int(os.environ.get("XSPAWNER_CHILD_REAP_INTERVAL", "60"))
+CHILD_DEAD_THRESHOLD = int(os.environ.get("XSPAWNER_CHILD_DEAD_THRESHOLD", "3"))
+CHILD_PROBE_TIMEOUT = int(os.environ.get("XSPAWNER_CHILD_PROBE_TIMEOUT", "5"))
 
 CSS = """
 .markdown-table-container {
@@ -669,8 +680,107 @@ class Administrator(Spawner): # NOQA
                 await self._run_debug_code(data['code'])
 
 
+    # ── 子服务健康巡检（PeriodicCallback）────────────────────────────────
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self._child_failures = {}
+        self._reaping = False
+        self._reaper = None
+        self._start_child_reaper()
+
+    def _start_child_reaper(self):
+        interval = CHILD_REAP_INTERVAL
+        if interval <= 0:
+            self.wLog("child reaper disabled (XSPAWNER_CHILD_REAP_INTERVAL <= 0)")
+            return
+        self._reaper = tornado.ioloop.PeriodicCallback(
+            self._schedule_child_reap, interval * 1000)
+        self._reaper.start()
+        self.iLog(
+            "child reaper started: interval={}s threshold={} probe_timeout={}s"
+            .format(interval, CHILD_DEAD_THRESHOLD, CHILD_PROBE_TIMEOUT))
+
+    def _schedule_child_reap(self):
+        # PeriodicCallback 的回调必须是同步函数；把真正的异步巡检转成协程任务，
+        # 避免阻塞 IOLoop。_reaping 保证上一次巡检没结束时不会重复进入。
+        self._ioloop.spawn_callback(self._reap_dead_children)
+
+    def stop(self):
+        reaper = getattr(self, "_reaper", None)
+        if reaper is not None:
+            reaper.stop()
+            self._reaper = None
+        super().stop()
+
+    async def _probe_child(self, child_id, value):
+        """探测子服务是否可用：/get_info 短超时成功即视为存活。"""
+        port = value.get("port")
+        if not port:
+            return False
+        child_addr = self.getLocalAddr(port)
+        try:
+            info = await self.postJson(
+                f"{child_addr}/get_info", {}, timeout=CHILD_PROBE_TIMEOUT)
+        except Exception as e:
+            self.dLog("child {} probe {} failed: {}: {}".format(
+                child_id, child_addr, type(e).__name__, e))
+            return False
+        return isinstance(info, dict)
+
+    async def _reap_dead_children(self):
+        """一次巡检：连续 CHILD_DEAD_THRESHOLD 次不可达的子服务会被清理。"""
+        if self._reaping:
+            return
+        self._reaping = True
+        try:
+            values = await self.getValues()
+            seen = set()
+            for child_id, value in values.items():
+                if not is_config_data(value):
+                    continue
+                if value.get("parent") != self._config.id:
+                    continue
+                if child_id == self._config.id:
+                    continue
+                seen.add(child_id)
+
+                if await self._probe_child(child_id, value):
+                    self._child_failures.pop(child_id, None)
+                    continue
+
+                failures = self._child_failures.get(child_id, 0) + 1
+                self._child_failures[child_id] = failures
+                self.wLog("child {} is unreachable ({}/{})".format(
+                    child_id, failures, CHILD_DEAD_THRESHOLD))
+                if failures >= CHILD_DEAD_THRESHOLD:
+                    await self._remove_dead_child(child_id)
+
+            # 已经从状态表中消失的子服务，清理其失败计数
+            for child_id in list(self._child_failures):
+                if child_id not in seen:
+                    self._child_failures.pop(child_id, None)
+        except Exception as e:
+            self.eLog("child reaper failed: {}: {}".format(
+                type(e).__name__, e))
+        finally:
+            self._reaping = False
+
+    async def _remove_dead_child(self, child_id):
+        """清理失效子服务：删除残留 unit 和状态表记录（保留插件文件）。"""
+        self.wLog("removing dead child {}".format(child_id))
+        try:
+            close_service(child_id)
+        except Exception as e:
+            self.eLog("close_service({}) failed: {}: {}".format(
+                child_id, type(e).__name__, e))
+        try:
+            if await self.delValue(child_id):
+                self.wLog("dead child {} removed from state".format(child_id))
+            else:
+                self.eLog(
+                    "failed to remove state of dead child {}".format(child_id))
+        finally:
+            self._child_failures.pop(child_id, None)
 
 
 ##############################################################################

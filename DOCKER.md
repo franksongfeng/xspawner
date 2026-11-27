@@ -376,6 +376,9 @@ http://example.com:8000/
 | `XSPAWNER_LIBS` | 空 | 启动时额外安装的 pip 包，逗号分隔 |
 | `XSPAWNER_ADDITIONAL` | 空 | 原样传给根 administrator 的附加字符串 |
 | `XSPAWNER_CERTFILE/KEYFILE` | 空 | 直接使用证书文件时的容器内路径 |
+| `XSPAWNER_CHILD_REAP_INTERVAL` | `60` | administrator 子服务巡检间隔（秒）；`0` 关闭巡检 |
+| `XSPAWNER_CHILD_DEAD_THRESHOLD` | `3` | 连续探测失败多少次后自动清理该子服务 |
+| `XSPAWNER_CHILD_PROBE_TIMEOUT` | `5` | 单次探测 `/get_info` 的超时（秒） |
 
 > `deploy/cluster.sh` 默认传入 `XSPAWNER_SSL=true` 和 `XSPAWNER_LOG=true`；需要明文 HTTP 时用 `XSPAWNER_SSL=false`。启用 Caddy 时脚本默认让服务只监听 `127.0.0.1`，由 Caddy 统一对外；不使用 Caddy 时默认监听 `0.0.0.0`。
 >
