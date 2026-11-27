@@ -15,6 +15,7 @@ import os
 import traceback
 import tempfile
 import zipfile
+import asyncio
 
 from pywebio import *
 from pywebio.input import *
@@ -36,6 +37,10 @@ from .encryption import _require_password
 ##############################################################################
 # Constants
 ##############################################################################
+
+# UI 查询子服务元数据（/get_info、/get_config）的超时（秒）。
+# 子服务可能已停止/失联，不能因为一次查询让整个首页卡住。
+UI_QUERY_TIMEOUT = 5
 
 CSS = """
 .markdown-table-container {
@@ -104,7 +109,9 @@ class Administrator(Spawner): # NOQA
                 return
             child_addr = self.getLocalAddr(value.get("port"))
             try:
-                data = await self.postJson(f"{child_addr}/get_config", {})
+                data = await self.postJson(
+                    f"{child_addr}/get_config", {},
+                    timeout=UI_QUERY_TIMEOUT)
             except Exception as e:
                 self.eLog(f"get_config from {child_addr} failed: {e}")
                 toast('获取配置失败', color='error')
@@ -161,30 +168,36 @@ class Administrator(Spawner): # NOQA
             "addr": self.getAddr(),
         })
 
-        # 子服务依次追加
+        # 子服务信息并发查询：某个子服务已停止/失联时只影响它自己那行，
+        # 避免首页在渲染表格前被一个死服务阻塞。
         values = await self.getValues()
         children = [k for k, v in values.items()
                     if is_config_data(v) and v.get("parent") == self._config.id]
-        for child_id in children:
-            value = values.get(child_id)
-            if not is_config_data(value):
-                continue
+
+        async def _child_row(child_id, value):
             child_addr = self.getLocalAddr(value.get("port"))
             try:
-                info = await self.postJson(f"{child_addr}/get_info", {})
+                info = await self.postJson(
+                    f"{child_addr}/get_info", {},
+                    timeout=UI_QUERY_TIMEOUT)
             except Exception as e:
                 self.eLog("get_info from {} failed: {}".format(child_addr, e))
                 info = None
             if not isinstance(info, dict):
                 info = {}
-            rows.append({
+            return {
                 "id":   child_id,
                 "cls":  info.get("class", "-"),
                 "vsn":  info.get("vsn", "-"),
                 "pid":  info.get("pid", "-"),
                 "time": info.get("start_time", "-"),
                 "addr": info.get("addr") or "-",
-            })
+            }
+
+        if children:
+            rows.extend(await asyncio.gather(*[
+                _child_row(cid, values.get(cid)) for cid in children
+            ]))
 
         # ---- 构造表格 ----
 
@@ -486,7 +499,9 @@ class Administrator(Spawner): # NOQA
         if srvport:
             srvaddr = self.getLocalAddr(srvport)
             try:
-                res = await self.postJson(f"{srvaddr}/get_info", {})
+                res = await self.postJson(
+                    f"{srvaddr}/get_info", {},
+                    timeout=UI_QUERY_TIMEOUT)
             except Exception as e:
                 self.wLog(f"get_info from {srvaddr} failed: {e}")
                 res = None

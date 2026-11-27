@@ -45,6 +45,13 @@ class TimeoutConfigTests(unittest.TestCase):
         self.assertGreaterEqual(xs.SERVICE_READY_TIMEOUT, 120)
 
 
+class _NullLogger:
+    def debug(self, *args, **kwargs):
+        pass
+
+    info = warning = error = critical = debug
+
+
 @unittest.skipIf(xs is None, SKIP_REASON)
 class PostAsyncTimeoutTests(unittest.IsolatedAsyncioTestCase):
     async def test_post_async_passes_request_timeout(self):
@@ -85,6 +92,18 @@ class PostAsyncTimeoutTests(unittest.IsolatedAsyncioTestCase):
                 kwargs.get("request_timeout"), xs.HTTP_REQUEST_TIMEOUT)
         finally:
             os.unlink(path)
+
+    async def test_post_json_passes_explicit_timeout(self):
+        srv = object.__new__(xs.Spawner)
+        srv._logger = _NullLogger()
+        client = mock.Mock()
+        client.fetch = mock.AsyncMock(return_value=_json_response())
+        with mock.patch.object(
+                xs.tornado.httpclient, "AsyncHTTPClient", return_value=client):
+            result = await srv.postJson(
+                "http://127.0.0.1:8000/get_info", {}, timeout=5)
+        self.assertEqual(result, 1)
+        self.assertEqual(client.fetch.call_args.kwargs.get("request_timeout"), 5)
 
 
 if __name__ == "__main__":

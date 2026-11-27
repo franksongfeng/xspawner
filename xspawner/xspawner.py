@@ -721,20 +721,20 @@ class XSpawner(Spawnable):
             return False    # failed and stop connect try
 
     # jdata is dict or bool/int/list or None
-    async def postJson(self, url, jdata):
+    async def postJson(self, url, jdata, timeout=HTTP_REQUEST_TIMEOUT):
         self.iLog("postJson BEG {} {}".format(url, jdata))
         headers = {
             "Content-Type": "application/json"
         }
         body = json.dumps(jdata) 
-        rt = await postAsync(url, headers, body)
+        rt = await postAsync(url, headers, body, timeout=timeout)
         self.iLog("postJson END {}".format(rt))
         return rt
 
     # fdata is bytes
     # fname is str
     # fargs is dict of {str:str}
-    async def postForm(self, url, fdata, fname, fargs={}):
+    async def postForm(self, url, fdata, fname, fargs={}, timeout=HTTP_REQUEST_TIMEOUT):
         self.iLog("postForm BEG {} {} {} {}".format(url, fdata, fname, fargs))
         args = {k: [str(fargs[k]).encode()] for k in fargs}
         docs = {
@@ -747,7 +747,7 @@ class XSpawner(Spawnable):
             ]
         } if fdata or fname else {}
         headers, body = make_multipart_request(args, docs)
-        rt = await postAsync(url, headers, body)
+        rt = await postAsync(url, headers, body, timeout=timeout)
         self.iLog(f"postForm END {rt}")
         return rt
 
