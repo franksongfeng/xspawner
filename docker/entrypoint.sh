@@ -55,13 +55,29 @@ args=(
 } > /opt/xspawner/start-unit.sh
 chmod +x /opt/xspawner/start-unit.sh
 
-# ── administrator systemd unit ─────────────────────────────────────────────
+# ── administrator systemd units ────────────────────────────────────────────
 # unit 名必须与 service.py 的 unit_name 保持一致：直接使用服务 id。
+# 监听端口由 <id>.socket 持有，服务重启/热升级期间端口不会关闭。
 UNIT_NAME="${XSPAWNER_ID}"
+cat > "/etc/systemd/system/${UNIT_NAME}.socket" <<EOF
+[Unit]
+Description=XSpawner ${XSPAWNER_ID} socket (${XSPAWNER_CLUSTER})
+
+[Socket]
+ListenStream=${XSPAWNER_ACCESS}:${XSPAWNER_PORT}
+NoDelay=true
+Backlog=128
+Service=${UNIT_NAME}.service
+
+[Install]
+WantedBy=sockets.target
+EOF
+
 cat > "/etc/systemd/system/${UNIT_NAME}.service" <<EOF
 [Unit]
 Description=XSpawner ${XSPAWNER_ID} (${XSPAWNER_CLUSTER})
-After=network.target
+After=network.target ${UNIT_NAME}.socket
+Requires=${UNIT_NAME}.socket
 
 [Service]
 Type=simple
@@ -69,12 +85,16 @@ WorkingDirectory=/opt/xspawner
 ExecStart=/opt/xspawner/start-unit.sh
 Restart=on-failure
 RestartSec=3
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-mkdir -p /etc/systemd/system/multi-user.target.wants
+mkdir -p /etc/systemd/system/multi-user.target.wants \
+    /etc/systemd/system/sockets.target.wants
+ln -sf "/etc/systemd/system/${UNIT_NAME}.socket" \
+    "/etc/systemd/system/sockets.target.wants/${UNIT_NAME}.socket"
 ln -sf "/etc/systemd/system/${UNIT_NAME}.service" \
     "/etc/systemd/system/multi-user.target.wants/${UNIT_NAME}.service"
 

@@ -19,6 +19,8 @@ import functools
 import zipfile
 import uuid
 import ssl
+import signal
+import socket
 import unittest
 import shutil
 import io
@@ -48,7 +50,7 @@ from xspawner.constants import (
     Config, LOCAL_DB_URL, LOG_FILE, PLUGIN_DIR, PLUGIN_PKG, RES_DIR_TEMP,
 )
 from xspawner.orm import open_database, drop_database, backup_database, config_to_dict, value_to_config, is_config_data, set_state_table, StateModel #NOQA
-from xspawner.service import open_service, close_service, get_service_status # NOQA
+from xspawner.service import open_service, close_service, get_service_status, upgrade_service # NOQA
 from xspawner.proxy import _prefix, caddy_is_running, caddy_add_route, caddy_del_route  # NOQA
 from xspawner.misc import wait_port_sync, getSSLContext, zip_folder, make_multipart_request, make_multipart_form, make_docs, parse_reply, get_file_type, is_module_available, is_port_used, getWorkDir # NOQA
 from xspawner.validation import ( # NOQA
@@ -85,6 +87,37 @@ def _service_pid(status: dict):
         return int(status.get("MainPID") or 0)
     except (TypeError, ValueError):
         return None
+
+
+def _take_activated_sockets():
+    """取出 systemd socket activation 传进来的监听 socket。
+
+    systemd 通过 LISTEN_PID/LISTEN_FDS 约定：socket 从 fd 3 开始连续排列。
+    返回 socket 列表并清理环境变量，避免被子进程误继承。
+    """
+    listen_pid = os.environ.get("LISTEN_PID")
+    listen_fds = os.environ.get("LISTEN_FDS")
+    if not listen_pid or not listen_fds:
+        return []
+    try:
+        if int(listen_pid) != os.getpid():
+            return []
+        count = int(listen_fds)
+    except ValueError:
+        return []
+
+    socks = []
+    for i in range(count):
+        try:
+            sock = socket.socket(fileno=3 + i)
+        except OSError:
+            continue
+        sock.setblocking(False)
+        socks.append(sock)
+
+    for key in ("LISTEN_PID", "LISTEN_FDS", "LISTEN_FDNAMES"):
+        os.environ.pop(key, None)
+    return socks
 
 
 ##############################################################################
@@ -339,6 +372,8 @@ class XSpawner(Spawnable):
         self._config = config
 
         self._fatal = False
+        self._stopping = False
+        self._graceful_stopping = False
 
         # core queue
         self._ioloop = tornado.ioloop.IOLoop.current()
@@ -491,12 +526,27 @@ class XSpawner(Spawnable):
     def start(self):
         self.iLog("start BEG")
         self._fatal = False
+        self._stopping = False
+        self._graceful_stopping = False
+        self._install_signal_handlers()
         self._ioloop.add_callback(self.loop)
         self._ioloop.add_callback(self.add_kvs)
         self._ioloop.add_callback(self.add_route)
+
+        activated = _take_activated_sockets()
         try:
-            self._server.listen(self._config.port, address=self._config.access)
-            self.iLog("listening to port {}...".format(self._config.port))
+            if activated:
+                # systemd socket activation：监听 socket 由 systemd 持有，
+                # 服务重启/升级期间端口不会关闭。
+                self._server.add_sockets(activated)
+                self.iLog(
+                    "listening on systemd-activated socket(s) {}".format(
+                        len(activated)))
+            else:
+                self._server.listen(
+                    self._config.port, address=self._config.access)
+                self.iLog(
+                    "listening to port {}...".format(self._config.port))
         except Exception:
             self.eLog(traceback.format_exc())
             sys.exit(1)
@@ -516,13 +566,61 @@ class XSpawner(Spawnable):
             sys.exit(1)
         self.iLog("start END")
 
+    def _install_signal_handlers(self):
+        # Tornado 6 的 IOLoop 包装了 asyncio loop，信号处理要注册到 asyncio loop 上。
+        loop = getattr(self._ioloop, "asyncio_loop", None)
+        if loop is None:
+            loop = asyncio.get_event_loop()
+        try:
+            loop.add_signal_handler(signal.SIGTERM, self._graceful_stop)
+            self.iLog("SIGTERM handler installed")
+        except (NotImplementedError, RuntimeError, AttributeError) as e:
+            self.wLog(f"cannot install SIGTERM handler: {e}")
+
+    def _graceful_stop(self):
+        """systemd stop/restart 时先停止 accept，再给在途请求留出排空时间。"""
+        if getattr(self, "_graceful_stopping", False):
+            return
+        self._graceful_stopping = True
+        self.wLog("SIGTERM received: stop accepting, drain in-flight requests")
+        try:
+            self._server.stop()
+        except Exception:
+            self.eLog(traceback.format_exc())
+        try:
+            grace = float(os.environ.get("XSPAWNER_SHUTDOWN_GRACE", "2"))
+        except ValueError:
+            grace = 2.0
+        if grace < 0:
+            grace = 0.0
+        self.iLog(f"shutdown grace {grace}s")
+        self._ioloop.call_later(grace, self._force_exit)
+
+    def _force_exit(self):
+        """排空后强制退出，避免非 daemon 线程拖住 systemd 的 stop 流程。"""
+
+        async def _finish():
+            try:
+                await self.del_route()
+            except Exception:
+                self.eLog(traceback.format_exc())
+            finally:
+                os._exit(0)
+
+        self._ioloop.add_callback(_finish)
+
     def stop(self):
+        if getattr(self, "_stopping", False):
+            return
+        self._stopping = True
         self.iLog("stop BEG")
         self.cLog("This instance {}:{} is stopping ...".format(self.__class__, self._config.port))
 
         async def _shutdown():
             try:
                 await self.del_route()
+            except Exception:
+                self.eLog(traceback.format_exc())
             finally:
                 self._server.stop()
                 self._ioloop.stop()
@@ -958,6 +1056,74 @@ class Spawner(XSpawner): # NOQA
             rt["children_failed"] = failed_children
         self.iLog("{}::start_child END {}".format(self.__class__.__name__, rt))
         return rt
+
+    @ApiHandler.route("/upgrade_child")
+    async def _upgrade_child(self, headers: dict, data: dict):
+        """热升级子服务：systemd socket 保持监听，只重启服务进程。
+
+        插件文件已更新到插件目录后调用；重启窗口内的新连接由 systemd
+        socket 的内核队列接住，不会出现 connection refused。
+        """
+        self.iLog("{}::_upgrade_child BEG {}".format(self.__class__.__name__, data))
+        if "id" not in data:
+            self.eLog(f"Failed to upgrade child, No id key in data {data}")
+            return False
+
+        child_id = data["id"]
+        if not is_valid_service_id(child_id):
+            self.eLog(f"Failed to upgrade child, invalid id: {child_id!r}")
+            return False
+        if child_id == self._config.id:
+            self.eLog("Failed to upgrade child, id equals self")
+            return False
+
+        value = await self.getValue(child_id)
+        if not is_config_data(value):
+            self.eLog(f"Failed to upgrade child, no config for {child_id}")
+            return False
+        child_config = value_to_config(value)
+
+        if not is_valid_service_id(child_config.id) \
+                or not is_valid_plugin_name(child_config.plugin) \
+                or not is_valid_port(child_config.port):
+            self.eLog("Failed to upgrade child, invalid config")
+            return False
+
+        old_pid = _service_pid(get_service_status(child_id))
+
+        if not upgrade_service(child_config):
+            self.eLog(f"Failed to upgrade child {child_id}")
+            return False
+
+        child_addr = self.getLocalAddr(child_config.port)
+        info = await self._wait_http_ready(
+            child_addr, timeout=60, exclude_pid=old_pid)
+        if not isinstance(info, dict):
+            self.eLog(f"child {child_id} did not become ready after upgrade")
+            return False
+
+        rt = {"id": child_id, "pid": info.get("pid"),
+              "addr": info.get("addr")}
+        self.iLog("{}::_upgrade_child END {}".format(self.__class__.__name__, rt))
+        return rt
+
+    async def _wait_http_ready(self, addr, timeout=60, exclude_pid=None):
+        """轮询 /get_info，直到服务可用（不用端口判断：socket 始终在监听）。
+
+        exclude_pid 用于升级场景：旧进程在优雅退出期间仍可能响应 /get_info，
+        必须等到 PID 变化，才说明新进程已经接管。
+        """
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                info = await self.postJson(f"{addr}/get_info", {}, timeout=3)
+            except Exception:
+                info = None
+            if isinstance(info, dict):
+                if exclude_pid is None or info.get("pid") != exclude_pid:
+                    return info
+            await tornado.gen.sleep(0.5)
+        return None
 
     @ApiHandler.route("/stop_child")
     async def _stop_child(self, headers: dict, data: dict):

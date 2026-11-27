@@ -379,6 +379,7 @@ http://example.com:8000/
 | `XSPAWNER_CHILD_REAP_INTERVAL` | `60` | administrator 子服务巡检间隔（秒）；`0` 关闭巡检 |
 | `XSPAWNER_CHILD_DEAD_THRESHOLD` | `3` | 连续探测失败多少次后自动清理该子服务 |
 | `XSPAWNER_CHILD_PROBE_TIMEOUT` | `5` | 单次探测 `/get_info` 的超时（秒） |
+| `XSPAWNER_SHUTDOWN_GRACE` | `2` | 收到 SIGTERM 后等待在途请求完成的秒数 |
 
 > `deploy/cluster.sh` 默认传入 `XSPAWNER_SSL=true` 和 `XSPAWNER_LOG=true`；需要明文 HTTP 时用 `XSPAWNER_SSL=false`。启用 Caddy 时脚本默认让服务只监听 `127.0.0.1`，由 Caddy 统一对外；不使用 Caddy 时默认监听 `0.0.0.0`。
 >
@@ -466,6 +467,23 @@ docker image inspect --format '{{json .RepoDigests}}' registry.cn-hangzhou.aliyu
 # 只停容器、保留卷
 docker stop xspawner-example-com-admin
 ```
+
+### 子服务热升级（systemd socket activation）
+
+每个服务的监听端口由 systemd 的 `<id>.socket` 持有，服务进程通过 `LISTEN_FDS` 继承，不再自己 bind。因此 `systemctl restart <id>` 或调用 administrator 的 `/upgrade_child` 时，监听 socket 不会关闭：重启窗口内的新连接进入内核队列，等新进程接管，不会出现 connection refused。
+
+```bash
+# 1) 先更新插件文件（/upload_plugin，或直接替换插件目录里的文件）
+# 2) 触发热升级
+curl -sS -X POST -H 'Content-Type: application/json' \
+    -d '{"id":"hello"}' http://127.0.0.1:8000/upgrade_child
+# => {"id":"hello","pid":123,"addr":"http://localhost:8935"}
+```
+
+- 旧进程收到 SIGTERM 后停止 accept，等待 `XSPAWNER_SHUTDOWN_GRACE`（默认 2 秒）排空在途请求后退出；长请求可调大（需小于 unit 的 `TimeoutStopSec=30`）。
+- 接口会等到新进程 PID 接管后才返回，不会把仍在排空的旧进程 PID 当成成功。
+- 新建服务会自动生成 `<id>.socket`；旧版本直接 bind 端口的服务首次升级会自动迁移到 socket activation（这一次会有短暂中断）。
+- 确认端口归属：`ss -ltnp | grep :8935` 应同时看到 systemd（PID 1）和 python 进程。
 
 ## 10. 安全与限制
 

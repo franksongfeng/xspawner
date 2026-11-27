@@ -154,6 +154,9 @@ fi
 if [ -n "${XSPAWNER_CHILD_PROBE_TIMEOUT:-}" ]; then
     env_args+=(--env "XSPAWNER_CHILD_PROBE_TIMEOUT=${XSPAWNER_CHILD_PROBE_TIMEOUT}")
 fi
+if [ -n "${XSPAWNER_SHUTDOWN_GRACE:-}" ]; then
+    env_args+=(--env "XSPAWNER_SHUTDOWN_GRACE=${XSPAWNER_SHUTDOWN_GRACE}")
+fi
 
 docker run -d \
     --name "${NAME}" \

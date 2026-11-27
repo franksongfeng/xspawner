@@ -44,6 +44,7 @@ WorkingDirectory={}
 {}ExecStartPre=/bin/sleep 1.0s
 {}ExecStart={}
 Restart=on-failure
+TimeoutStopSec=30
 
 CPUQuota=50%
 MemoryMax=512M
@@ -56,6 +57,23 @@ StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
+"""
+
+# socket activation：监听 socket 由 systemd 持有，服务重启期间端口不会关闭，
+# 新连接进入内核队列等待新进程，实现重启/升级时不出现 connection refused。
+SOCKET_TMPL = """
+[Unit]
+Description={} socket
+{}
+
+[Socket]
+ListenStream={}
+NoDelay=true
+Backlog=128
+Service={}.service
+
+[Install]
+WantedBy=sockets.target
 """
 
 PIP_PKG_RE = re.compile(
@@ -241,6 +259,79 @@ def restart_service(srv_id: str) -> bool:
     return _run_systemctl(["restart", unit_name(srv_id)])
 
 
+def socket_active(srv_id: str) -> bool:
+    """socket 单元是否处于 active（已由 systemd 持有监听端口）。"""
+    result = subprocess.run(
+        ["systemctl", "is-active", f"{unit_name(srv_id)}.socket"],
+        capture_output=True, text=True)
+    return result.returncode == 0
+
+
+def upgrade_service(config: Config) -> bool:
+    """热升级一个已存在的服务。
+
+    有 socket activation 时只 restart service，socket 单元保持监听，
+    重启窗口内的新连接由内核队列接住，不会 connection refused。
+    旧部署（没有 socket 单元）会先停服务再补 socket，属于一次性迁移。
+    """
+    service_name = unit_name(config.id)
+    logger.info(f"upgrade_service BEG {service_name}")
+    try:
+        os.makedirs(SERVICE_DIR, exist_ok=True)
+        service_path = f"{SERVICE_DIR}/{service_name}.service"
+        socket_path = f"{SERVICE_DIR}/{service_name}.socket"
+        with open(service_path, 'w') as f:
+            f.write(generate_service_file(config))
+        with open(socket_path, 'w') as f:
+            f.write(generate_socket_file(config))
+
+        if not reload_systemd():
+            logger.error("Failed to reload systemd!")
+            return False
+        enable_socket(config.id)
+        enable_service(config.id)
+
+        if not socket_active(config.id):
+            # 旧部署：服务直接 bind 端口，必须先停下来让 socket 单元接管
+            logger.warning(
+                f"{service_name}.socket not active, migrating from direct bind")
+            stop_service(config.id)
+            if not start_socket(config.id):
+                logger.error(f"Failed to start {service_name}.socket!")
+                return False
+
+        if not _run_systemctl(
+                ["restart", "--no-block", unit_name(config.id)]):
+            logger.error(f"Failed to restart {service_name} service!")
+            return False
+
+        logger.info(f"upgrade_service END true {service_name}")
+        return True
+    except Exception as e:
+        logger.error(f"Exception occurred when upgrading service: {e}")
+        return False
+
+
+def start_socket(srv_id: str) -> bool:
+    """启动 socket activation 单元"""
+    return _run_systemctl(["start", f"{unit_name(srv_id)}.socket"])
+
+
+def stop_socket(srv_id: str) -> bool:
+    """停止 socket activation 单元"""
+    return _run_systemctl(["stop", f"{unit_name(srv_id)}.socket"])
+
+
+def enable_socket(srv_id: str) -> bool:
+    """设置 socket 单元开机自启"""
+    return _run_systemctl(["enable", f"{unit_name(srv_id)}.socket"])
+
+
+def disable_socket(srv_id: str) -> bool:
+    """取消 socket 单元开机自启"""
+    return _run_systemctl(["disable", f"{unit_name(srv_id)}.socket"])
+
+
 # ---------------------------------------------------------------------------
 # 命令行构造：用 sys.executable 保证子进程跑在本 venv 里
 # ---------------------------------------------------------------------------
@@ -327,12 +418,26 @@ def generate_service_file(config: Config) -> str:
             env_lines.append(f'Environment="{key}={value}"')
     environment = "".join(line + "\n" for line in env_lines)
 
+    socket_unit = f"{unit_name(config.id)}.socket"
+    after = f"{prior_service} {socket_unit}"
+    requires = f"{prior_service} {socket_unit}"
+
     service_content = SERVICE_TMPL.format(
-        description, prior_service, prior_service, prior_service,
+        description, after, requires, prior_service,
         work_dir, environment, pip_pre, cmd
     )
 
     return service_content
+
+
+def generate_socket_file(config: Config) -> str:
+    """生成 systemd socket 文件：由 systemd 持有监听端口，供服务继承。"""
+    partof = ""
+    if config.parent:
+        partof = f"PartOf={unit_name(config.parent)}.service"
+    listen = "{}:{}".format(config.access or "0.0.0.0", config.port)
+    return SOCKET_TMPL.format(
+        unit_name(config.id), partof, listen, unit_name(config.id))
 
 def _unit_belongs_to(service_path: str, config: Config) -> bool:
     """防御：unit 已存在时，校验 host/port/WorkingDirectory 是否与本 Config 一致。"""
@@ -369,21 +474,32 @@ def open_service(config: Config) -> bool:
     try:
         os.makedirs(SERVICE_DIR, exist_ok=True)
         service_path = f"{SERVICE_DIR}/{service_name}.service"
+        socket_path = f"{SERVICE_DIR}/{service_name}.socket"
         with open(service_path, 'w') as f:
-            service_content = generate_service_file(config)
-            f.write(service_content)
-        logger.info(f"Wrote service file {service_path};")
+            f.write(generate_service_file(config))
+        with open(socket_path, 'w') as f:
+            f.write(generate_socket_file(config))
+        logger.info(f"Wrote unit files {service_path}, {socket_path};")
 
+        # 先停旧服务再停旧 socket：旧版本服务可能直接占用端口，
+        # 必须先释放端口，新的 socket 单元才能 bind。
         sts = get_service_status(config.id)
         if sts.get("ActiveState") == "active" and sts.get("LoadState") == "loaded":
             if not stop_service(config.id):
                 logger.warning(f"Failed to stop existing {service_name}; continuing")
+        stop_socket(config.id)
 
         if not reload_systemd():
             logger.error("Failed to reload systemd!")
             return False
+        if not enable_socket(config.id):
+            logger.error(f"Failed to enable {service_name}.socket!")
+            return False
         if not enable_service(config.id):
             logger.error(f"Failed to enable {service_name} service!")
+            return False
+        if not start_socket(config.id):
+            logger.error(f"Failed to start {service_name}.socket!")
             return False
         if not start_service(config.id):
             logger.error(f"Failed to start {service_name} service!")
@@ -403,13 +519,17 @@ def close_service(srv_id: str) -> bool:
     logger.info(f"close_service BEG {unit}")
     try:
         service_path = f"{SERVICE_DIR}/{unit}.service"
+        socket_path = f"{SERVICE_DIR}/{unit}.socket"
         stop_service(srv_id)
-        logger.info(f"Stopped service {unit}")
+        stop_socket(srv_id)
+        logger.info(f"Stopped service/socket {unit}")
         disable_service(srv_id)
-        logger.info(f"Disabled service {unit}")
-        if os.path.exists(service_path):
-            os.unlink(service_path)
-            logger.info(f"Deleted service file {unit}")
+        disable_socket(srv_id)
+        logger.info(f"Disabled service/socket {unit}")
+        for path in (service_path, socket_path):
+            if os.path.exists(path):
+                os.unlink(path)
+                logger.info(f"Deleted unit file {path}")
         rt = reload_systemd()
         logger.info(f"close_service END {rt}")
         return rt

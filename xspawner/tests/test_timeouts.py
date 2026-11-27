@@ -105,6 +105,16 @@ class PostAsyncTimeoutTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, 1)
         self.assertEqual(client.fetch.call_args.kwargs.get("request_timeout"), 5)
 
+    async def test_wait_http_ready_skips_old_pid(self):
+        srv = object.__new__(xs.Spawner)
+        srv._logger = _NullLogger()
+        srv.postJson = mock.AsyncMock(side_effect=[{"pid": 1}, {"pid": 2}])
+        with mock.patch.object(xs.tornado.gen, "sleep", new=mock.AsyncMock()):
+            info = await srv._wait_http_ready(
+                "http://127.0.0.1:8000", timeout=5, exclude_pid=1)
+        self.assertEqual(info.get("pid"), 2)
+        self.assertEqual(srv.postJson.await_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
