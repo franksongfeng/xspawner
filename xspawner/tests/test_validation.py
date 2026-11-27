@@ -142,25 +142,25 @@ class StartChildTests(unittest.IsolatedAsyncioTestCase):
         self.srv = _bare_server()
         self.srv._ioloop = xs.tornado.ioloop.IOLoop.current()
 
-    def _patch_runtime(self, open_ok=True, status=None):
-        if status is None:
-            status = {"ActiveState": "active", "MainPID": "321"}
+    def _patch_runtime(self, open_ok=True):
         return (
             mock.patch.object(xs, "open_service", return_value=open_ok),
-            mock.patch.object(xs, "wait_port_sync", return_value=True),
-            mock.patch.object(xs, "get_service_status", return_value=status),
             mock.patch.object(xs.tornado.gen, "sleep", new=mock.AsyncMock()),
         )
 
     async def _start(self, data, stored=None, post_json_return=None,
-                     post_json_side_effect=None, status=None):
+                     post_json_side_effect=None, ready_return=None):
         self.srv.getValue = mock.AsyncMock(return_value=stored)
         self.srv.addValue = mock.AsyncMock(return_value=True)
         self.srv.postJson = mock.AsyncMock(
             return_value=post_json_return,
             side_effect=post_json_side_effect)
-        p_open, p_wait, p_status, p_sleep = self._patch_runtime(status=status)
-        with p_open as open_mock, p_wait, p_status, p_sleep:
+        if ready_return is None:
+            child_id = data.get("id", "child") if isinstance(data, dict) else "child"
+            ready_return = {"id": child_id, "pid": 321}
+        self.srv._wait_http_ready = mock.AsyncMock(return_value=ready_return)
+        p_open, p_sleep = self._patch_runtime()
+        with p_open as open_mock, p_sleep:
             rt = await self.srv._start_child(None, data)
         return rt, open_mock
 
@@ -211,11 +211,10 @@ class StartChildTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(rt)
         open_mock.assert_not_called()
 
-    async def test_status_without_keys_is_tolerated(self):
-        # systemctl 失败时 get_service_status 只返回 {'name','error'}，
-        # 统一用 .get 读取后不应 KeyError
+    async def test_ready_response_without_pid(self):
+        # /get_info 结果没有 pid 时不应崩溃，pid 返回 None
         data = _make_config(id="child4", port=8104)._asdict()
-        rt, _ = await self._start(data, status={})
+        rt, _ = await self._start(data, ready_return={"id": "child4"})
         self.assertEqual(rt, {"id": "child4", "pid": None})
 
     async def test_grandchildren_unreachable_is_tolerated(self):
@@ -228,11 +227,11 @@ class StartChildTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("children_failed", rt)
         open_mock.assert_called_once()
 
-    async def test_grandchild_failure_is_reported(self):
+    async def test_grandchild_failure_is_tolerated(self):
         data = _make_config(id="child6", port=8106)._asdict()
         rt, _ = await self._start(
             data, post_json_side_effect=[["gc1"], False])
-        self.assertEqual(rt.get("children_failed"), ["gc1"])
+        self.assertEqual(rt, {"id": "child6", "pid": 321})
 
     async def test_grandchildren_started(self):
         data = _make_config(id="child7", port=8107)._asdict()
@@ -245,14 +244,15 @@ class StartChildTests(unittest.IsolatedAsyncioTestCase):
         self.srv.getValue = mock.AsyncMock(return_value=None)
         self.srv.addValue = mock.AsyncMock(return_value=True)
         self.srv.postJson = mock.AsyncMock(return_value=None)
+        ready = mock.AsyncMock(return_value={"id": "child8", "pid": 321})
+        self.srv._wait_http_ready = ready
         with mock.patch.object(xs, "open_service", return_value=True), \
-                mock.patch.object(xs, "wait_port_sync", return_value=True) as wait_mock, \
-                mock.patch.object(xs, "get_service_status", return_value={}), \
                 mock.patch.object(xs.tornado.gen, "sleep", new=mock.AsyncMock()):
-            await self.srv._start_child(None, data)
-        wait_mock.assert_called_once()
+            rt = await self.srv._start_child(None, data)
+        ready.assert_awaited_once()
         self.assertEqual(
-            wait_mock.call_args.kwargs.get("timeout"), xs.SERVICE_READY_TIMEOUT)
+            ready.call_args.kwargs.get("timeout"), xs.SERVICE_READY_TIMEOUT)
+        self.assertEqual(rt, {"id": "child8", "pid": 321})
 
     async def test_stop_child_rejects_invalid_id(self):
         self.srv.getValue = mock.AsyncMock()

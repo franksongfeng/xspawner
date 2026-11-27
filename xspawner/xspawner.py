@@ -52,7 +52,7 @@ from xspawner.constants import (
 from xspawner.orm import open_database, drop_database, backup_database, config_to_dict, value_to_config, is_config_data, set_state_table, StateModel #NOQA
 from xspawner.service import open_service, close_service, get_service_status, upgrade_service # NOQA
 from xspawner.proxy import _prefix, caddy_is_running, caddy_add_route, caddy_del_route  # NOQA
-from xspawner.misc import wait_port_sync, getSSLContext, zip_folder, make_multipart_request, make_multipart_form, make_docs, parse_reply, get_file_type, is_module_available, is_port_used, getWorkDir # NOQA
+from xspawner.misc import getSSLContext, zip_folder, make_multipart_request, make_multipart_form, make_docs, parse_reply, get_file_type, is_module_available, is_port_used, getWorkDir # NOQA
 from xspawner.validation import ( # NOQA
     RESERVED_PLUGIN_NAMES, is_valid_plugin_name, is_valid_port,
     is_valid_service_id, plugin_realpath,
@@ -63,8 +63,8 @@ from xspawner.validation import ( # NOQA
 # Timeouts
 ##############################################################################
 
-# 子服务就绪等待上限（秒）：_start_child 等待子服务端口可用的最长时间。
-# 与 misc.wait_port_sync 的默认值保持一致，并显式传给 wait_port_sync。
+# 子服务就绪等待上限（秒）：_start_child / upgrade 通过 /get_info 判断就绪。
+# socket activation 下端口在应用启动前就已监听，不能再用端口连通性判断。
 SERVICE_READY_TIMEOUT = 120
 
 # 服务间 HTTP 调用超时（秒）：必须 >= SERVICE_READY_TIMEOUT，并预留
@@ -323,9 +323,6 @@ class ProxyHandler(tornado.web.RequestHandler):
 class Spawnable(object):
 
     def __init__(self, config: Config, **others):
-        raise NotImplementedError
-
-    def getPid(self):
         raise NotImplementedError
 
     def getAddr(self):
@@ -989,21 +986,17 @@ class Spawner(XSpawner): # NOQA
             self.eLog("Failed to start child, invalid config: {}".format(child_config))
             return False
 
-        # open systemed service
-        if open_service(child_config):
-            self.iLog(f"successfully start child {child_config}!")
-        else:
+        # open child service
+        if not open_service(child_config):
             self.eLog(f"failed to start child {child_config}!")
             return False
 
-        # wait child service ready
+        # 等待子服务真正可用：socket activation 下端口在应用启动前就已监听，
+        # 不能用 wait_port_sync 判断就绪，必须以 /get_info 返回为准。
         child_addr = self.getLocalAddr(child_config.port)
-        loop = self._ioloop.asyncio_loop
-        ok = await loop.run_in_executor(
-            None, functools.partial(
-                wait_port_sync, child_config.port,
-                timeout=SERVICE_READY_TIMEOUT))
-        if not ok:
+        info = await self._wait_http_ready(
+            child_addr, timeout=SERVICE_READY_TIMEOUT)
+        if not isinstance(info, dict):
             self.eLog(
                 f"child {child_addr} did not become ready "
                 f"in {SERVICE_READY_TIMEOUT}s")
@@ -1020,7 +1013,6 @@ class Spawner(XSpawner): # NOQA
 
         # 启动孙服务：子服务刚启动时可能暂时不可达，失败只记录，不能让
         # 已经启动成功的本服务被误判为失败（否则调用方会清库/留下幽灵服务）。
-        failed_children = []
         try:
             grand_children = await self.postJson(f"{child_addr}/get_children", {})
             if grand_children:
@@ -1028,32 +1020,16 @@ class Spawner(XSpawner): # NOQA
                     res = await self.postJson(
                         f"{child_addr}/start_child", {"id": grand_child})
                     if res:
-                        self.iLog(
-                            "Successful request to {}/start_child {}: {}".format(
-                                child_addr, grand_child, res))
+                        self.iLog("Successful start child {}".format(grand_child))
                     else:
-                        self.eLog(
-                            "Failed request to {}/start_child {}".format(
-                                child_addr, grand_child))
-                        failed_children.append(grand_child)
+                        self.eLog("Failed to start child {}".format(grand_child))
                     await tornado.gen.sleep(1)
         except Exception as e:
             self.eLog(
                 "start grandchildren of {} via {} failed: {}: {}".format(
                     child_id, child_addr, type(e).__name__, e))
-        finally:
-            if failed_children:
-                self.eLog(
-                    "start_child {}: grandchildren failed: {}".format(
-                        child_id, failed_children))
 
-        sts = get_service_status(child_id)
-        pid = _service_pid(sts)
-        self.iLog(f"service status: {sts}")
-
-        rt = {"id": child_id, "pid": pid}
-        if failed_children:
-            rt["children_failed"] = failed_children
+        rt = {"id": child_id, "pid": info.get("pid")}
         self.iLog("{}::start_child END {}".format(self.__class__.__name__, rt))
         return rt
 
@@ -1157,9 +1133,9 @@ class Spawner(XSpawner): # NOQA
                 for grand_child in grand_children:
                     res = await self.postJson(f"{child_addr}/stop_child", {"id":grand_child})
                     if res:
-                        self.iLog("Successful request to {}/stop_child {}".format(child_addr, grand_child))
+                        self.iLog("Successful stop child {}".format(grand_child))
                     else:
-                        self.eLog("Exception request to {}/stop_child {}".format(child_addr, grand_child))
+                        self.eLog("Failed to stop child {}".format(grand_child))
                         return False
                     await tornado.gen.sleep(0.2)
                 await tornado.gen.sleep(0.5)
