@@ -24,7 +24,7 @@ from xspawner.xspawner import Spawner, UiHandler       # NOQA
 # Constants and Variables
 ##############################################################################
 
-# 在 m_state 表中存储 spec 的保留键。
+# 在状态表中存储 spec 的保留键。
 SPEC_KEY = '__spec__'
 
 # HTML 转义
@@ -41,7 +41,7 @@ class Manager(Spawner):
         super().__init__(**kwargs)
         self.spec = {}
 
-    # ---------------- spec 存取：走 StateModel ----------------
+    # ---------------- spec 存取：走状态表 ----------------
     async def _load_spec(self) -> dict:
         try:
             v = await self.getValue(SPEC_KEY)

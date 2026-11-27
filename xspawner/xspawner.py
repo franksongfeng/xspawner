@@ -51,6 +51,10 @@ from xspawner.orm import open_database, drop_database, backup_database, config_t
 from xspawner.service import open_service, close_service, get_service_status # NOQA
 from xspawner.proxy import _prefix, caddy_is_running, caddy_add_route, caddy_del_route  # NOQA
 from xspawner.misc import wait_port_sync, getSSLContext, zip_folder, make_multipart_request, make_multipart_form, make_docs, parse_reply, get_file_type, is_module_available, is_port_used, getWorkDir # NOQA
+from xspawner.validation import ( # NOQA
+    RESERVED_PLUGIN_NAMES, is_valid_plugin_name, is_valid_port,
+    is_valid_service_id, plugin_realpath,
+)
 
 
 ##############################################################################
@@ -809,16 +813,35 @@ class Spawner(XSpawner): # NOQA
             self.eLog(f"Failed to start child, No id key in data {data}")
             return False
 
-        if data["id"] == self._config.id:
-            # getValue 对本服务 id 返回 self._config 的 JSON，若放行会重启自身
-            self.eLog(f"Failed to start child, id equals self: {data['id']}")
+        child_id = data["id"]
+        if not is_valid_service_id(child_id):
+            self.eLog(f"Failed to start child, invalid id: {child_id!r}")
             return False
 
-        value = await self.getValue(data["id"])
+        if child_id == self._config.id:
+            # getValue 对本服务 id 返回 self._config 的 JSON，若放行会重启自身
+            self.eLog(f"Failed to start child, id equals self: {child_id}")
+            return False
+
+        value = await self.getValue(child_id)
         if is_config_data(value):
             child_config = value_to_config(value)
-        else:
+        elif all(name in data for name in Config._fields):
+            # /start_child 只有 {"id": ...} 时，该 id 必须已在状态表里登记；
+            # 只有带完整 Config 字段的请求（/create、/deploy_child）才允许新建，
+            # 否则会用父服务的端口/插件拼出一个假服务写进 systemd。
             child_config = self._config._replace(**data)._replace(parent=self._config.id)
+        else:
+            self.eLog(
+                "Failed to start child, no stored config for {} and data is incomplete"
+                .format(child_id))
+            return False
+
+        if not is_valid_service_id(child_config.id) \
+                or not is_valid_plugin_name(child_config.plugin) \
+                or not is_valid_port(child_config.port):
+            self.eLog("Failed to start child, invalid config: {}".format(child_config))
+            return False
 
         # open systemed service
         if open_service(child_config):
@@ -856,11 +879,11 @@ class Spawner(XSpawner): # NOQA
                     return False
                 await tornado.gen.sleep(1)
 
-        sts = get_service_status(data["id"])
+        sts = get_service_status(child_id)
         pid = int(sts["MainPID"]) if sts["ActiveState"] == "active" else None
         self.iLog(f"service status: {sts}")
 
-        rt = {"id": data["id"], "pid": pid}
+        rt = {"id": child_id, "pid": pid}
         self.iLog("{}::start_child END {}".format(self.__class__.__name__, rt))
         return rt
 
@@ -871,12 +894,16 @@ class Spawner(XSpawner): # NOQA
             self.eLog(f"Failed to stop child, No id key in data {data}")
             return False
 
-        if data["id"] == self._config.id:
-            # 与 _start_child 一致：禁止停掉当前服务自身
-            self.eLog(f"Failed to stop child, id equals self: {data['id']}")
+        child_id = data["id"]
+        if not is_valid_service_id(child_id):
+            self.eLog(f"Failed to stop child, invalid id: {child_id!r}")
             return False
 
-        child_id = data["id"]
+        if child_id == self._config.id:
+            # 与 _start_child 一致：禁止停掉当前服务自身
+            self.eLog(f"Failed to stop child, id equals self: {child_id}")
+            return False
+
         value = await self.getValue(child_id)
 
         if is_config_data(value):
@@ -935,6 +962,9 @@ class Spawner(XSpawner): # NOQA
             return False
 
         plugin_id = os.path.splitext(os.path.basename(fname))[0]
+        if not is_valid_plugin_name(plugin_id):
+            self.eLog("deploy_child: invalid plugin name in file name: {!r}".format(plugin_id))
+            return False
 
         if fargs is None:
             self.eLog("Error: no fargs")
@@ -945,14 +975,20 @@ class Spawner(XSpawner): # NOQA
             return False
 
         child_id = fargs["id"]
+        if not is_valid_service_id(child_id):
+            self.eLog("deploy_child: invalid id: {!r}".format(child_id))
+            return False
 
         if "port" not in fargs:
             self.eLog("deploy_child: miss 'port' in fargs {}".format(fargs))
             return False
 
+        if not is_valid_port(fargs["port"]):
+            self.eLog("deploy_child: invalid port: {!r}".format(fargs["port"]))
+            return False
         child_port = int(fargs["port"])
 
-        # 服务自身的配置不在 m_state 中，重复性需先与自己比对
+        # 服务自身的配置不在状态表中，重复性需先与自己比对
         if child_id == self._config.id:
             self.eLog("Error: duplicated id {}".format(child_id))
             return False
@@ -1004,32 +1040,35 @@ class Spawner(XSpawner): # NOQA
             return False
 
         srvapp = data["plugin"]
-
-        if srvapp == "spawner" or srvapp == "administrator":
+        if not is_valid_plugin_name(srvapp):
+            self.eLog(f"refuse to clean invalid plugin name: {srvapp!r}")
+            return False
+        if srvapp in RESERVED_PLUGIN_NAMES:
             self.wLog("refuse to clean spawner itself")
             return False
 
-        pkgdir = f"{PLUGIN_PKG}.{srvapp}".replace('.', '/')
+        try:
+            pkgdir = plugin_realpath(srvapp)
+            modfile = plugin_realpath(srvapp + ".py")
+        except ValueError as e:
+            self.eLog(f"refuse to clean plugin {srvapp!r}: {e}")
+            return False
+
         if os.path.isdir(pkgdir):
             shutil.rmtree(pkgdir)
             self.iLog(f"directory {pkgdir} is deleted")
+        elif os.path.isfile(modfile):
+            os.remove(modfile)
+            self.iLog(f"file {modfile} is deleted")
         else:
-            modfile = pkgdir + ".py"
-            if os.path.isfile(modfile):
-                os.remove(modfile)
-                self.iLog(f"file {modfile} is deleted")
-            else:
-                self.iLog(f"file {modfile} doesnt exist")
+            self.iLog(f"file {modfile} doesnt exist")
 
-        mod = "{}.{}".format(PLUGIN_PKG, data["plugin"])
-        if mod in sys.modules:
-            del sys.modules[mod]
-        mod = "{}.{}.{}".format(PLUGIN_PKG, data["plugin"], data["plugin"])
-        if mod in sys.modules:
-            del sys.modules[mod]
-        mod = "test"
-        if mod in sys.modules:
-            del sys.modules[mod]
+        # 清掉已加载的模块（含子模块），下次导入时重新读文件。
+        prefix = "{}.{}".format(PLUGIN_PKG, srvapp)
+        for name in list(sys.modules):
+            if name == prefix or name.startswith(prefix + "."):
+                del sys.modules[name]
+        sys.modules.pop("test", None)
 
         self.iLog("{}::_clean_plugin END".format(self.__class__.__name__))
         return True
@@ -1042,29 +1081,37 @@ class Spawner(XSpawner): # NOQA
             self.wLog(f"Miss plugin in data {data}")
             return False
         srvapp = data["plugin"]
-        pkgdir = f"{PLUGIN_PKG}.{srvapp}".replace('.', '/')
+        if not is_valid_plugin_name(srvapp):
+            self.eLog(f"refuse to download invalid plugin name: {srvapp!r}")
+            return False
+
+        try:
+            pkgdir = plugin_realpath(srvapp)
+            modfile = plugin_realpath(srvapp + ".py")
+            zippath = plugin_realpath(srvapp + ".zip")
+        except ValueError as e:
+            self.eLog(f"refuse to download plugin {srvapp!r}: {e}")
+            return False
+
         if os.path.isdir(pkgdir):
-            fname = pkgdir + ".zip"
             try:
-                zip_folder(pkgdir, fname, ["__pycache__", ".git", "logs"])
-                self.iLog(f"directory {pkgdir} is zipped to {fname}")
-                with open(fname, 'rb') as f:
+                zip_folder(pkgdir, zippath, ["__pycache__", ".git", "logs"])
+                self.iLog(f"directory {pkgdir} is zipped to {zippath}")
+                with open(zippath, 'rb') as f:
                     fdata = f.read()
-                self.dLog("{}::_download_plugin END {}".format(self.__class__.__name__, os.path.basename(fname)))
-                return (fdata, os.path.basename(fname))
+                self.dLog("{}::_download_plugin END {}".format(self.__class__.__name__, os.path.basename(zippath)))
+                return (fdata, os.path.basename(zippath))
             finally:
-                if os.path.exists(fname):
-                    os.unlink(fname)
+                if os.path.exists(zippath):
+                    os.unlink(zippath)
+        elif os.path.isfile(modfile):
+            self.iLog(f"file {modfile} is found")
+            with open(modfile, 'rb') as f:
+                fdata = f.read()
+            self.dLog("{}::_download_plugin END {}".format(self.__class__.__name__, os.path.basename(modfile)))
+            return (fdata, os.path.basename(modfile))
         else:
-            fname = pkgdir + ".py"
-            if os.path.isfile(fname):
-                self.iLog(f"file {fname} is found")
-                with open(fname, 'rb') as f:
-                    fdata = f.read()
-                self.dLog("{}::_download_plugin END {}".format(self.__class__.__name__, os.path.basename(fname)))
-                return (fdata, os.path.basename(fname))
-            else:
-                self.wLog(f"file {fname} doesnt exist")
+            self.wLog(f"file {modfile} doesnt exist")
         self.iLog("{}::_download_plugin END".format(self.__class__.__name__))
         return False
 
@@ -1073,22 +1120,48 @@ class Spawner(XSpawner): # NOQA
     async def _upload_plugin(self, headers: dict, fdata: bytes, fname: str, fargs: dict):
         self.iLog("{}::_upload_plugin BEG {} {} {}".format(self.__class__.__name__, len(fdata), fname, fargs))
         fname = os.path.basename(fname)          # ← 入口统一 sanitize
-        if get_file_type(fname) == "application/zip":
+        stem, ext = os.path.splitext(fname)
+        ext = ext.lower()
+        if not is_valid_plugin_name(stem):
+            self.eLog(f"refuse to upload invalid plugin name: {fname!r}")
+            return False
+
+        if ext == ".zip":
             zip_buffer = io.BytesIO(fdata)
-            with zipfile.ZipFile(zip_buffer, 'r') as zipf:
-                root = os.path.realpath(PLUGIN_DIR)
-                for entry in zipf.namelist():
-                    tgt = os.path.realpath(os.path.join(PLUGIN_DIR, entry))
-                    if not tgt.startswith(root + os.sep):
-                        self.eLog(f"zip entry escapes: {entry}")
-                        return False
-                zipf.extractall(PLUGIN_DIR)
-                self.iLog(f"exact {fname} to {PLUGIN_DIR}")
-        else:
-            modfile = f"{PLUGIN_DIR}/{fname}"
+            try:
+                with zipfile.ZipFile(zip_buffer, 'r') as zipf:
+                    for entry in zipf.namelist():
+                        if not entry:
+                            continue
+                        try:
+                            plugin_realpath(entry)
+                        except ValueError:
+                            self.eLog(f"zip entry escapes: {entry}")
+                            return False
+                        # 条目必须落在这个插件自己的目录下，避免一个 zip 覆盖
+                        # 其它插件（例如 administrator）的代码。
+                        normalized = os.path.normpath(entry)
+                        if normalized != stem and not normalized.startswith(stem + os.sep):
+                            self.eLog(
+                                "zip entry not under {}/: {}".format(stem, entry))
+                            return False
+                    zipf.extractall(PLUGIN_DIR)
+            except zipfile.BadZipFile as e:
+                self.eLog(f"invalid zip {fname!r}: {e}")
+                return False
+            self.iLog(f"exact {fname} to {PLUGIN_DIR}")
+        elif ext == ".py":
+            try:
+                modfile = plugin_realpath(stem + ".py")
+            except ValueError as e:
+                self.eLog(f"refuse to write plugin {fname!r}: {e}")
+                return False
             with open(modfile, "wb") as f:
                 f.write(fdata)
-                self.iLog(f"write to {modfile}")
+            self.iLog(f"write to {modfile}")
+        else:
+            self.eLog(f"refuse to upload unsupported plugin file: {fname!r} (expect .py or .zip)")
+            return False
         self.iLog("{}::_upload_plugin END".format(self.__class__.__name__))
         return True
 
@@ -1101,8 +1174,18 @@ class Spawner(XSpawner): # NOQA
         or "id" not in data:
             self.wLog(f"Miss plugin or port or id in data: {data}")
             return True
-        
-        test_dir = "{}/{}/tests".format(PLUGIN_DIR, data["plugin"])
+
+        if not is_valid_plugin_name(data["plugin"]) \
+                or not is_valid_service_id(data["id"]) \
+                or not is_valid_port(data["port"]):
+            self.eLog(f"invalid plugin/id/port in data: {data}")
+            return False
+
+        try:
+            test_dir = plugin_realpath(data["plugin"], "tests")
+        except ValueError as e:
+            self.eLog(f"invalid test dir: {e}")
+            return False
         self.iLog("test_dir: {}".format(test_dir))
         if os.path.isdir(test_dir):
             await tornado.gen.sleep(1)

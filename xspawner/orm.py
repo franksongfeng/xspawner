@@ -705,13 +705,12 @@ class TieredModel(KeyedModel):
 # 表名在服务启动时由 set_state_table() 设为 t_<服务标识>，
 # 因此每个服务实例在共用的 <cluster>.db 里都有自己的一张状态表。
 # value 有两种含义，按数据形状识别，不使用任何保留键：
-#   1) 服务配置行：value 是原 ConfigModel 的数据（Config 元组转来的 JSON），
-#      id 为子服务标识；由父服务（一般是 administrator 插件）创建子服务时写入
-#   2) 普通状态行：value 是任意 JSON 状态，id 就是状态键；由服务自己读写
+#   1) 服务配置行：对于 Administrator 服务，value 是子服务的配置数据，id 为子服务标识；由 Administrator 服务创建子服务时写入
+#   2) 普通状态行：对于其他服务，value 是任意 JSON 状态，id 就是状态键；由服务自己读写
 class StateModel(models.Model, metaclass=KeyedModel):
     # 表名不写死：由 set_state_table() 在启动时设为 t_<服务标识>，
     # 因此无需 Meta 类；若绕过 set_state_table() 直接使用，Tortoise 会用默认表名 statemodel。
-    value = fields.JSONField(null=True)                 # 状态值；服务配置行为原 ConfigModel 数据
+    value = fields.JSONField(null=True)                 # 状态值
 
 
 def set_state_table(service_id: str) -> str:
@@ -746,12 +745,12 @@ _CONFIG_FIELDS = tuple(Config._fields)
 
 
 def is_config_data(value) -> bool:
-    """判断 StateModel.value 是否为原 ConfigModel 数据（按字段形状识别，不依赖保留键）。"""
+    """判断 value 是否为服务配置数据（按字段形状识别，不依赖保留键）。"""
     return isinstance(value, dict) and all(name in value for name in _CONFIG_FIELDS)
 
 
 def config_to_dict(config: Config) -> dict:
-    """把 Config 元组转成可写入 StateModel.value 的 JSON 数据。"""
+    """把服务配置元组转成可写入 JSON 数据。"""
     if not isinstance(config, Config):
         raise TypeError(f"Expected Config instance, got {type(config)}")
     data = config._asdict()
@@ -764,7 +763,7 @@ def config_to_dict(config: Config) -> dict:
 
 
 def value_to_config(value) -> Config:
-    """把服务配置值（原 ConfigModel 数据）还原成 Config 元组。"""
+    """把服务配置值还原成 Config 元组。"""
     if not is_config_data(value):
         raise TypeError(f"Expected config data, got {type(value)}")
     kwargs = {}
