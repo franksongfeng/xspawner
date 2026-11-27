@@ -13,7 +13,7 @@
 #   docker build -t xspawner:latest .
 ##############################################################################
 
-# 可选的 Ubuntu 软件源镜像，例如 https://mirrors.aliyun.com/ubuntu
+# 可选的 Ubuntu 软件源镜像，例如 http://mirrors.aliyun.com/ubuntu
 ARG APT_MIRROR=
 
 # ── 构建阶段：编译并安装 Python 依赖 ───────────────────────────────────────

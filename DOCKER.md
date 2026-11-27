@@ -98,17 +98,17 @@ docker run -d --name xspawner-example-com-admin \
 
 ### 使用宿主机已有 Caddy
 
-如果宿主机已经用 systemd 运行 Caddy，并且已经配置好 `https://xspawner.com` 和真实证书，就不要启动 `xspawner-caddy` 容器，否则会抢占 80/443/2019：
+如果宿主机已经用 systemd 运行 Caddy，并且已经配置好 `https://example.com` 和真实证书，就不要启动 `xspawner-caddy` 容器，否则会抢占 80/443/2019：
 
 ```bash
 XSPAWNER_MANAGE_CADDY=false \
-    ./deploy/cluster.sh xspawner-com xspawner.com 8000
+    ./deploy/cluster.sh example-com example.com 8000
 ```
 
 前提：
 
 - 宿主机 Caddy 正在运行，Admin API 为 `127.0.0.1:2019`
-- 宿主机 Caddy 已有 `https://xspawner.com` 站点
+- 宿主机 Caddy 已有 `https://example.com` 站点
 - 宿主机上的旧 xspawner 服务已停止，8000 端口空闲
 
 此时 xspawner 容器只负责业务进程，启动时会向宿主机 Caddy 注入 `/services/<id>/*` 路由。重启或 reload 宿主机 Caddy 后，动态路由会丢失，需要重启容器恢复：
@@ -349,10 +349,10 @@ sudo systemctl restart docker
 XSPAWNER_SSL=false ./deploy/cluster.sh example-com example.com 8000
 ```
 
-此时不启动共享 Caddy，访问：
+此时不启动共享 Caddy，服务直接监听该端口，UI 在根路径（没有 `/services/<id>/` 前缀）：
 
 ```
-http://example.com:8000/services/admin/
+http://example.com:8000/
 ```
 
 适合内网、端口映射或前面已有负载均衡/反向代理的场景。切换为 `false` 时，需要手动删除旧的 `deploy/caddy-sites/<cluster>.caddy` 并执行 `./deploy/sync-caddy.sh`。

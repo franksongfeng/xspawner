@@ -176,5 +176,6 @@ fi
 if [ "${SSL}" = "true" ]; then
     echo "  UI        : https://${HOST}/services/admin/"
 else
-    echo "  UI        : http://${HOST}:${ROOT_PORT}/services/admin/"
+    # 不使用 Caddy 时服务直接监听端口，UI 在根路径 "/"，没有 /services/<id>/ 前缀。
+    echo "  UI        : http://${HOST}:${ROOT_PORT}/"
 fi

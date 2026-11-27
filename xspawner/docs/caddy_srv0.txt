@@ -58,7 +58,7 @@
         "match": [
           {
             "host": [
-              "xspawner.com"
+              "example.com"
             ]
           }
         ],

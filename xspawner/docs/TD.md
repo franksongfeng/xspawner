@@ -82,7 +82,7 @@ flowchart TD
 直接命令行启动形式
 
 ```bash
-sudo /usr/bin/python3 -u -m xspawner --id xspawner --plugin administrator --host xspawner.com --port 8000 --access 0.0.0.0 --log --severity debug --ssl --certfile /etc/ssl/certs/xspawner.com.crt --keyfile /etc/ssl/private/xspawner.com.key
+sudo /usr/bin/python3 -u -m xspawner --id admin --plugin administrator --host example.com --port 8000 --access 0.0.0.0 --log --severity debug --ssl --certfile /etc/ssl/certs/example.com.crt --keyfile /etc/ssl/private/example.com.key
 ```
 
 #### 服务管理
@@ -265,10 +265,10 @@ RUN pip3 install --no-cache-dir --upgrade pip \
     && python3 -c "import tornado, pywebio, requests, tortoise; print('Python packages OK')"
 
 # ── 运行时默认值 ───────────────────────────────────────────────────────
-ENV HOST=xspawner.com \
+ENV HOST=example.com \
     PORT=8000 \
-    CERTFILE=/etc/ssl/certs/xspawner.com.crt \
-    KEYFILE=/etc/ssl/private/xspawner.com.key \
+    CERTFILE=/etc/ssl/certs/example.com.crt \
+    KEYFILE=/etc/ssl/private/example.com.key \
     SEVERITY=info
 
 # ── 目录与代码 ─────────────────────────────────────────────────────────
@@ -312,11 +312,11 @@ enerpoint.sh
 # -*- coding: utf-8 -*-
 set -euo pipefail
 
-HOST="${HOST:-xspawner.com}"
+HOST="${HOST:-example.com}"
 PORT="${PORT:-8000}"
 ACCESS="${ACCESS:-0.0.0.0}"
-CERTFILE="${CERTFILE:-/etc/ssl/certs/xspawner.com.crt}"
-KEYFILE="${KEYFILE:-/etc/ssl/private/xspawner.com.key}"
+CERTFILE="${CERTFILE:-/etc/ssl/certs/example.com.crt}"
+KEYFILE="${KEYFILE:-/etc/ssl/private/example.com.key}"
 SEVERITY="${SEVERITY:-info}"
 
 # ── 1) 按需生成自签名证书 ──────────────────────────────────────────────
@@ -425,7 +425,7 @@ http://xspawner.invalid {
 一个例子站点块的caddy配置文件：/etc/caddy/Caddy/sites/xspawner.caddy
 
 ```apl
-https://xspawner.com {
+https://example.com {
 
     # 根路径精确跳转到 /service/main
     redir / /services/main 302
