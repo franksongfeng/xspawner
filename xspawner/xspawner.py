@@ -76,6 +76,20 @@ class HomePageHandler(tornado.web.RequestHandler):
 
 
 class ResourceHandler(tornado.web.StaticFileHandler):
+    """插件静态文件处理器，挂载在 ``/static/(.*)``。
+
+    映射关系::
+
+        /static/<path>  ->  xspawner/plugins/<plugin>/static/<path>
+
+    根目录在 ``XSpawner.__init__`` 中解析为绝对路径（``os.path.abspath``），
+    因此不受服务工作目录变化影响；路径穿越、目录访问由
+    ``StaticFileHandler`` 自身拦截（越界 403，目录 403，缺失 404）。
+
+    注意：``/static/*`` 是公开可读的，和 administrator 的 UI 口令无关，
+    不要在该目录放密钥等敏感文件。
+    """
+
     def set_default_headers(self):
         self.set_header('Cache-Control', 'max-age=0, no-cache, no-store, must-revalidate')
         self.set_header('Pragma', 'no-cache')
@@ -316,10 +330,13 @@ class XSpawner(Spawnable):
             handlers.append((path, ApiHandler))
         for path in UiHandler.path_map:
             handlers.append((path, UiHandler(path, self)))
+        # 插件 static 子目录：/static/(.*) -> xspawner/plugins/<plugin>/static/(.*)
+        # 解析成绝对路径，避免服务工作目录变化导致静态文件 404。
+        static_dir = os.path.abspath(RES_DIR_TEMP.format(config.plugin))
         # fixed handlers are at the bottom
         handlers.extend([
             (r"/", HomePageHandler),
-            (r"/static/(.*)", ResourceHandler, {"path": RES_DIR_TEMP.format(config.plugin)}),
+            (r"/static/(.*)", ResourceHandler, {"path": static_dir}),
             (r"/ping", PingPongHandler)
         ])
         # start http server
