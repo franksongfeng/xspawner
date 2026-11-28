@@ -17,7 +17,6 @@ import sys
 import shutil
 import traceback
 import tempfile
-import asyncio  # 保留 /debug 命名空间中的 asyncio
 
 from pywebio import *
 from pywebio.input import *
