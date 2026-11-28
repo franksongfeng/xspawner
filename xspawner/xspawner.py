@@ -1306,7 +1306,7 @@ class Spawner(XSpawner): # NOQA
                     if probe.cancel():
                         try:
                             await probe
-                        except asyncio.CancelledError:
+                        except asyncio.CancelledError:  # Tornado 6 没有单独的公开取消异常
                             pass
             except Exception:
                 info = None
