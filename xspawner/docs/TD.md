@@ -526,7 +526,6 @@ docker exec xspawner systemctl is-active <child_id>
 
 
 ### 未来
-- Update：借助tableflip库实现服务热升级
 - AAA：完善服务的鉴权和权限
 
 
