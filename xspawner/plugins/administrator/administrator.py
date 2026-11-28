@@ -17,7 +17,7 @@ import sys
 import shutil
 import traceback
 import tempfile
-import asyncio
+import asyncio  # 保留 /debug 命名空间中的 asyncio
 
 from pywebio import *
 from pywebio.input import *
@@ -25,7 +25,7 @@ from pywebio.output import *
 from pywebio.pin import *
 from pywebio.session import *
 from pywebio.utils import *
-import tornado.gen  # 供 /debug 的调试命名空间使用（ns = dict(globals())）
+import tornado.gen
 from tortoise import Tortoise
 import tornado.ioloop
 
@@ -209,7 +209,7 @@ class Administrator(Spawner): # NOQA
             }
 
         if children:
-            rows.extend(await asyncio.gather(*[
+            rows.extend(await tornado.gen.multi([
                 _child_row(cid, values.get(cid)) for cid in children
             ]))
 
