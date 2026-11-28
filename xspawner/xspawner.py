@@ -437,7 +437,8 @@ class ProxyHandler(tornado.web.RequestHandler):
         try:
             resp = await tornado.httpclient.AsyncHTTPClient().fetch(
                 upstream, method=method, headers=headers,
-                body=self.request.body or None,
+                body=(self.request.body if method in ("POST", "PUT", "PATCH")
+                      else self.request.body or None),
                 follow_redirects=False, raise_error=False,
                 validate_cert=False, request_timeout=60)
         except Exception as e:
@@ -447,9 +448,11 @@ class ProxyHandler(tornado.web.RequestHandler):
             return
         self.set_status(resp.code)
         for k, v in resp.headers.items():
-            if k.lower() in ("content-length", "transfer-encoding", "connection"):
+            if k.lower() in ("content-length", "transfer-encoding", "connection", "set-cookie"):
                 continue
             self.set_header(k, v)
+        for cookie in resp.headers.get_list("Set-Cookie"):
+            self.add_header("Set-Cookie", cookie)
         if resp.body:
             self.write(resp.body)
         self.finish()
