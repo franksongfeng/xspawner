@@ -36,7 +36,7 @@ SERVICE_TMPL = """
 Description={}
 After={}
 Requires={}
-PartOf={}
+{}
 
 [Service]
 Type=simple
@@ -300,6 +300,11 @@ def upgrade_service(config: Config) -> bool:
                 logger.error(f"Failed to start {service_name}.socket!")
                 return False
 
+        # 清除上次启动失败留下的 start-limit，否则 restart 会被 systemd 立即拒绝
+        subprocess.run(
+            ["systemctl", "reset-failed",
+             f"{service_name}.service", f"{service_name}.socket"],
+            capture_output=True, text=True)
         if not _run_systemctl(
                 ["restart", "--no-block", unit_name(config.id)]):
             logger.error(f"Failed to restart {service_name} service!")
@@ -420,10 +425,16 @@ def generate_service_file(config: Config) -> str:
 
     socket_unit = f"{unit_name(config.id)}.socket"
     after = f"{prior_service} {socket_unit}"
-    requires = f"{prior_service} {socket_unit}"
+    # network.target 只用于启动排序（After），不再放进 Requires：
+    # 它只是合成 target，不应成为服务激活的强依赖。
+    requires = socket_unit
+    part_of = ""
+    if config.parent:
+        requires = f"{prior_service} {socket_unit}"
+        part_of = f"PartOf={prior_service}\n"
 
     service_content = SERVICE_TMPL.format(
-        description, after, requires, prior_service,
+        description, after, requires, part_of,
         work_dir, environment, pip_pre, cmd
     )
 
@@ -432,12 +443,12 @@ def generate_service_file(config: Config) -> str:
 
 def generate_socket_file(config: Config) -> str:
     """生成 systemd socket 文件：由 systemd 持有监听端口，供服务继承。"""
-    partof = ""
+    part_of = ""
     if config.parent:
-        partof = f"PartOf={unit_name(config.parent)}.service"
+        part_of = "PartOf={}.service\n".format(unit_name(config.parent))
     listen = "{}:{}".format(config.access or "0.0.0.0", config.port)
     return SOCKET_TMPL.format(
-        unit_name(config.id), partof, listen, unit_name(config.id))
+        unit_name(config.id), part_of, listen, unit_name(config.id))
 
 def _unit_belongs_to(service_path: str, config: Config) -> bool:
     """防御：unit 已存在时，校验 host/port/WorkingDirectory 是否与本 Config 一致。"""
@@ -498,6 +509,11 @@ def open_service(config: Config) -> bool:
         if not enable_service(config.id):
             logger.error(f"Failed to enable {service_name} service!")
             return False
+        # 清掉旧失败留下的 start-limit，否则重新启动会被 systemd 立即拒绝
+        subprocess.run(
+            ["systemctl", "reset-failed",
+             f"{service_name}.service", f"{service_name}.socket"],
+            capture_output=True, text=True)
         if not start_socket(config.id):
             logger.error(f"Failed to start {service_name}.socket!")
             return False

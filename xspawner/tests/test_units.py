@@ -25,12 +25,16 @@ class UnitGenerationTests(unittest.TestCase):
         text = generate_service_file(_config())
         self.assertIn("Requires=admin.service demo.socket", text)
         self.assertIn("After=admin.service demo.socket", text)
+        self.assertIn("PartOf=admin.service", text)
         self.assertIn("TimeoutStopSec=30", text)
 
     def test_root_service_after_network(self):
         text = generate_service_file(_config(parent=""))
-        self.assertIn("Requires=network.target demo.socket", text)
+        # network.target 只保留在 After 中，不再作为 Requires
+        self.assertIn("Requires=demo.socket", text)
         self.assertIn("After=network.target demo.socket", text)
+        self.assertNotIn("Requires=network.target", text)
+        self.assertNotIn("PartOf=", text)
 
     def test_socket_listen_address(self):
         text = generate_socket_file(_config())
