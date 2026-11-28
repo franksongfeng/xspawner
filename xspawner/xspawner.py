@@ -1137,8 +1137,9 @@ class Spawner(XSpawner): # NOQA
             self.eLog("Failed to start child, invalid config: {}".format(child_config))
             return False
 
-        # open child service
-        if not open_service(child_config):
+        # 写入 unit 和等待 systemctl 都是同步操作。
+        loop = self._ioloop.asyncio_loop
+        if not await loop.run_in_executor(None, open_service, child_config):
             self.eLog(f"failed to start child {child_config}!")
             return False
 

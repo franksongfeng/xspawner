@@ -15,6 +15,7 @@ import io
 import os
 import shutil
 import tempfile
+import threading
 import unittest
 import zipfile
 from unittest import mock
@@ -185,6 +186,22 @@ class StartChildTests(unittest.IsolatedAsyncioTestCase):
         open_mock.assert_called_once()
         self.assertEqual(open_mock.call_args[0][0].id, "child1")
         self.srv.addValue.assert_awaited_once()
+
+    async def test_event_loop_runs_while_opening_service(self):
+        data = _make_config(id="child1", port=8101, parent="admin")._asdict()
+        self.srv.getValue = mock.AsyncMock(return_value=data)
+        self.srv._wait_http_ready = mock.AsyncMock(return_value={"pid": 321})
+        self.srv.postJson = mock.AsyncMock(return_value=[])
+        loop = self.srv._ioloop.asyncio_loop
+        callback_ran = threading.Event()
+
+        def slow_open(config):
+            loop.call_soon_threadsafe(callback_ran.set)
+            return callback_ran.wait(timeout=3)
+
+        with mock.patch.object(xs, "open_service", side_effect=slow_open):
+            result = await self.srv._start_child(None, {"id": "child1"})
+        self.assertEqual(result, {"id": "child1", "pid": 321})
 
     async def test_failed_registration_requires_matching_readback(self):
         data = _make_config(id="child1", port=8101, parent="admin")._asdict()
