@@ -17,6 +17,7 @@ from contextlib import asynccontextmanager
 
 import aiomysql
 import asyncpg
+from tornado.ioloop import IOLoop
 from tortoise.transactions import in_transaction
 from tortoise import Tortoise, fields, models
 from urllib.parse import quote_plus, unquote_plus
@@ -443,7 +444,7 @@ def _drop_sqlite_database(file):
 
 async def drop_database(conn: str):
 
-    backup_database(conn)   # 失败抛异常 → 不删
+    await IOLoop.current().run_in_executor(None, backup_database, conn)
 
     setting = parse_connection_str(conn)
     if "category" not in setting:
