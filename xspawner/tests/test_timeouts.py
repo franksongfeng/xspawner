@@ -105,6 +105,23 @@ class PostAsyncTimeoutTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, 1)
         self.assertEqual(client.fetch.call_args.kwargs.get("request_timeout"), 5)
 
+    async def test_wait_http_ready_cancels_stalled_probe_before_retry(self):
+        srv = object.__new__(xs.Spawner)
+        stalled = xs.tornado.concurrent.Future()
+        attempts = []
+
+        async def post_json(*args, **kwargs):
+            attempts.append(1)
+            if len(attempts) == 1:
+                return await stalled
+            self.assertTrue(stalled.cancelled())
+            return {"pid": 2}
+
+        srv.postJson = post_json
+        info = await srv._wait_http_ready("http://127.0.0.1:8000", timeout=10)
+        self.assertEqual(info, {"pid": 2})
+        self.assertEqual(len(attempts), 2)
+
     async def test_wait_http_ready_skips_old_pid(self):
         srv = object.__new__(xs.Spawner)
         srv._logger = _NullLogger()

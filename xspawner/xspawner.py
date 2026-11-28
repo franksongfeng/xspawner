@@ -1272,9 +1272,17 @@ class Spawner(XSpawner): # NOQA
                 # 某些 HTTP 客户端（pycurl）在连接已排队、对端不响应时
                 # request_timeout 不一定及时生效；这里再加一层硬超时，
                 # 保证轮询间隔，避免热升级期间一直卡在旧连接上。
-                info = await asyncio.wait_for(
-                    self.postJson(f"{addr}/get_info", {}, timeout=3),
-                    timeout=3)
+                probe = tornado.gen.convert_yielded(
+                    self.postJson(f"{addr}/get_info", {}, timeout=3))
+                try:
+                    info = await tornado.gen.with_timeout(loop.time() + 3, probe)
+                finally:
+                    # with_timeout 不会取消原任务，下一轮探测前先等待它退出。
+                    if probe.cancel():
+                        try:
+                            await probe
+                        except asyncio.CancelledError:
+                            pass
             except Exception:
                 info = None
             if isinstance(info, dict):
