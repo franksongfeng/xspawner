@@ -276,6 +276,7 @@ def _take_activated_sockets():
 # Classes
 ##############################################################################
 
+# PingPongHandler 判断服务事件循环能否调度，但不保证“事件循环正常、业务队列未卡住”。
 class PingPongHandler(tornado.web.RequestHandler):
     SUPPORTED_METHODS = ("GET",)
     # ping/pong test
