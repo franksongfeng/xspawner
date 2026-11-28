@@ -16,6 +16,7 @@ import inspect
 import ast
 import traceback
 import datetime
+from contextlib import ExitStack
 import functools
 import zipfile
 import uuid
@@ -679,7 +680,21 @@ class XSpawner(Spawnable):
         self._fatal = False
         self._stopping = False
         self._graceful_stopping = False
-        self._install_signal_handlers()
+        try:
+            with ExitStack() as cleanup:
+                self._install_signal_handlers(cleanup)
+                self._run_server()
+        finally:
+            try:
+                self._ioloop.close()
+            except Exception:
+                self.eLog(traceback.format_exc())
+        if self._fatal:
+            self.cLog("start END fatal, sys.exit(1)")
+            sys.exit(1)
+        self.iLog("start END")
+
+    def _run_server(self):
         self._ioloop.add_callback(self.loop)
         self._ioloop.add_callback(self.add_kvs)
         self._ioloop.add_callback(self.add_route)
@@ -707,26 +722,36 @@ class XSpawner(Spawnable):
         except Exception:
             self.eLog(traceback.format_exc())
             self._fatal = True
-        finally:
-            try:
-                self._ioloop.close()
-            except Exception:
-                self.eLog(traceback.format_exc())
-        if self._fatal:
-            self.cLog("start END fatal, sys.exit(1)")
-            sys.exit(1)
-        self.iLog("start END")
 
-    def _install_signal_handlers(self):
-        # Tornado 6 的 IOLoop 包装了 asyncio loop，信号处理要注册到 asyncio loop 上。
-        loop = getattr(self._ioloop, "asyncio_loop", None)
-        if loop is None:
-            loop = asyncio.get_event_loop()
-        try:
-            loop.add_signal_handler(signal.SIGTERM, self._graceful_stop)
+    def _install_signal_handlers(self, cleanup):
+        # 信号处理函数只写通知；停机逻辑在 IOLoop 的可读事件中执行。
+        with ExitStack() as handlers:
+            try:
+                reader, writer = socket.socketpair()
+                handlers.callback(reader.close)
+                handlers.callback(writer.close)
+                reader.setblocking(False)
+                writer.setblocking(False)
+
+                def notify(signum, frame):
+                    try:
+                        writer.send(b"x")
+                    except BlockingIOError:
+                        pass  # 已有通知等待读取
+
+                def on_signal(fd, events):
+                    reader.recv(4096)
+                    self._graceful_stop()
+
+                self._ioloop.add_handler(reader, on_signal, self._ioloop.READ)
+                handlers.callback(self._ioloop.remove_handler, reader)
+                previous = signal.signal(signal.SIGTERM, notify)
+                handlers.callback(signal.signal, signal.SIGTERM, previous)
+            except (OSError, ValueError, RuntimeError) as e:
+                self.wLog(f"cannot install SIGTERM handler: {e}")
+                return
+            cleanup.callback(handlers.pop_all().close)
             self.iLog("SIGTERM handler installed")
-        except (NotImplementedError, RuntimeError, AttributeError) as e:
-            self.wLog(f"cannot install SIGTERM handler: {e}")
 
     def _graceful_stop(self):
         """systemd stop/restart 时先停止 accept，再给在途请求留出排空时间。"""
