@@ -651,7 +651,14 @@ class XSpawner(Spawnable):
                 self.dLog("make_cbf_params {} {} {}".format(fun, ct, body))
                 params = make_cbf_params(fun, ct, body)
                 if isinstance(params, tuple):
-                    res = await call_cbf(fun, self, headers, *params) if params else await call_cbf(fun, self)
+                    args = (self, headers, *params) if params else (self,)
+                    # 插件任务取消作为本次请求的结果；消费者自身取消仍向外传播。
+                    res, = await asyncio.gather(call_cbf(fun, *args), return_exceptions=True)
+                    if isinstance(res, asyncio.CancelledError):
+                        self.wLog(f"request handler cancelled: {path}")
+                        res = False
+                    elif isinstance(res, Exception):
+                        raise res
                     if any([isinstance(res, t) for t in (str, bool, dict , int, float, list, tuple)]):
                         if not future.done():
                             future.set_result(res)
