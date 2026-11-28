@@ -8,13 +8,15 @@
 import io
 import contextlib
 import ast
+import importlib
 import inspect
 import json
 import html
 import os
+import sys
+import shutil
 import traceback
 import tempfile
-import zipfile
 import asyncio
 
 from pywebio import *
@@ -32,8 +34,9 @@ from xspawner.service import (
 from xspawner.xspawner import Spawner, UiHandler #NOQA
 from xspawner.orm import is_config_data #NOQA
 from xspawner.log import LEVELS #NOQA
-from xspawner.misc import trim_code, filter_logs, delete_file, path_to_pkg, get_similar_cls, get_file_type, is_port_used # NOQA
+from xspawner.misc import trim_code, filter_logs, delete_file, get_similar_cls, is_port_used # NOQA
 from xspawner.constants import * # NOQA
+from xspawner.validation import is_valid_plugin_name, RESERVED_PLUGIN_NAMES
 from .encryption import _require_password
 
 ##############################################################################
@@ -258,6 +261,7 @@ class Administrator(Spawner): # NOQA
         addr = self.getAddr()
         funcs = [
             {"name": "创建服务", "url": "{}/create".format(addr)},
+            {"name": "更新服务", "url": "{}/upgrade".format(addr)},
             {"name": "销毁服务", "url": "{}/delete".format(addr)},
             {"name": "查看日志", "url": "{}/log".format(addr)},
             {"name": "调试接口", "url": "{}/debug".format(addr)},
@@ -271,14 +275,6 @@ class Administrator(Spawner): # NOQA
     @UiHandler.route("/create")
     @config(theme="yeti")
     async def _create(self):
-        def check_mod_file(filename):
-            if get_file_type(filename) != "text/x-python":
-                return False
-            mod , _ = filename.rsplit(".", 1)
-            if "__" in mod:
-                return False
-            return True
-
         self.iLog("{}::_create BEG".format(self.__class__.__name__))
         set_env(title="服务创建", output_animation=False)
         put_html(f'<style>{CSS}</style>')
@@ -356,6 +352,11 @@ class Administrator(Spawner): # NOQA
         additional_raw = data.get("additional") or ""
         libs_raw = (data.get("libs") or "").strip()
 
+        # 单文件模块和 zip 都由 _upload_plugin 统一安装为同名包目录，
+        # 不再需要在创建页区分/阻止两种形态。
+        stem, fext = os.path.splitext(fname)
+        fext = fext.lower()
+
         # 提前校验，与 service.split_libs 同口径
         if libs_raw:
             for pkg in split_libs(libs_raw):
@@ -374,33 +375,28 @@ class Administrator(Spawner): # NOQA
                 return
 
 
-        srvcls = None
-        pkgfname = None
-        if get_file_type(fname) == "application/zip":
-            # 搜索文件包（mkstemp 返回 (fd, path)，先关闭 fd 再写入）
-            fd, pkgfname = tempfile.mkstemp(suffix=".zip")
-            os.close(fd)
-            try:
-                with open(pkgfname, "wb") as f:
-                    f.write(fdata)
-                srvcls = search_for_class_in_package(pkgfname, "Spawner")
-            finally:
-                delete_file(pkgfname)
-        elif get_file_type(fname) == "text/x-python":
-            pkgfname = f"{PLUGIN_DIR}/{fname}"
-            if not check_mod_file(pkgfname):
-                put_error('Invalid filename {}!'.format(pkgfname))
-                return
-            with open(pkgfname, "wb") as f:
-                f.write(fdata)
-
-            srvcls = search_for_class_in_file(pkgfname, "Spawner")
-        else:
+        if fext not in (".py", ".zip"):
             put_error('Invalid file type {}!'.format(fname))
             return
 
+        # 统一安装为同名包目录：.py -> <stem>/__init__.py，.zip -> <stem>/...
+        # 安装时整体覆盖目的目录，彻底消除 .py 与同名目录互相遮蔽。
+        target_fname = "{}{}".format(stem, fext)
+        try:
+            uploaded = await self._install_plugin(
+                fdata, target_fname, {}, validate=True)
+        except Exception as e:
+            self.eLog("upload plugin {} failed: {}: {}".format(
+                target_fname, type(e).__name__, e))
+            put_error("Failed to upload plugin {}".format(target_fname))
+            return
+        if not uploaded:
+            put_error("Failed to upload plugin {}".format(target_fname))
+            return
+
+        pkgfname = os.path.join(PLUGIN_DIR, stem)
+        srvcls = _get_plugin_class(stem)
         if not srvcls:
-            # 没有搜到
             put_error('No required server class in package {}!'.format(pkgfname))
             self.eLog('No required server class in package {}!'.format(pkgfname))
             return
@@ -458,6 +454,124 @@ class Administrator(Spawner): # NOQA
         else:
             put_error("Failed to start server {}.".format(srvname))
 
+
+    @UiHandler.route("/upgrade")
+    @config(theme="yeti")
+    async def _upgrade(self):
+        """选择已登记的子服务并上传新插件源码，触发热更新。"""
+        self.iLog("{}::_upgrade BEG".format(self.__class__.__name__))
+        set_env(title="服务更新", output_animation=False)
+        put_html(f'<style>{CSS}</style>')
+
+        values = await self.getValues()
+        children = sorted(
+            k for k, v in values.items()
+            if is_config_data(v) and v.get("parent") == self._config.id)
+        if not children:
+            put_info("当前没有已登记的子服务可更新。")
+            put_link("返回首页", url="{}/".format(self.getAddr()))
+            return
+
+        data = await input_group(
+            "更新服务",
+            [
+                select(
+                    label="名称",
+                    name="id",
+                    options=children,
+                    required=True,
+                    help_text="只能选择已经登记过的子服务",
+                ),
+                file_upload(
+                    label="插件源码",
+                    name="source",
+                    accept=[".py", ".zip"],
+                    multiple=False,
+                    max_size="10M",
+                    placeholder="选择新的 Python 源文件或包 (*.py/*.zip)",
+                    help_text="上传后会覆盖该服务的插件并触发热更新",
+                    required=True,
+                ),
+            ]
+        )
+
+        if not data:
+            return
+
+        srv_id = (data.get("id") or "").strip()
+        # PyWebIO 的 select 可能把字符串值按 JSON 编码成带引号的形式
+        if len(srv_id) >= 2 and srv_id[0] == srv_id[-1] == '"':
+            srv_id = srv_id[1:-1]
+        if srv_id not in children:
+            put_error("请选择已登记的服务")
+            return
+
+        source = data.get("source")
+        if not source:
+            put_error("请上传插件源码")
+            return
+        fname = os.path.basename(source.get("filename") or "")
+        ext = os.path.splitext(fname)[1].lower()
+        if ext not in (".py", ".zip"):
+            put_error("插件源码只支持 .py 或 .zip")
+            return
+
+        value = await self.getValue(srv_id)
+        if not is_config_data(value):
+            put_error("服务 {} 的登记信息不存在".format(srv_id))
+            return
+        plugin = value.get("plugin") or ""
+        if not is_valid_plugin_name(plugin):
+            put_error("服务 {} 的插件名无效".format(srv_id))
+            return
+        if plugin in RESERVED_PLUGIN_NAMES:
+            put_error("不能更新系统保留插件 {}".format(plugin))
+            return
+
+        # 更新必须保持同一个类名，避免同名插件下服务类型被悄悄替换。
+        old_class = None
+        child_addr = self.getLocalAddr(value.get("port"))
+        try:
+            info = await self.postJson(
+                "{}/get_info".format(child_addr), {},
+                timeout=UI_QUERY_TIMEOUT)
+            if isinstance(info, dict):
+                old_class = info.get("class")
+        except Exception as e:
+            self.wLog("get_info from {} failed: {}".format(child_addr, e))
+        if not old_class:
+            old_cls = _get_plugin_class(plugin)
+            if old_cls is not None:
+                old_class = old_cls.__name__
+        if not old_class:
+            put_error("无法确定服务 {} 当前类名，拒绝更新".format(srv_id))
+            return
+
+        # _upload_plugin 会把 .py 安装为 <plugin>/__init__.py、把 zip
+        # 安装为 <plugin>/ 目录，并整体覆盖旧版本；这里不再限制扩展名。
+        target_fname = "{}{}".format(plugin, ext)
+        put_info("正在上传插件源码并更新 {} ...".format(srv_id))
+        try:
+            if not await self._install_plugin(
+                    source["content"], target_fname, {},
+                    validate=True, expected_class=old_class):
+                put_error(
+                    "插件上传失败：新插件必须导出与当前服务相同的类名 {}".format(
+                        old_class))
+                return
+            res = await self._upgrade_child(None, {"id": srv_id})
+        except Exception as e:
+            self.eLog(traceback.format_exc())
+            put_error("更新失败: {}: {}".format(type(e).__name__, e))
+            return
+
+        if not res:
+            put_error("服务 {} 更新失败，请查看日志".format(srv_id))
+            return
+
+        pid = res.get("pid") if isinstance(res, dict) else "-"
+        put_success("服务 {} 更新成功，新进程 PID: {}。".format(srv_id, pid))
+        self.iLog("{}::_upgrade END".format(self.__class__.__name__))
 
     @UiHandler.route("/delete")
     @config(theme="yeti")
@@ -790,42 +904,26 @@ class Administrator(Spawner): # NOQA
 # Functions
 ##############################################################################
 
-def search_for_class_in_file(fpath, class_name):
-    print("search_for_class_in_file BEG {}".format(fpath))
-    if get_file_type(fpath) == "text/x-python":
-        mod_name = path_to_pkg(fpath)
-        srv_cls = get_similar_cls(mod_name, class_name, 1)
-        if srv_cls:
-            print("search_for_class_in_file END {}".format(srv_cls))
-            return srv_cls
-    print("search_for_class_in_file END {}".format(None))
+def _get_plugin_class(stem, class_name="Spawner"):
+    """重新导入刚安装的 <stem>/ 包，返回其中的 Spawner 类。"""
+    importlib.invalidate_caches()
+    mod_name = "{}.{}".format(PLUGIN_PKG, stem)
+    for name in list(sys.modules):
+        if name == mod_name or name.startswith(mod_name + "."):
+            sys.modules.pop(name, None)
+    return get_similar_cls(mod_name, class_name, 1)
 
-def search_for_class_in_package(fpath, class_name):
-    print("search_for_class_in_package BEG {}".format(fpath))
-    if get_file_type(fpath) == "application/zip":
-        with zipfile.ZipFile(fpath, 'r') as zip_ref:
-            zip_ref.testzip()
 
-            # ── 校验所有条目都在 PLUGIN_DIR 内 ─────────────
-            root = os.path.realpath(PLUGIN_DIR)
-            for entry in zip_ref.namelist():
-                tgt = os.path.realpath(os.path.join(PLUGIN_DIR, entry))
-                if not tgt.startswith(root + os.sep):
-                    print("zip entry escapes: {}".format(entry))
-                    print("search_for_class_in_package END {}".format(None))
-                    return None
-
-            # ── 找到顶层包的 __init__.py 后整体解压 ────────
-            for entry in zip_ref.namelist():
-                print("entry {}".format(entry))
-                if len(entry.split("/")) == 2 and os.path.basename(entry) == "__init__.py":
-                    print("zip contains {}".format(entry))
-                    zip_ref.extractall(PLUGIN_DIR)
-                    print("{} is unzipped .".format(fpath))
-                    pkg_name, _ = entry.split("/")
-                    srv_cls = get_similar_cls(f"{PLUGIN_PKG}.{pkg_name}", class_name, 1)
-                    if srv_cls:
-                        print("search_for_class_in_package END {}".format(srv_cls))
-                        return srv_cls
-    print("search_for_class_in_package END {}".format(None))
+def quarantine_plugin_package(plugin):
+    """把与单文件模块冲突的同名包目录移到备份区，保留现场便于排查。"""
+    src = os.path.join(PLUGIN_DIR, plugin)
+    if not os.path.isdir(src):
+        return None
+    base = os.path.join(
+        os.environ.get("XSPAWNER_DATA_DIR", "/data"), "plugin-conflicts")
+    os.makedirs(base, exist_ok=True)
+    root = tempfile.mkdtemp(prefix="{}-package-".format(plugin), dir=base)
+    dst = os.path.join(root, plugin)
+    shutil.move(src, dst)
+    return dst
 

@@ -265,7 +265,7 @@ class StartChildTests(unittest.IsolatedAsyncioTestCase):
 class DeployChildValidationTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.srv = _bare_server()
-        self.srv._upload_plugin = mock.AsyncMock(return_value=True)
+        self.srv._install_plugin = mock.AsyncMock(return_value=True)
         self.srv.getValues = mock.AsyncMock(return_value={})
         self.srv.addValue = mock.AsyncMock(return_value=True)
         self.srv.delValue = mock.AsyncMock(return_value=True)
@@ -274,19 +274,19 @@ class DeployChildValidationTests(unittest.IsolatedAsyncioTestCase):
         rt = await self.srv._deploy_child(
             None, b"x=1", "ok.py", {"id": "../evil", "port": "9000"})
         self.assertFalse(rt)
-        self.srv._upload_plugin.assert_not_called()
+        self.srv._install_plugin.assert_not_called()
 
     async def test_rejects_invalid_port(self):
         rt = await self.srv._deploy_child(
             None, b"x=1", "ok.py", {"id": "child", "port": "70000"})
         self.assertFalse(rt)
-        self.srv._upload_plugin.assert_not_called()
+        self.srv._install_plugin.assert_not_called()
 
     async def test_rejects_invalid_plugin_file_name(self):
         rt = await self.srv._deploy_child(
             None, b"x=1", "bad-name.py", {"id": "child", "port": "9000"})
         self.assertFalse(rt)
-        self.srv._upload_plugin.assert_not_called()
+        self.srv._install_plugin.assert_not_called()
 
     async def test_cleanup_when_start_raises(self):
         self.srv._start_child = mock.AsyncMock(side_effect=Exception("boom"))
@@ -375,10 +375,13 @@ class PluginOpsTests(unittest.IsolatedAsyncioTestCase):
             rt = await self.srv._upload_plugin(None, b"x=1", fname, {})
             self.assertFalse(rt, fname)
 
-    async def test_upload_module_writes_file(self):
+    async def test_upload_module_becomes_package(self):
         rt = await self.srv._upload_plugin(None, b"print(1)\n", "OK.PY", {})
         self.assertTrue(rt)
-        self.assertTrue(os.path.isfile(os.path.join(self.plugins, "OK.py")))
+        self.assertTrue(os.path.isfile(
+            os.path.join(self.plugins, "OK", "__init__.py")))
+        self.assertFalse(os.path.exists(
+            os.path.join(self.plugins, "OK.py")))
 
     async def test_upload_rejects_zip_traversal(self):
         buf = io.BytesIO()
@@ -400,10 +403,12 @@ class PluginOpsTests(unittest.IsolatedAsyncioTestCase):
     async def test_upload_accepts_matching_package_zip(self):
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as zipf:
+            zipf.writestr("pkg2/__init__.py", "# pkg2\n")
             zipf.writestr("pkg2/pkg2.py", "# pkg2\n")
         rt = await self.srv._upload_plugin(None, buf.getvalue(), "pkg2.zip", {})
         self.assertTrue(rt)
         self.assertTrue(os.path.isfile(os.path.join(self.plugins, "pkg2", "pkg2.py")))
+        self.assertTrue(os.path.isfile(os.path.join(self.plugins, "pkg2", "__init__.py")))
 
 
 if __name__ == "__main__":
