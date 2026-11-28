@@ -18,12 +18,12 @@
 
 import os
 import time
-import asyncio
 import secrets
 import hashlib
 from typing import Optional, Dict, Tuple
 
 from tornado.ioloop import IOLoop
+from tornado.locks import Lock
 
 from pywebio.input import input, PASSWORD
 from pywebio.output import put_error
@@ -45,7 +45,7 @@ PSW_ITERS_DEFAULT = 200_000          # 默认迭代次数，200000 约 50~100ms/
 PSW_SALT_BYTES = 16                  # 盐长度
 
 _psw_failures: Dict[str, dict] = {}
-_psw_state_lock = asyncio.Lock()
+_psw_state_lock = Lock()
 
 
 def _is_hex(s: str) -> bool:
