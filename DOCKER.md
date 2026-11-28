@@ -13,7 +13,7 @@
 └── ...
 ```
 
-- **一个集群 = 一个容器**。根 administrator 和它管理的所有服务都在同一个容器内，由容器里的 systemd 管理。
+- **一个集群 = 一个容器**。根 administrator 和它管理的所有服务都在同一个容器内，由容器里的 systemd 管理。根 administrator 对子服务采取“静态停止绑定 + 运行时启动编排”的管理方式。
 - **所有集群共用同一个镜像**。镜像里不写入域名、端口等集群参数；这些参数在 `docker run` 时通过环境变量传入。
 - 全部用 `docker build` / `docker run` 完成，不使用 Docker Compose。
 - 基础系统固定为 **Ubuntu 20.04**，Python 使用 Ubuntu 默认的 **Python 3.8**。
