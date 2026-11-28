@@ -1255,7 +1255,7 @@ class Spawner(XSpawner): # NOQA
         """
         deadline = time.time() + timeout
         last_status_check = 0.0
-        loop = asyncio.get_running_loop()
+        loop = tornado.ioloop.IOLoop.current()
         while time.time() < deadline:
             if service_id and time.time() - last_status_check >= 2:
                 last_status_check = time.time()

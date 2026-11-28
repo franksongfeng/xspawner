@@ -109,9 +109,11 @@ class PostAsyncTimeoutTests(unittest.IsolatedAsyncioTestCase):
         srv = object.__new__(xs.Spawner)
         srv._logger = _NullLogger()
         srv.postJson = mock.AsyncMock(side_effect=[{"pid": 1}, {"pid": 2}])
-        with mock.patch.object(xs.tornado.gen, "sleep", new=mock.AsyncMock()):
+        with mock.patch.object(xs, "get_service_status", return_value={}) as status, \
+                mock.patch.object(xs.tornado.gen, "sleep", new=mock.AsyncMock()):
             info = await srv._wait_http_ready(
-                "http://127.0.0.1:8000", timeout=5, exclude_pid=1)
+                "http://127.0.0.1:8000", timeout=5, exclude_pid=1, service_id="child")
+        status.assert_any_call("child")
         self.assertEqual(info.get("pid"), 2)
         self.assertEqual(srv.postJson.await_count, 2)
 
