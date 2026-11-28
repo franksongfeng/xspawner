@@ -149,9 +149,10 @@ class StartChildTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def _start(self, data, stored=None, post_json_return=None,
-                     post_json_side_effect=None, ready_return=None):
-        self.srv.getValue = mock.AsyncMock(return_value=stored)
-        self.srv.addValue = mock.AsyncMock(return_value=True)
+                     post_json_side_effect=None, ready_return=None,
+                     add_ok=True, lookup_results=None):
+        self.srv.getValue = mock.AsyncMock(return_value=stored, side_effect=lookup_results)
+        self.srv.addValue = mock.AsyncMock(return_value=add_ok)
         self.srv.postJson = mock.AsyncMock(
             return_value=post_json_return,
             side_effect=post_json_side_effect)
@@ -184,6 +185,18 @@ class StartChildTests(unittest.IsolatedAsyncioTestCase):
         open_mock.assert_called_once()
         self.assertEqual(open_mock.call_args[0][0].id, "child1")
         self.srv.addValue.assert_awaited_once()
+
+    async def test_failed_registration_requires_matching_readback(self):
+        data = _make_config(id="child1", port=8101, parent="admin")._asdict()
+        for registered in (None, dict(data, port=8102), data):
+            with self.subTest(registered=registered):
+                result, _ = await self._start(
+                    data, add_ok=False, lookup_results=[None, registered])
+                if registered == data:
+                    self.assertEqual(result, {"id": "child1", "pid": 321})
+                else:
+                    self.assertIs(result, False)
+                    self.srv.postJson.assert_not_awaited()
 
     async def test_stored_config_can_be_started_by_id_only(self):
         stored = _make_config(id="child2", port=8102, parent="admin")._asdict()

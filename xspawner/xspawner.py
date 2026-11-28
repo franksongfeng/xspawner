@@ -1159,8 +1159,12 @@ class Spawner(XSpawner): # NOQA
         # 只登记带了完整 Config 字段的请求（如 /create、/deploy_child），
         # 避免 /start_child {"id": ...} 这类部分请求把拼出来的配置写进库。
         if not is_config_data(value) and all(name in data for name in Config._fields):
-            if not await self.addValue(child_config.id, config_to_dict(child_config)):
-                self.eLog(f"failed to persist config of child {child_config.id}")
+            expected = config_to_dict(child_config)
+            if not await self.addValue(child_id, expected):
+                # 并发请求可能已登记同一配置，回读确认后才能报告成功。
+                if await self.getValue(child_id) != expected:
+                    self.eLog(f"child {child_id} is running but its registration could not be confirmed")
+                    return False
 
 
         # 启动孙服务：子服务刚启动时可能暂时不可达，失败只记录，不能让
