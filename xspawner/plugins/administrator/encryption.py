@@ -23,6 +23,8 @@ import secrets
 import hashlib
 from typing import Optional, Dict, Tuple
 
+from tornado.ioloop import IOLoop
+
 from pywebio.input import input, PASSWORD
 from pywebio.output import put_error
 from pywebio.session import local, info
@@ -249,7 +251,7 @@ async def _require_password(srv) -> bool:
             return False
 
         # PBKDF2 是 CPU 密集，放线程池，避免阻塞 IOLoop
-        loop = asyncio.get_running_loop()
+        loop = IOLoop.current()
         ok = await loop.run_in_executor(None, _verify, pw or "", params)
 
         if ok:
